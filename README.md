@@ -8,3 +8,5 @@ DoNOF can perform computational chemistry calculations based on the Natural Orbi
 The solution is established optimizing the energy functional with respect to the occupation numbers (ONs) and to the natural orbitals (NOs), separately. The constrained nonlinear programming problem for the ONs is treated under pairing restrictions as an unconstrained minization, while the orbital optimization is carried out by a self-consistent procedure which yields the NOs automatically orthogonal. To achieve convergence, the direct inversion of the iterative subspace (DIIS) extrapolation technique is used, and a variable scale factor balances the symmetric matrix subject to the iterative diagonalizations.
  
 The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
+
+You can contact us by e-mail to DoNOFsw@gmail.com
