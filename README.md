@@ -9,4 +9,6 @@ The solution is established optimizing the energy functional with respect to the
  
 The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
 
+The online manual is available through the link https://donof.readthedocs.io/
+
 You can contact us by e-mail to DoNOFsw@gmail.com
