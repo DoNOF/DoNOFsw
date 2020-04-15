@@ -3923,7 +3923,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C Type of Calculation
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C
-C.......... ICOEF               Energy Optimization with respect to NOs  
+C.......... ICOEF               Energy Optimization with respect to NOs
+
+  
 C                      = 0      Optimize only with respect to ONs
 C                      = 1      Optimize by the ONs and NOs (DEFAULT)
 C                      = 2      Optimize only by NOs keeping fixed ONs
@@ -4319,6 +4321,13 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #endif
       READ(5,NOFINP,END=1,ERR=1)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+C     NVWO=-1 if NE=2
+C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(NE==2.and.NCWO/=-1)THEN
+       WRITE(6,3)
+       NCWO=-1
+      ENDIF
+C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Convergence Criteria
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       THRESHEID   = 10.0**(-NTHRESHEID)
@@ -4414,6 +4423,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      *       /2X,'*   ERROR IN NAMELIST PARAMETERS     *',
      *       /2X,'*                                    *',
      *       /2X,'**************************************')
+    3 FORMAT(/1X,'!!! Warning: In the case of two electrons,'
+     &       /5X,'there is only one electron pair.',
+     &       /5X,'To avoid spurious interpair contributions', 
+     &       /5X,'NCWO has been set equal to -1 !!! ')
 C-----------------------------------------------------------------------
       END
 
