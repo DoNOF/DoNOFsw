@@ -38,8 +38,6 @@
 !                                                                      !
 !    2017 NOF energy gradients implemented by Ion Mitxelena            !
 !                                                                      !
-!    2019 PQG conditions implemented by Ion Mitxelena                  !
-!                                                                      !
 !======================================================================!
 
       PROGRAM DoNOF                                                    
