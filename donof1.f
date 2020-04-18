@@ -236,7 +236,7 @@ C-----------------------------------------------------------------------
        COMMON/INPNOF_STATIC/Ista
        COMMON/INPNOF_DIAGELAG/DIAGLAG
        COMMON/INPNOF_INPUT_0/IEINI
-       COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID
+       COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID,KOOPMANS
        COMMON/INPNOF_INPUT_2/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG
        COMMON/INPNOF_INPUT_3/INPUTCXYZ
        COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
@@ -1262,6 +1262,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          IF(IPRINTOPT==0)RETURN
          WRITE(6,10)LOOPEXT,EHF,EHF+EN,DIF_EHF,DUMEL
          CALL PRINTEiHF(EiHF,NA,NBF)
+         IF(KOOPMANS==1.and.MSpin==0)THEN
+          CALL DIAGELAGHF(ELAG,CHF,RO10,EiHF,CHFNEW,TEMP)
+         ENDIF
          WRITE(6,2)EHF
          WRITE(6,3)EHF+EN
          IF(EFIELDL)WRITE(6,4)EX,EY,EZ
@@ -1367,7 +1370,88 @@ C-----------------------------------------------------------------------
       DEALLOCATE(E1)
       RETURN
       END
-     
+
+C DIAGELAGHF
+      SUBROUTINE DIAGELAGHF(ELAG,COEF,RO,ELAGN,COEFN,RON)
+C=======================================================================
+C     DIAGONALIZATION OF LAGRANGE MULTIPLIERS (ELAG)
+C=======================================================================
+      USE PARCOM
+      REAL,DIMENSION(NBF5)::RO
+      REAL,DIMENSION(NBF)::ELAGN,RON
+      REAL,DIMENSION(NBF,NBF)::ELAG,COEF,COEFN
+      REAL,ALLOCATABLE,DIMENSION(:)::TEMP
+      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DENMAT
+C-----------------------------------------------------------------------
+C     INTERMEDIATE MATRICES
+C-----------------------------------------------------------------------
+      ALLOCATE (AUX(NBF,NBF),W(NBF,NBF),TEMP(NBF))
+C-----------------------------------------------------------------------
+C     DIAGONALIZATION OF THE LAGRANGE MULTIPLIERS (ELAG)
+C-----------------------------------------------------------------------
+C     ELAG -> SQUARE MATRIX (AUX)
+C-----------------------------------------------------------------------
+      DO I=1,NBF
+       DO J=1,I
+        AUX(I,J)=ELAG(I,J)
+        AUX(J,I)=AUX(I,J)
+       ENDDO
+      ENDDO
+C-----------------------------------------------------------------------
+C     DIAGONALIZE SQUARE MATRIX (AUX) FOR REAL SYMMETRIC CASE
+C     NOTE: ONLY LOWER TRIANGLE IS USED + THIS IS DESTROYED !!!
+C     W - EIGENVECTORS, ELAGN - EIGENVALUES 
+C-----------------------------------------------------------------------
+      CALL DIAG(NBF,AUX,W,ELAGN,TEMP)
+C-----------------------------------------------------------------------
+C     New Density Matrix (D=Wt*RO*W)
+C-----------------------------------------------------------------------
+      ALLOCATE(DENMAT(NBF,NBF))
+      DO IP=1,NBF
+       DO IQ=1,NBF
+        DENMAT(IP,IQ)=0.0d0
+        do i=1,nbf5
+         DENMAT(IP,IQ)=DENMAT(IP,IQ)+W(i,IP)*RO(i)*W(i,IQ)
+        enddo
+       ENDDO
+      ENDDO
+C-----------------------------------------------------------------------
+C     WRITE ONE-PARTICLE ENERGIES and NEW AVERAGE OCCUPATIONS (OUTPUT)
+C-----------------------------------------------------------------------
+      WRITE(6,1)
+      DO I=1,NBF
+       RON(I)=2.0d0*DENMAT(I,I)
+       IF(RON(I)>1.0d-1)THEN
+        WRITE(6,2)I,-ELAGN(I),-ELAGN(I)*27.21138386,RON(I)
+       ENDIF
+      ENDDO
+      CALL DMATMAX(DENMAT,NBF,MAXI,MAXJ,DUM)
+      WRITE(6,3)DUM,MAXI,MAXJ
+C-----------------------------------------------------------------------
+C     Coefficients of Canonical Orbitals (COEFN=COEF*W)
+C-----------------------------------------------------------------------
+      COEFN = MATMUL(COEF,W)
+      ICANHF=0
+      IF(ICANHF==1)THEN
+       WRITE(6,4)
+       CALL PRINTVERO(6,COEFN,ELAGN,RON,NBF,NBF5)
+      ENDIF
+C-----------------------------------------------------------------------
+    1 FORMAT(/2X,42('-'),/3X,'Canonical Representation: Koopmans Theo.',
+     &       /2X,42('-'),//20X,'Ionization Potentials',11X,'1RDM Diag',
+     &       //19X,'(aU)',14X,'(eV)')
+    2 FORMAT(2X,I4,4X,F15.6,4X,F15.6,9X,F8.6)
+    3 FORMAT(/,15X,'Maximum 1RDM off-diagonal element:',F12.6,
+     &         1X,'(',I3,',',I3,')')    
+    4 FORMAT(/,
+     & 18X,'-----------------------',/,
+     & 18X,' Canonical HF Orbitals ',/,
+     & 18X,'-----------------------')
+C-----------------------------------------------------------------------
+      DEALLOCATE (AUX,W,TEMP,DENMAT)
+      RETURN
+      END
+      
 !======================================================================!
 !                                                                      !
 !                    Nuclear related Subroutines                       !
@@ -3954,6 +4038,9 @@ C
 C.......... MAXITID             Maximum number of external iterations 
 C                      = 30     (DEFAULT)
 C
+C.......... KOOPMANS            Calculate IPs using Koopmans' Theorem 
+C                      = 0      (DEFAULT)
+C
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C PNOF Selection
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -4215,10 +4302,10 @@ C                      = 3      LBFGS: OPTLBFGS, LBFGSOCUPr
 C
 C-----------------------------------------------------------------------
       NAMELIST/NOFINP/MAXIT,ICOEF,IEINI,NO1,HFID,NTHRESHEID,MAXITID,
-     &                IPNOF,Ista,HighSpin,NCWO,NTHRESHL,NTHRESHE,
-     &                NTHRESHEC,NTHRESHEN,NOPTORB,MAXLOOP,SCALING,
-     &                NZEROS,NZEROSm,NZEROSr,ITZITER,DIIS,NTHDIIS,         
-     &                NDIIS,PERDIIS,SC2MCPT,NO1PT2,NEX,OIMP2,
+     &                KOOPMANS,IPNOF,Ista,HighSpin,NCWO,NTHRESHL,
+     &                NTHRESHE,NTHRESHEC,NTHRESHEN,NOPTORB,MAXLOOP,
+     &                SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER,DIIS,
+     &                NTHDIIS,NDIIS,PERDIIS,SC2MCPT,NO1PT2,NEX,OIMP2,
      &                RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ,
      &                NPRINT,IWRITEC,IMULPOP,APSG,NTHAPSG,PRINTLAG,
      &                DIAGLAG,IAIMPAC,IEKT,NOUTRDM,NTHRESHDM,NSQT,
@@ -4238,6 +4325,7 @@ C     Hartree-Fock
       HFID=.TRUE.
       NTHRESHEID=8      
       MAXITID=30
+      KOOPMANS=0
 
 C     PNOF Selection
       IPNOF=7
@@ -4495,7 +4583,7 @@ C- - - - - - - - - - - - - - - - - - - - - -
       IF(.NOT.RESTART)WRITE(6,8)INPUTGAMMA,INPUTC,INPUTFMIUG
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(HFID)THEN
-       WRITE(6,85)NTHRESHEID,MAXITID
+       WRITE(6,85)NTHRESHEID,MAXITID,KOOPMANS
       ENDIF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ICOEF==1)THEN
@@ -4595,7 +4683,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    85 FORMAT(
      * /1X,'Hartree-Fock Calc. using ID Method:     (HFID)', 10X,'T',
      * /1X,'Threshold Energy Convergence=10**(-N):  (NTHRESHEID)',I5,
-     * /1X,'Max. Number of External Iterations:     (MAXITID)   ',I5)
+     * /1X,'Max. Number of External Iterations:     (MAXITID)   ',I5,
+     * /1X,'Ion. Potentials by Koopmans Theorem:    (KOOPMANS)  ',I5)
     9 FORMAT(
      * /1X,'Threshold Lambda Convergence=10**(-N):  (NTHRESHL)  ',I5,
      * /1X,'Threshold Energy Convergence=10**(-N):  (NTHRESHE)  ',I5,
@@ -5028,7 +5117,7 @@ C GuessCore
      &                     Q,H,S,NBF,NSQ,NBFT,IPRINTOPT)
       LOGICAL:: HFID
       INTEGER:: IPRINTOPT
-      COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID
+      COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID,KOOPMANS
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       REAL,DIMENSION(NBF) :: OCCa,OCCb,EIG
       REAL,DIMENSION(NSQ) :: VEC,Q
