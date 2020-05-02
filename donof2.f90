@@ -53,10 +53,11 @@
 ! CGOCUPSUMSLr
       SUBROUTINE CGOCUPSUMSLr(NV,GAMMA,USER,ENERGY)
       USE PARCOM
-      REAL,DIMENSION(NV) :: GAMMA
-      REAL,DIMENSION(NUSER) :: USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NV) :: GAMMA
+      DOUBLE PRECISION,DIMENSION(NUSER) :: USER
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IV      
-      REAL,ALLOCATABLE,DIMENSION(:) :: D,V     
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: D,V     
       EXTERNAL CALCOE,CALCOG
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       LIV = 60
@@ -74,10 +75,11 @@
 
 ! CALCOE      
       SUBROUTINE CALCOE(NV,GAMMA,NF,ENERGY,IUSER,USER)
-      USE PARCOM      
+      USE PARCOM 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(1) :: IUSER 
-      REAL,DIMENSION(NV)   :: GAMMA
-      REAL,DIMENSION(NUSER):: USER
+      DOUBLE PRECISION,DIMENSION(NV)   :: GAMMA
+      DOUBLE PRECISION,DIMENSION(NUSER):: USER
 !-----------------------------------------------------------------------
 !     Avoiding warnings
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -269,10 +271,11 @@
 
 ! CALCOG      
       SUBROUTINE CALCOG(NV,GAMMA,NF,GRAD,IUSER,USER)
-      USE PARCOM      
+      USE PARCOM 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(1) :: IUSER 
-      REAL,DIMENSION(NV) :: GAMMA,GRAD
-      REAL,DIMENSION(NUSER) :: USER
+      DOUBLE PRECISION,DIMENSION(NV) :: GAMMA,GRAD
+      DOUBLE PRECISION,DIMENSION(NUSER) :: USER
 !-----------------------------------------------------------------------
 !     Avoiding warnings
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -885,13 +888,14 @@ subroutine sumsl(n,d,x,calcf,calcg,iv,liv,lv,v,uiparm,urparm)
 !     appear nearly everywhere.)  these changes also add save state-
 !     ments for variables given machine-dependent constants by rmdcon.
 !
+  implicit double precision (a-h,o-z)   
   integer n, liv, lv
   integer iv(liv), uiparm(*)
-  real ( kind = 8 ) d(n), x(n), v(lv), urparm(*)
+  double precision d(n), x(n), v(lv), urparm(*)
 !     dimension v(71 + n*(n+15)/2), uiparm(*), urparm(*)
 
   integer g1, iv1, nf
-  real ( kind = 8 ) f
+  double precision f
   integer nextv, nfcall, nfgcal, g, toobig, vneed
 
   parameter (nextv=47, nfcall=6, nfgcal=7, g=28, toobig=2, vneed=4)
@@ -945,7 +949,7 @@ subroutine deflt ( alg, iv, liv, lv, v )
 
   integer alg
   integer iv(liv)
-  real ( kind = 8 ) v(lv)
+  double precision v(lv)
   external vdflt
   integer miv, mv
   integer miniv(2), minv(2)
@@ -1050,9 +1054,9 @@ subroutine vdflt ( alg, lv, v )
   implicit none
 
   integer alg, lv
-  real ( kind = 8 ) v(lv)
-  real ( kind = 8 ) rmdcon
-  real ( kind = 8 ) machep, mepcrt, one, sqteps, three
+  double precision v(lv)
+  double precision rmdcon
+  double precision machep, mepcrt, one, sqteps, three
   integer afctol, bias, cosmin, decfac, delta0, dfac, dinit, dltfdc
   integer dltfdj, dtinit, d0init, epslon, eta0, fuzz, huberc
   integer incfac, lmax0, lmaxs, phmnfc, phmxfc, rdfcmn, rdfcmx
@@ -1174,17 +1178,17 @@ subroutine sumit ( d, fx, g, iv, liv, lv, n, v, x)
   integer n
 
   integer iv(liv)
-  real ( kind = 8 ) d(n)
-  real ( kind = 8 ) fx
-  real ( kind = 8 ) g(n)
-  real ( kind = 8 ) v(lv)
-  real ( kind = 8 ) x(n)
+  double precision d(n)
+  double precision fx
+  double precision g(n)
+  double precision v(lv)
+  double precision x(n)
   integer dg1, g01, i, k, l, lstgst, nwtst1, step1
   integer        temp1, w, x01, z
-  real ( kind = 8 ) t
-  real ( kind = 8 ) half, negone, one, onep2, zero
+  double precision t
+  double precision half, negone, one, onep2, zero
   logical stopx
-  real ( kind = 8 ) dotprd, reldst, v2norm
+  double precision dotprd, reldst, v2norm
   integer cnvcod, dg, dgnorm, dinit, dstnrm, dst0, f, f0, fdif
   integer gthg, gtstep, g0, incfac, inith, irc, kagqt, lmat, lmax0
   integer lmaxs, mode, model, mxfcal, mxiter, nextv, nfcall, nfgcal
@@ -1504,14 +1508,14 @@ subroutine parck ( alg, d, iv, liv, lv, n, v )
 !
   integer alg, liv, lv, n
   integer iv(liv)
-  real ( kind = 8 ) d(n), v(lv)
-  real ( kind = 8 ) rmdcon
+  double precision d(n), v(lv)
+  double precision rmdcon
   integer max0
   integer i, ii, iv1, j, k, l, m, miv1, miv2, ndfalt, parsv1, pu
   integer ijmp, jlim(2), miniv(2), ndflt(2)
   character*1 varnm(2), sh(2)
   character*4 cngd(3), dflt(3), vn(2,34), which(3)
-  real ( kind = 8 ) big, machep, tiny, vk, vm(34), vx(34)
+  double precision big, machep, tiny, vk, vm(34), vx(34)
   integer algsav, dinit, dtype, dtype0, epslon, inits, ivneed
   integer lastiv, lastv, lmat, nextiv, nextv, nvdflt, oldn
   integer parprt, parsav, perm, prunit, vneed
@@ -1783,14 +1787,14 @@ subroutine itsum ( d, g, iv, liv, lv, p, v, x )
   integer lv
   integer p
 
-  real ( kind = 8 ) d(p)
-  real ( kind = 8 ) g(p)
+  double precision d(p)
+  double precision g(p)
   integer iv(liv)
-  real ( kind = 8 ) v(lv)
-  real ( kind = 8 ) x(p)
+  double precision v(lv)
+  double precision x(p)
   integer alg, i, iv1, m, nf, ng, ol, pu
   character*4 model1(6), model2(6)
-  real ( kind = 8 ) nreldf, oldf, preldf, reldf
+  double precision nreldf, oldf, preldf, reldf
   integer algsav, dstnrm, f, fdif, f0, needhd, nfcall, nfcov, ngcov
   integer ngcall, niter, nreduc, outlev, preduc, prntit, prunit
   integer reldx, solprt, statpr, stppar, sused, x0prt
@@ -2008,13 +2012,13 @@ function v2norm ( p, x )
 !
   integer p
 
-  real ( kind = 8 ) x(p)
+  double precision x(p)
   integer i, j
-  real ( kind = 8 ) r, scale
-  real ( kind = 8 ), save :: sqteta = 0.0D+00
-  real ( kind = 8 ) t, xi
-  real ( kind = 8 ) rmdcon
-  real ( kind = 8 ) v2norm
+  double precision r, scale
+  double precision, save :: sqteta = 0.0D+00
+  double precision t, xi
+  double precision rmdcon
+  double precision v2norm
 
   v2norm = 0.0D+00
 
@@ -2094,8 +2098,8 @@ function rmdcon ( k )
 !         k = 6... largest machine no. big such that -big exists.
 !
   integer k
-  real ( kind = 8 ) rmdcon
-  real ( kind = 8 ) big, eta, machep
+  double precision rmdcon
+  double precision big, eta, machep
   integer bigi(4), etai(4), machei(4)
   equivalence (big,bigi(1)), (eta,etai(1)), (machep,machei(1))
 !
@@ -2164,7 +2168,7 @@ function rmdcon ( k )
 !  port library -- requires more than just a data statement...
 !
 !     external d1mach
-!     real ( kind = 8 ) d1mach, zero
+!     double precision d1mach, zero
 !     data big/0.d+0/, eta/0.d+0/, machep/0.d+0/, zero/0.d+0/
 !     if (big > 0.0D+00) go to 1
 !        big = d1mach(2)
@@ -2209,8 +2213,8 @@ subroutine vcopy ( p, y, x )
   implicit none
 
   integer p
-  real ( kind = 8 ) x(p)
-  real ( kind = 8 ) y(p)
+  double precision x(p)
+  double precision y(p)
 
   y(1:p) = x(1:p)
 
@@ -2223,8 +2227,8 @@ subroutine vscopy ( p, y, s )
 !
   implicit none
   integer p
-  real ( kind = 8 ) s
-  real ( kind = 8 ) y(p)
+  double precision s
+  double precision y(p)
 
   y(1:p) = s
 
@@ -2238,9 +2242,9 @@ subroutine vvmulp ( n, x, y, z, k )
   implicit none
   integer n
   integer k
-  real ( kind = 8 ) x(n)
-  real ( kind = 8 ) y(n)
-  real ( kind = 8 ) z(n)
+  double precision x(n)
+  double precision y(n)
+  double precision z(n)
 
   if ( k < 0 ) then
     x(1:n) = y(1:n) / z(1:n)
@@ -2262,10 +2266,10 @@ subroutine lvmul ( n, x, l, y )
 !
   integer n
 
-  real ( kind = 8 ) x(n), l(*), y(n)
+  double precision x(n), l(*), y(n)
 !     dimension l(n*(n+1)/2)
   integer i, ii, ij, i0, j, np1
-  real ( kind = 8 ) t
+  double precision t
 
   np1 = n + 1
   i0 = n*(n+1)/2
@@ -2296,11 +2300,11 @@ subroutine livmul ( n, x, l, y )
 !
   integer n
 
-  real ( kind = 8 ) x(n), l(*), y(n)
+  double precision x(n), l(*), y(n)
   external dotprd
-  real ( kind = 8 ) dotprd
+  double precision dotprd
   integer i, j, k
-  real ( kind = 8 ) t
+  double precision t
 
   do k = 1, n
     if (y(k) /= 0.0D+00 ) go to 20
@@ -2341,11 +2345,11 @@ subroutine litvmu ( n, x, l, y )
 !
   integer n
 
-  real ( kind = 8 ) l(*)
-  real ( kind = 8 ) x(n)
-  real ( kind = 8 ) y(n)
+  double precision l(*)
+  double precision x(n)
+  double precision y(n)
   integer i, ii, ij, i0, j
-  real ( kind = 8 ) xi
+  double precision xi
 
   x(1:n) = y(1:n)
 
@@ -2380,10 +2384,10 @@ subroutine ltvmul ( n, x, l, y )
 !    x and y may occupy the same storage.
 !
   integer n
-  real ( kind = 8 ) x(n), l(*), y(n)
+  double precision x(n), l(*), y(n)
 !     dimension l(n*(n+1)/2)
   integer i, ij, i0, j
-  real ( kind = 8 ) yi
+  double precision yi
 
   i0 = 0
   do i = 1, n
@@ -2439,13 +2443,13 @@ subroutine lupdat ( beta, gamma, l, lambda, lplus, n, w, z )
 !             correction to  l.
 !
   integer n
-  real ( kind = 8 ) beta(n), gamma(n), l(*), lambda(n), lplus(*), w(n), z(n)
+  double precision beta(n), gamma(n), l(*), lambda(n), lplus(*), w(n), z(n)
 !     dimension l(n*(n+1)/2), lplus(n*(n+1)/2)
 !
   integer i, ij, j, jj, jp1, k, nm1
   integer np1
-  real ( kind = 8 ) a, b, bj, eta, gj, lj, lij, ljj, nu, s, theta, wj, zj
-  real ( kind = 8 ) one
+  double precision a, b, bj, eta, gj, lj, lij, ljj, nu, s, theta, wj, zj
+  double precision one
 
   parameter (one=1.d+0 )
 
@@ -2591,12 +2595,12 @@ subroutine dbdog ( dig, lv, n, nwtstp, step, v )
   integer lv
   integer n
 
-  real ( kind = 8 ) dig(n), nwtstp(n), step(n), v(lv)
+  double precision dig(n), nwtstp(n), step(n), v(lv)
   external dotprd, v2norm
-  real ( kind = 8 ) dotprd, v2norm
-  real ( kind = 8 ) cfact, cnorm, ctrnwt, ghinvg, femnsq, gnorm
-  real ( kind = 8 ) nwtnrm, relax, rlambd, t, t1, t2
-  real ( kind = 8 ) half, two
+  double precision dotprd, v2norm
+  double precision cfact, cnorm, ctrnwt, ghinvg, femnsq, gnorm
+  double precision nwtnrm, relax, rlambd, t, t1, t2
+  double precision half, two
   integer bias, dgnorm, dstnrm, dst0, grdfac, gthg, gtstep
   integer nreduc, nwtfac, preduc, radius, stppar
   parameter (half=0.5d+0, two=2.d+0)
@@ -2698,13 +2702,13 @@ function dotprd ( p, x, y )
 !
   integer p
 
-  real ( kind = 8 ) dotprd
+  double precision dotprd
   integer i
-  real ( kind = 8 ) rmdcon
-  real ( kind = 8 ), save :: sqteta = 0.0D+00
-  real ( kind = 8 ) t
-  real ( kind = 8 ) x(p)
-  real ( kind = 8 ) y(p)
+  double precision rmdcon
+  double precision, save :: sqteta = 0.0D+00
+  double precision t
+  double precision x(p)
+  double precision y(p)
 
   dotprd = 0.0D+00
 
@@ -2765,10 +2769,10 @@ subroutine vaxpy ( p, w, a, x, y )
 
   integer p
 
-  real ( kind = 8 ) a
-  real ( kind = 8 ) w(p)
-  real ( kind = 8 ) x(p)
-  real ( kind = 8 ) y(p)
+  double precision a
+  double precision w(p)
+  double precision x(p)
+  double precision y(p)
 
   w(1:p) = a * x(1:p) + y(1:p)
 
@@ -2781,10 +2785,10 @@ function reldst ( p, d, x, x0 )
 !
   integer p
 
-  real ( kind = 8 ) reldst
-  real ( kind = 8 ) d(p), x(p), x0(p)
+  double precision reldst
+  double precision d(p), x(p), x0(p)
   integer i
-  real ( kind = 8 ) emax, t, xmax
+  double precision emax, t, xmax
 
   emax = 0.0D+00
   xmax = 0.0D+00
@@ -3001,11 +3005,11 @@ subroutine assst ( iv, liv, lv, v )
   integer lv
 
   integer iv(liv)
-  real ( kind = 8 ) v(lv)
+  double precision v(lv)
   logical goodx
   integer i, nfc
-  real ( kind = 8 ) emax, emaxs, gts, rfac1, xmax
-  real ( kind = 8 ) half, one, onep2, two
+  double precision emax, emaxs, gts, rfac1, xmax
+  double precision half, one, onep2, two
   integer afctol, decfac, dstnrm, dstsav, dst0, f, fdif, flstgd, f0
   integer gtslst, gtstep, incfac, irc, lmaxs, mlstgd, model, nfcall
   integer nfgcal, nreduc, plstgd, preduc, radfac, radinc, rdfcmn
@@ -3343,19 +3347,19 @@ subroutine wzbfgs ( l, n, s, w, y, z )
 
   integer n
 
-  real ( kind = 8 ) dotprd
-  real ( kind = 8 ) cs
-  real ( kind = 8 ) cy
-  real ( kind = 8 ), parameter :: eps = 0.1D+00
-  real ( kind = 8 ) epsrt
-  real ( kind = 8 ) l(n*(n+1)/2)
-  real ( kind = 8 ) s(n)
-  real ( kind = 8 ) shs
-  real ( kind = 8 ) theta
-  real ( kind = 8 ) w(n)
-  real ( kind = 8 ) y(n)
-  real ( kind = 8 ) ys
-  real ( kind = 8 ) z(n)
+  double precision dotprd
+  double precision cs
+  double precision cy
+  double precision, parameter :: eps = 0.1D+00
+  double precision epsrt
+  double precision l(n*(n+1)/2)
+  double precision s(n)
+  double precision shs
+  double precision theta
+  double precision w(n)
+  double precision y(n)
+  double precision ys
+  double precision z(n)
 
   call ltvmul ( n, w, l, s )
   shs = dotprd ( n, w, w )
@@ -3411,11 +3415,13 @@ end
       SUBROUTINE DIPMOMr(DIPN,ADIPx,ADIPy,ADIPz,DIPx,DIPy,DIPz,QD,RO, &
                          DM1e,DM2e,DM3e,DM1,DM2,DM3,DTOTAL)
       USE PARCOM
-      REAL,DIMENSION(3),INTENT(IN)::DIPN
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
-      REAL,INTENT(OUT)::DM1,DM2,DM3,DTOTAL
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3),INTENT(IN)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
+      DOUBLE PRECISION,INTENT(OUT)::DM1,DM2,DM3,DTOTAL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX
 !-----------------------------------------------------------------------
 !     Electron Contribution to Dipole Moment
 !-----------------------------------------------------------------------
@@ -3423,45 +3429,51 @@ end
       DM2e = 0.0
       DM3e = 0.0
 !
+      ALLOCATE (AUX(NBF,NBF))
       DO J=1,NB
-       CALL TRACEm(DIPx(J),QD(J,1:NBF,1:NBF),ADIPx,NBF)
+       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL TRACEm(DIPx(J),AUX,ADIPx,NBF)
        DM1e = DM1e - 2.0*RO(J)*DIPx(J)
-       CALL TRACEm(DIPy(J),QD(J,1:NBF,1:NBF),ADIPy,NBF)
+       CALL TRACEm(DIPy(J),AUX,ADIPy,NBF)
        DM2e = DM2e - 2.0*RO(J)*DIPy(J)
-       CALL TRACEm(DIPz(J),QD(J,1:NBF,1:NBF),ADIPz,NBF)
+       CALL TRACEm(DIPz(J),AUX,ADIPz,NBF)
        DM3e = DM3e - 2.0*RO(J)*DIPz(J)
       ENDDO
 !      
       IF(NSOC>0)THEN
        if(.not.HighSpin)then
         DO J=NB+1,NA
-         CALL TRACEm(DIPx(J),QD(J,1:NBF,1:NBF),ADIPx,NBF)
+         AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+         CALL TRACEm(DIPx(J),AUX,ADIPx,NBF)
          DM1e = DM1e - 2.0*RO(J)*DIPx(J)
-         CALL TRACEm(DIPy(J),QD(J,1:NBF,1:NBF),ADIPy,NBF)
+         CALL TRACEm(DIPy(J),AUX,ADIPy,NBF)
          DM2e = DM2e - 2.0*RO(J)*DIPy(J)
-         CALL TRACEm(DIPz(J),QD(J,1:NBF,1:NBF),ADIPz,NBF)
+         CALL TRACEm(DIPz(J),AUX,ADIPz,NBF)
          DM3e = DM3e - 2.0*RO(J)*DIPz(J)
         ENDDO
        else if(HighSpin)then
         DO J=NB+1,NA
-         CALL TRACEm(DIPx(J),QD(J,1:NBF,1:NBF),ADIPx,NBF)
+         AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+         CALL TRACEm(DIPx(J),AUX,ADIPx,NBF)
          DM1e = DM1e - RO(J)*DIPx(J)
-         CALL TRACEm(DIPy(J),QD(J,1:NBF,1:NBF),ADIPy,NBF)
+         CALL TRACEm(DIPy(J),AUX,ADIPy,NBF)
          DM2e = DM2e - RO(J)*DIPy(J)
-         CALL TRACEm(DIPz(J),QD(J,1:NBF,1:NBF),ADIPz,NBF)
+         CALL TRACEm(DIPz(J),AUX,ADIPz,NBF)
          DM3e = DM3e - RO(J)*DIPz(J)
         ENDDO
        end if      
       ENDIF
 !       
       DO J=NA+1,NBF5
-       CALL TRACEm(DIPx(J),QD(J,1:NBF,1:NBF),ADIPx,NBF)
+       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL TRACEm(DIPx(J),AUX,ADIPx,NBF)
        DM1e = DM1e - 2.0*RO(J)*DIPx(J)
-       CALL TRACEm(DIPy(J),QD(J,1:NBF,1:NBF),ADIPy,NBF)
+       CALL TRACEm(DIPy(J),AUX,ADIPy,NBF)
        DM2e = DM2e - 2.0*RO(J)*DIPy(J)
-       CALL TRACEm(DIPz(J),QD(J,1:NBF,1:NBF),ADIPz,NBF)
+       CALL TRACEm(DIPz(J),AUX,ADIPz,NBF)
        DM3e = DM3e - 2.0*RO(J)*DIPz(J)
       ENDDO
+      DEALLOCATE (AUX)
 !-----------------------------------------------------------------------
 !     Nuclear Contribution to Dipole Moment
 !-----------------------------------------------------------------------
@@ -3482,15 +3494,17 @@ end
                           QUADxz,QUADyz,QD,RO,QM1e,QM2e,QM3e,QM4e,QM5e, &
                           QM6e,QM1,QM2,QM3,QM4,QM5,QM6)
       USE PARCOM
-      REAL, DIMENSION(NBF,NBF,NBF), INTENT(IN) :: QD
-      REAL, DIMENSION(NBF5), INTENT(IN) :: RO(NBF5)
-      REAL, DIMENSION(6), INTENT(IN) :: QUADN
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AQUADxx,AQUADyy,AQUADzz
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AQUADxy,AQUADxz,AQUADyz
-      REAL, DIMENSION(NBF5) :: QUADxx,QUADyy,QUADzz,QUADxy,QUADxz,QUADyz
-      REAL(8), INTENT(OUT) :: QM1,QM2,QM3,QM4,QM5,QM6
-      REAL(8) :: QM1e,QM2e,QM3e,QM4e,QM5e,QM6e
-      INTEGER(8) :: J
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION, DIMENSION(NBF,NBF,NBF), INTENT(IN) :: QD
+      DOUBLE PRECISION, DIMENSION(NBF5), INTENT(IN) :: RO(NBF5)
+      DOUBLE PRECISION, DIMENSION(6), INTENT(IN) :: QUADN
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION, DIMENSION(NBF5) :: QUADxx,QUADyy,QUADzz,QUADxy,QUADxz,QUADyz
+      DOUBLE PRECISION, INTENT(OUT) :: QM1,QM2,QM3,QM4,QM5,QM6
+      DOUBLE PRECISION :: QM1e,QM2e,QM3e,QM4e,QM5e,QM6e
+      INTEGER :: J
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX
 !-----------------------------------------------------------------------
 !     Electron Contribution to Quadrupole Moment
 !-----------------------------------------------------------------------
@@ -3501,69 +3515,75 @@ end
       QM5e=0.0d0
       QM6e=0.0d0
 !
+      ALLOCATE (AUX(NBF,NBF))
       DO J=1,NB
-       CALL TRACEm(QUADxx(J),QD(J,1:NBF,1:NBF),AQUADxx,NBF)
+       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL TRACEm(QUADxx(J),AUX,AQUADxx,NBF)
        QM1e = QM1e - 2.d0*RO(J)*QUADxx(J)
-       CALL TRACEm(QUADyy(J),QD(J,1:NBF,1:NBF),AQUADyy,NBF)
+       CALL TRACEm(QUADyy(J),AUX,AQUADyy,NBF)
        QM2e = QM2e - 2.d0*RO(J)*QUADyy(J)
-       CALL TRACEm(QUADzz(J),QD(J,1:NBF,1:NBF),AQUADzz,NBF)
+       CALL TRACEm(QUADzz(J),AUX,AQUADzz,NBF)
        QM3e = QM3e - 2.d0*RO(J)*QUADzz(J)
-       CALL TRACEm(QUADxy(J),QD(J,1:NBF,1:NBF),AQUADxy,NBF)
+       CALL TRACEm(QUADxy(J),AUX,AQUADxy,NBF)
        QM4e = QM4e - 2.d0*RO(J)*QUADxy(J)
-       CALL TRACEm(QUADxz(J),QD(J,1:NBF,1:NBF),AQUADxz,NBF)
+       CALL TRACEm(QUADxz(J),AUX,AQUADxz,NBF)
        QM5e = QM5e - 2.d0*RO(J)*QUADxz(J)
-       CALL TRACEm(QUADyz(J),QD(J,1:NBF,1:NBF),AQUADyz,NBF)
+       CALL TRACEm(QUADyz(J),AUX,AQUADyz,NBF)
        QM6e = QM6e - 2.d0*RO(J)*QUADyz(J)
       END DO
 !      
       IF(NSOC>0)THEN
        if(.not.HighSpin)then
         DO J=NB+1,NA
-         CALL TRACEm(QUADxx(J),QD(J,1:NBF,1:NBF),AQUADxx,NBF)
+         AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+         CALL TRACEm(QUADxx(J),AUX,AQUADxx,NBF)
          QM1e = QM1e - 2.d0*RO(J)*QUADxx(J)
-         CALL TRACEm(QUADyy(J),QD(J,1:NBF,1:NBF),AQUADyy,NBF)
+         CALL TRACEm(QUADyy(J),AUX,AQUADyy,NBF)
          QM2e = QM2e - 2.d0*RO(J)*QUADyy(J)
-         CALL TRACEm(QUADzz(J),QD(J,1:NBF,1:NBF),AQUADzz,NBF)
+         CALL TRACEm(QUADzz(J),AUX,AQUADzz,NBF)
          QM3e = QM3e - 2.d0*RO(J)*QUADzz(J)
-         CALL TRACEm(QUADxy(J),QD(J,1:NBF,1:NBF),AQUADxy,NBF)
+         CALL TRACEm(QUADxy(J),AUX,AQUADxy,NBF)
          QM4e = QM4e - 2.d0*RO(J)*QUADxy(J)
-         CALL TRACEm(QUADxz(J),QD(J,1:NBF,1:NBF),AQUADxz,NBF)
+         CALL TRACEm(QUADxz(J),AUX,AQUADxz,NBF)
          QM5e = QM5e - 2.d0*RO(J)*QUADxz(J)
-         CALL TRACEm(QUADyz(J),QD(J,1:NBF,1:NBF),AQUADyz,NBF)
+         CALL TRACEm(QUADyz(J),AUX,AQUADyz,NBF)
          QM6e = QM6e - 2.d0*RO(J)*QUADyz(J)
         END DO
        else if(HighSpin)then        
         DO J=NB+1,NA
-         CALL TRACEm(QUADxx(J),QD(J,1:NBF,1:NBF),AQUADxx,NBF)
+         AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+         CALL TRACEm(QUADxx(J),AUX,AQUADxx,NBF)
          QM1e = QM1e - RO(J)*QUADxx(J)
-         CALL TRACEm(QUADyy(J),QD(J,1:NBF,1:NBF),AQUADyy,NBF)
+         CALL TRACEm(QUADyy(J),AUX,AQUADyy,NBF)
          QM2e = QM2e - RO(J)*QUADyy(J)
-         CALL TRACEm(QUADzz(J),QD(J,1:NBF,1:NBF),AQUADzz,NBF)
+         CALL TRACEm(QUADzz(J),AUX,AQUADzz,NBF)
          QM3e = QM3e - RO(J)*QUADzz(J)
-         CALL TRACEm(QUADxy(J),QD(J,1:NBF,1:NBF),AQUADxy,NBF)
+         CALL TRACEm(QUADxy(J),AUX,AQUADxy,NBF)
          QM4e = QM4e - RO(J)*QUADxy(J)
-         CALL TRACEm(QUADxz(J),QD(J,1:NBF,1:NBF),AQUADxz,NBF)
+         CALL TRACEm(QUADxz(J),AUX,AQUADxz,NBF)
          QM5e = QM5e - RO(J)*QUADxz(J)
-         CALL TRACEm(QUADyz(J),QD(J,1:NBF,1:NBF),AQUADyz,NBF)
+         CALL TRACEm(QUADyz(J),AUX,AQUADyz,NBF)
          QM6e = QM6e - RO(J)*QUADyz(J)
         END DO
        end if
       END IF
 !
       DO J=NA+1,NBF5
-       CALL TRACEm(QUADxx(J),QD(J,1:NBF,1:NBF),AQUADxx,NBF)
+       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL TRACEm(QUADxx(J),AUX,AQUADxx,NBF)
        QM1e = QM1e - 2.d0*RO(J)*QUADxx(J)
-       CALL TRACEm(QUADyy(J),QD(J,1:NBF,1:NBF),AQUADyy,NBF)
+       CALL TRACEm(QUADyy(J),AUX,AQUADyy,NBF)
        QM2e = QM2e - 2.d0*RO(J)*QUADyy(J)
-       CALL TRACEm(QUADzz(J),QD(J,1:NBF,1:NBF),AQUADzz,NBF)
+       CALL TRACEm(QUADzz(J),AUX,AQUADzz,NBF)
        QM3e = QM3e - 2.d0*RO(J)*QUADzz(J)
-       CALL TRACEm(QUADxy(J),QD(J,1:NBF,1:NBF),AQUADxy,NBF)
+       CALL TRACEm(QUADxy(J),AUX,AQUADxy,NBF)
        QM4e = QM4e - 2.d0*RO(J)*QUADxy(J)
-       CALL TRACEm(QUADxz(J),QD(J,1:NBF,1:NBF),AQUADxz,NBF)
+       CALL TRACEm(QUADxz(J),AUX,AQUADxz,NBF)
        QM5e = QM5e - 2.d0*RO(J)*QUADxz(J)
-       CALL TRACEm(QUADyz(J),QD(J,1:NBF,1:NBF),AQUADyz,NBF)
+       CALL TRACEm(QUADyz(J),AUX,AQUADyz,NBF)
        QM6e = QM6e - 2.d0*RO(J)*QUADyz(J)
       END DO
+      DEALLOCATE (AUX)
 !-----------------------------------------------------------------------
 !     Add Nuclear Contribution to Quadrupole Moment
 !-----------------------------------------------------------------------
@@ -3598,20 +3618,22 @@ end
                          OXXY,OXXZ,OXYY,OYYZ,OXZZ, &
                          OYZZ,OXYZ)
       USE PARCOM
-      REAL, DIMENSION(NBF,NBF,NBF), INTENT(IN) :: QD
-      REAL, DIMENSION(NBF5), INTENT(IN) :: RO(NBF5)
-      REAL, DIMENSION(10), INTENT(IN) :: OCTUN(10)
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxxx,AOCTyyy,AOCTzzz
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxyy,AOCTyyz,AOCTxzz
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxxy,AOCTxxz
-      REAL, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTyzz,AOCTxyz
-      REAL, DIMENSION(NBF5) :: OCTxxx,OCTyyy,OCTzzz,OCTxxy,OCTxxz
-      REAL, DIMENSION(NBF5) :: OCTxyy,OCTyyz,OCTxzz,OCTyzz,OCTxyz
-      REAL(8) :: OMXXXe,OMYYYe,OMZZZe,OMXXYe,OMXXZe
-      REAL(8) :: OMXYYe,OMYYZe,OMXZZe,OMYZZe,OMXYZe
-      REAL(8), INTENT(OUT) :: OXXX,OYYY,OZZZ,OXXY,OXXZ
-      REAL(8), INTENT(OUT) :: OXYY,OYYZ,OXZZ,OYZZ,OXYZ
-      INTEGER(8) :: J
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION, DIMENSION(NBF,NBF,NBF), INTENT(IN) :: QD
+      DOUBLE PRECISION, DIMENSION(NBF5), INTENT(IN) :: RO(NBF5)
+      DOUBLE PRECISION, DIMENSION(10), INTENT(IN) :: OCTUN(10)
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxxx,AOCTyyy,AOCTzzz
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxyy,AOCTyyz,AOCTxzz
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTxxy,AOCTxxz
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: AOCTyzz,AOCTxyz
+      DOUBLE PRECISION, DIMENSION(NBF5) :: OCTxxx,OCTyyy,OCTzzz,OCTxxy,OCTxxz
+      DOUBLE PRECISION, DIMENSION(NBF5) :: OCTxyy,OCTyyz,OCTxzz,OCTyzz,OCTxyz
+      DOUBLE PRECISION :: OMXXXe,OMYYYe,OMZZZe,OMXXYe,OMXXZe
+      DOUBLE PRECISION :: OMXYYe,OMYYZe,OMXZZe,OMYZZe,OMXYZe
+      DOUBLE PRECISION, INTENT(OUT) :: OXXX,OYYY,OZZZ,OXXY,OXXZ
+      DOUBLE PRECISION, INTENT(OUT) :: OXYY,OYYZ,OXZZ,OYZZ,OXYZ
+      INTEGER :: J
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX
 !-----------------------------------------------------------------------
 !     Electron Contribution to Quadrupole Moment
 !-----------------------------------------------------------------------
@@ -3626,101 +3648,107 @@ end
       OMYZZe=0.0d0
       OMXYZe=0.0d0
 !
+      ALLOCATE (AUX(NBF,NBF))
       DO J=1,NB
-        CALL TRACEm(OCTxxx(J),QD(J,1:NBF,1:NBF),AOCTxxx,NBF)
+        AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+        CALL TRACEm(OCTxxx(J),AUX,AOCTxxx,NBF)
         OMXXXe = OMXXXe - 2.d0*RO(J)*OCTxxx(J)
-        CALL TRACEm(OCTyyy(J),QD(J,1:NBF,1:NBF),AOCTyyy,NBF)
+        CALL TRACEm(OCTyyy(J),AUX,AOCTyyy,NBF)
         OMYYYe = OMYYYe - 2.d0*RO(J)*OCTyyy(J)
-        CALL TRACEm(OCTzzz(J),QD(J,1:NBF,1:NBF),AOCTzzz,NBF)
+        CALL TRACEm(OCTzzz(J),AUX,AOCTzzz,NBF)
         OMZZZe = OMZZZe - 2.d0*RO(J)*OCTzzz(J)
-        CALL TRACEm(OCTxxy(J),QD(J,1:NBF,1:NBF),AOCTxxy,NBF)
+        CALL TRACEm(OCTxxy(J),AUX,AOCTxxy,NBF)
         OMXXYe = OMXXYe - 2.d0*RO(J)*OCTxxy(J)
-        CALL TRACEm(OCTxxz(J),QD(J,1:NBF,1:NBF),AOCTxxz,NBF)
+        CALL TRACEm(OCTxxz(J),AUX,AOCTxxz,NBF)
         OMXXZe = OMXXZe - 2.d0*RO(J)*OCTxxz(J)
-        CALL TRACEm(OCTxyy(J),QD(J,1:NBF,1:NBF),AOCTxyy,NBF)
+        CALL TRACEm(OCTxyy(J),AUX,AOCTxyy,NBF)
         OMXYYe = OMXYYe - 2.d0*RO(J)*OCTxyy(J)
-        CALL TRACEm(OCTyyz(J),QD(J,1:NBF,1:NBF),AOCTyyz,NBF)
+        CALL TRACEm(OCTyyz(J),AUX,AOCTyyz,NBF)
         OMYYZe = OMYYZe - 2.d0*RO(J)*OCTyyz(J)
-        CALL TRACEm(OCTxzz(J),QD(J,1:NBF,1:NBF),AOCTxzz,NBF)
+        CALL TRACEm(OCTxzz(J),AUX,AOCTxzz,NBF)
         OMXZZe = OMXZZe - 2.d0*RO(J)*OCTxzz(J)
-        CALL TRACEm(OCTyzz(J),QD(J,1:NBF,1:NBF),AOCTyzz,NBF)
+        CALL TRACEm(OCTyzz(J),AUX,AOCTyzz,NBF)
         OMYZZe = OMYZZe - 2.d0*RO(J)*OCTyzz(J)
-        CALL TRACEm(OCTxyz(J),QD(J,1:NBF,1:NBF),AOCTxyz,NBF)
+        CALL TRACEm(OCTxyz(J),AUX,AOCTxyz,NBF)
         OMXYZe = OMXYZe - 2.d0*RO(J)*OCTxyz(J)
       END DO
 !      
       IF(NSOC>0)THEN
        if(.not.HighSpin)then
         DO J=NB+1,NA
-          CALL TRACEm(OCTxxx(J),QD(J,1:NBF,1:NBF),AOCTxxx,NBF)
+          AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+          CALL TRACEm(OCTxxx(J),AUX,AOCTxxx,NBF)
           OMXXXe = OMXXXe - 2.d0*RO(J)*OCTxxx(J)
-          CALL TRACEm(OCTyyy(J),QD(J,1:NBF,1:NBF),AOCTyyy,NBF)
+          CALL TRACEm(OCTyyy(J),AUX,AOCTyyy,NBF)
           OMYYYe = OMYYYe - 2.d0*RO(J)*OCTyyy(J)
-          CALL TRACEm(OCTzzz(J),QD(J,1:NBF,1:NBF),AOCTzzz,NBF)
+          CALL TRACEm(OCTzzz(J),AUX,AOCTzzz,NBF)
           OMZZZe = OMZZZe - 2.d0*RO(J)*OCTzzz(J)
-          CALL TRACEm(OCTxxy(J),QD(J,1:NBF,1:NBF),AOCTxxy,NBF)
+          CALL TRACEm(OCTxxy(J),AUX,AOCTxxy,NBF)
           OMXXYe = OMXXYe - 2.d0*RO(J)*OCTxxy(J)
-          CALL TRACEm(OCTxxz(J),QD(J,1:NBF,1:NBF),AOCTxxz,NBF)
+          CALL TRACEm(OCTxxz(J),AUX,AOCTxxz,NBF)
           OMXXZe = OMXXZe - 2.d0*RO(J)*OCTxxz(J)
-          CALL TRACEm(OCTxyy(J),QD(J,1:NBF,1:NBF),AOCTxyy,NBF)
+          CALL TRACEm(OCTxyy(J),AUX,AOCTxyy,NBF)
           OMXYYe = OMXYYe - 2.d0*RO(J)*OCTxyy(J)
-          CALL TRACEm(OCTyyz(J),QD(J,1:NBF,1:NBF),AOCTyyz,NBF)
+          CALL TRACEm(OCTyyz(J),AUX,AOCTyyz,NBF)
           OMYYZe = OMYYZe - 2.d0*RO(J)*OCTyyz(J)
-          CALL TRACEm(OCTxzz(J),QD(J,1:NBF,1:NBF),AOCTxzz,NBF)
+          CALL TRACEm(OCTxzz(J),AUX,AOCTxzz,NBF)
           OMXZZe = OMXZZe - 2.d0*RO(J)*OCTxzz(J)
-          CALL TRACEm(OCTyzz(J),QD(J,1:NBF,1:NBF),AOCTyzz,NBF)
+          CALL TRACEm(OCTyzz(J),AUX,AOCTyzz,NBF)
           OMYZZe = OMYZZe - 2.d0*RO(J)*OCTyzz(J)
-          CALL TRACEm(OCTxyz(J),QD(J,1:NBF,1:NBF),AOCTxyz,NBF)
+          CALL TRACEm(OCTxyz(J),AUX,AOCTxyz,NBF)
           OMXYZe = OMXYZe - 2.d0*RO(J)*OCTxyz(J)
         END DO
        else if(HighSpin)then
         DO J=NB+1,NA
-          CALL TRACEm(OCTxxx(J),QD(J,1:NBF,1:NBF),AOCTxxx,NBF)
+          AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+          CALL TRACEm(OCTxxx(J),AUX,AOCTxxx,NBF)
           OMXXXe = OMXXXe - RO(J)*OCTxxx(J)
-          CALL TRACEm(OCTyyy(J),QD(J,1:NBF,1:NBF),AOCTyyy,NBF)
+          CALL TRACEm(OCTyyy(J),AUX,AOCTyyy,NBF)
           OMYYYe = OMYYYe - RO(J)*OCTyyy(J)
-          CALL TRACEm(OCTzzz(J),QD(J,1:NBF,1:NBF),AOCTzzz,NBF)
+          CALL TRACEm(OCTzzz(J),AUX,AOCTzzz,NBF)
           OMZZZe = OMZZZe - RO(J)*OCTzzz(J)
-          CALL TRACEm(OCTxxy(J),QD(J,1:NBF,1:NBF),AOCTxxy,NBF)
+          CALL TRACEm(OCTxxy(J),AUX,AOCTxxy,NBF)
           OMXXYe = OMXXYe - RO(J)*OCTxxy(J)
-          CALL TRACEm(OCTxxz(J),QD(J,1:NBF,1:NBF),AOCTxxz,NBF)
+          CALL TRACEm(OCTxxz(J),AUX,AOCTxxz,NBF)
           OMXXZe = OMXXZe - RO(J)*OCTxxz(J)
-          CALL TRACEm(OCTxyy(J),QD(J,1:NBF,1:NBF),AOCTxyy,NBF)
+          CALL TRACEm(OCTxyy(J),AUX,AOCTxyy,NBF)
           OMXYYe = OMXYYe - RO(J)*OCTxyy(J)
-          CALL TRACEm(OCTyyz(J),QD(J,1:NBF,1:NBF),AOCTyyz,NBF)
+          CALL TRACEm(OCTyyz(J),AUX,AOCTyyz,NBF)
           OMYYZe = OMYYZe - RO(J)*OCTyyz(J)
-          CALL TRACEm(OCTxzz(J),QD(J,1:NBF,1:NBF),AOCTxzz,NBF)
+          CALL TRACEm(OCTxzz(J),AUX,AOCTxzz,NBF)
           OMXZZe = OMXZZe - RO(J)*OCTxzz(J)
-          CALL TRACEm(OCTyzz(J),QD(J,1:NBF,1:NBF),AOCTyzz,NBF)
+          CALL TRACEm(OCTyzz(J),AUX,AOCTyzz,NBF)
           OMYZZe = OMYZZe - RO(J)*OCTyzz(J)
-          CALL TRACEm(OCTxyz(J),QD(J,1:NBF,1:NBF),AOCTxyz,NBF)
+          CALL TRACEm(OCTxyz(J),AUX,AOCTxyz,NBF)
           OMXYZe = OMXYZe - RO(J)*OCTxyz(J)
         END DO
        end if
       END IF
 !       
       DO J=1,NBF5
-        CALL TRACEm(OCTxxx(J),QD(J,1:NBF,1:NBF),AOCTxxx,NBF)
+        AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+        CALL TRACEm(OCTxxx(J),AUX,AOCTxxx,NBF)
         OMXXXe = OMXXXe - 2.d0*RO(J)*OCTxxx(J)
-        CALL TRACEm(OCTyyy(J),QD(J,1:NBF,1:NBF),AOCTyyy,NBF)
+        CALL TRACEm(OCTyyy(J),AUX,AOCTyyy,NBF)
         OMYYYe = OMYYYe - 2.d0*RO(J)*OCTyyy(J)
-        CALL TRACEm(OCTzzz(J),QD(J,1:NBF,1:NBF),AOCTzzz,NBF)
+        CALL TRACEm(OCTzzz(J),AUX,AOCTzzz,NBF)
         OMZZZe = OMZZZe - 2.d0*RO(J)*OCTzzz(J)
-        CALL TRACEm(OCTxxy(J),QD(J,1:NBF,1:NBF),AOCTxxy,NBF)
+        CALL TRACEm(OCTxxy(J),AUX,AOCTxxy,NBF)
         OMXXYe = OMXXYe - 2.d0*RO(J)*OCTxxy(J)
-        CALL TRACEm(OCTxxz(J),QD(J,1:NBF,1:NBF),AOCTxxz,NBF)
+        CALL TRACEm(OCTxxz(J),AUX,AOCTxxz,NBF)
         OMXXZe = OMXXZe - 2.d0*RO(J)*OCTxxz(J)
-        CALL TRACEm(OCTxyy(J),QD(J,1:NBF,1:NBF),AOCTxyy,NBF)
+        CALL TRACEm(OCTxyy(J),AUX,AOCTxyy,NBF)
         OMXYYe = OMXYYe - 2.d0*RO(J)*OCTxyy(J)
-        CALL TRACEm(OCTyyz(J),QD(J,1:NBF,1:NBF),AOCTyyz,NBF)
+        CALL TRACEm(OCTyyz(J),AUX,AOCTyyz,NBF)
         OMYYZe = OMYYZe - 2.d0*RO(J)*OCTyyz(J)
-        CALL TRACEm(OCTxzz(J),QD(J,1:NBF,1:NBF),AOCTxzz,NBF)
+        CALL TRACEm(OCTxzz(J),AUX,AOCTxzz,NBF)
         OMXZZe = OMXZZe - 2.d0*RO(J)*OCTxzz(J)
-        CALL TRACEm(OCTyzz(J),QD(J,1:NBF,1:NBF),AOCTyzz,NBF)
+        CALL TRACEm(OCTyzz(J),AUX,AOCTyzz,NBF)
         OMYZZe = OMYZZe - 2.d0*RO(J)*OCTyzz(J)
-        CALL TRACEm(OCTxyz(J),QD(J,1:NBF,1:NBF),AOCTxyz,NBF)
+        CALL TRACEm(OCTxyz(J),AUX,AOCTxyz,NBF)
         OMXYZe = OMXYZe - 2.d0*RO(J)*OCTxyz(J)
       END DO
+      DEALLOCATE (AUX)
 !-----------------------------------------------------------------------
 !     Nuclear Contribution to Quadrupole Moment
 !-----------------------------------------------------------------------
@@ -3758,9 +3786,10 @@ end
 ! PASSDIPUSER
       SUBROUTINE PASSDIPUSER(DIPN,ADIPx,ADIPy,ADIPz,USER)
       USE PARCOM
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(DIPN ,USER(N11),  3)
       CALL XtoX0(ADIPx,USER(N12),NSQ)
@@ -3773,9 +3802,10 @@ end
 ! PASSUSERDIP
       SUBROUTINE PASSUSERDIP(DIPN,ADIPx,ADIPy,ADIPz,USER)
       USE PARCOM
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(USER(N11),DIPN ,  3)
       CALL XtoX0(USER(N12),ADIPx,NSQ)
@@ -3789,10 +3819,11 @@ end
       SUBROUTINE PASSQUADUSER(QUADN,AQUADxx,AQUADyy,AQUADzz,AQUADxy, &
                               AQUADxz,AQUADyz,USER)
       USE PARCOM
-      REAL,DIMENSION(6)::QUADN
-      REAL,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
-      REAL,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(6)::QUADN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(QUADN  ,USER(N18),  6)
       CALL XtoX0(AQUADxx,USER(N19),NSQ)
@@ -3809,10 +3840,11 @@ end
       SUBROUTINE PASSUSERQUAD(QUADN,AQUADxx,AQUADyy,AQUADzz,         &
                                     AQUADxy,AQUADxz,AQUADyz,USER)
       USE PARCOM
-      REAL,DIMENSION(6)::QUADN
-      REAL,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
-      REAL,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(6)::QUADN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(USER(N18),QUADN  ,  6)
       CALL XtoX0(USER(N19),AQUADxx,NSQ)
@@ -3830,10 +3862,11 @@ end
                              AOCTxxz,AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz, &
                              AOCTxyz,USER)
       USE PARCOM
-      REAL,DIMENSION(10)::OCTUN
-      REAL,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
-      REAL,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(10)::OCTUN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(OCTUN  ,USER(N31), 10)
       CALL XtoX0(AOCTxxx,USER(N32),NSQ)
@@ -3855,10 +3888,11 @@ end
                              AOCTxxz,AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz, &
                              AOCTxyz,USER)
       USE PARCOM
-      REAL,DIMENSION(10)::OCTUN
-      REAL,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
-      REAL,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(10)::OCTUN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 !-----------------------------------------------------------------------
       CALL XtoX0(USER(N31),OCTUN  , 10)
       CALL XtoX0(USER(N32),AOCTxxx,NSQ)
@@ -3948,20 +3982,21 @@ end
                  ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,    &
                  ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP)
       USE PARCOM            
-      REAL,DIMENSION(NAT) :: ZAN,ZMASS
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
       INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
-      REAL,DIMENSION(NPRIMI) :: C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(3,NAT):: Cxyz
-      REAL,DIMENSION(3*NAT):: GRADS
-      REAL,DIMENSION(:,:),ALLOCATABLE:: HESSIANO,DDM
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
+      DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE:: HESSIANO,DDM
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
 !-----------------------------------------------------------------------
       EELEC_MIN = 1.0d20
 !     Generate an initial GCF if RESTART=F setting ICOEF=0
-      IF (RESTART==.FALSE.) THEN
+      IF (RESTART .eqv. .FALSE.) THEN
        ICOEF2 = ICOEF
        ICOEF = 0
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NSHELL,NPRIMI,        &
@@ -4012,11 +4047,11 @@ end
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       INTEGER,INTENT(IN)        :: IRUNTYP
-      REAL,DIMENSION(NAT)       :: ZAN,ZMASS
-      REAL,DIMENSION(NPRIMI)    :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(3,NAT)     :: Cxyz
-      REAL,DIMENSION(3*NAT),INTENT(OUT) :: GRADIENT
-      REAL,DIMENSION(3) :: DIPS
+      DOUBLE PRECISION,DIMENSION(NAT)       :: ZAN,ZMASS
+      DOUBLE PRECISION,DIMENSION(NPRIMI)    :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT)     :: Cxyz
+      DOUBLE PRECISION,DIMENSION(3*NAT),INTENT(OUT) :: GRADIENT
+      DOUBLE PRECISION,DIMENSION(3) :: DIPS
       COMMON/EHFEN/EHF,EN,EMP2,EMP3
       COMMON/ENERGY/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
@@ -4026,7 +4061,7 @@ end
                          NU10,NU11,NU12,NU13,NULAST
       COMMON/GRADIENTE/GRADS(300)               ! NATOMS=100 in donof.f   
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IV
-      REAL,ALLOCATABLE,DIMENSION(:) :: USER,D,V     
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,D,V     
       EXTERNAL CALCOPTE,CALCOPTG
 !-----------------------------------------------------------------------
 !     Define Pointers of the USER array
@@ -4143,6 +4178,7 @@ end
       END
 ! POINTERSOPT
       SUBROUTINE POINTERSOPT(NAT,NSHELL,NPRIMI)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,    &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,    &
@@ -4196,14 +4232,15 @@ end
 ! CALCOPTE      
       SUBROUTINE CALCOPTE(NV,Cxyz,NF,ENERGIA,IUSER,USER)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,    &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,    &
                          NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,  &
                          NU10,NU11,NU12,NU13,NULAST
       INTEGER,DIMENSION(NIULAST) :: IUSER 
-      REAL,DIMENSION(NV)         :: Cxyz
-      REAL,DIMENSION(NULAST)     :: USER
+      DOUBLE PRECISION,DIMENSION(NV)         :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NULAST)     :: USER
       COMMON/GRADIENTE/GRADS(300)
 !-----------------------------------------------------------------------
       CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),               &
@@ -4223,15 +4260,16 @@ end
 ! CALCOPTG      
       SUBROUTINE CALCOPTG(NV,Cxyz,NF,GRAD,IUSER,USER)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,    &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,    &
                          NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,  &
                          NU10,NU11,NU12,NU13,NULAST
       INTEGER,DIMENSION(NIULAST) :: IUSER 
-      REAL,DIMENSION(NV)         :: Cxyz
-      REAL,DIMENSION(NV)         :: GRAD      
-      REAL,DIMENSION(NULAST)     :: USER
+      DOUBLE PRECISION,DIMENSION(NV)         :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NV)         :: GRAD      
+      DOUBLE PRECISION,DIMENSION(NULAST)     :: USER
       COMMON/GRADIENTE/GRADS(300)
 !-----------------------------------------------------------------------
 !     Avoiding warnings
@@ -4253,16 +4291,16 @@ end
                           DIPS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       PARAMETER (BOHR = 0.52917724924D+00) 
-      REAL,DIMENSION(NAT) :: ZAN,ZMASS
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
       INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
-      REAL,DIMENSION(NPRIMI) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(3,NAT):: Cxyz
-      REAL,DIMENSION(3*NAT),INTENT(OUT):: GRADIENT
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
+      DOUBLE PRECISION,DIMENSION(3*NAT),INTENT(OUT):: GRADIENT
       INTEGER,INTENT(IN):: IRUNTYP
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,    &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,    &
@@ -4270,7 +4308,7 @@ end
                          NU10,NU11,NU12,NU13,NULAST
 !                         
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IWORK
-      REAL,ALLOCATABLE,DIMENSION(:)    :: USER,WORK,GRADS
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)    :: USER,WORK,GRADS
       EXTERNAL ENERGYFUN
 !-----------------------------------------------------------------------
 !     Define Pointers of the user arrays
@@ -4416,6 +4454,7 @@ end
       END
 ! ENERGYFUN
       SUBROUTINE ENERGYFUN(MODE,NV,Cxyz,ENERGIA,GRADS,NSTATE,IUSER,USER)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9, &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,    &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,    &
@@ -4424,8 +4463,8 @@ end
       COMMON/EHFEN/EHF,EN,EMP2,EMP3
       COMMON/ENERGY/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
       INTEGER,DIMENSION(*) :: IUSER
-      REAL,DIMENSION(*) :: USER
-      REAL,DIMENSION(NV) :: Cxyz,GRADS
+      DOUBLE PRECISION,DIMENSION(*) :: USER
+      DOUBLE PRECISION,DIMENSION(NV) :: Cxyz,GRADS
       PARAMETER (BOHR = 0.52917724924D+00)
 !-----------------------------------------------------------------------
       NSTATE = 1
@@ -4455,23 +4494,23 @@ end
       PARAMETER (BOHR = 0.52917724924D+00)
       INTEGER,INTENT(IN)::NINTEG,IDONTW,IEMOM,NAT,NBF,NSHELL
       INTEGER,INTENT(IN)::NPRIMI,IRUNTYP,NPRINT
-      REAL,DIMENSION(NAT) :: ZAN
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
-      REAL,DIMENSION(NPRIMI) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(3,NAT):: Cxyz
-      REAL,DIMENSION(3*NAT),INTENT(OUT):: GRADIENT
-      REAL,DIMENSION(3*NAT):: GRADS
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
+      DOUBLE PRECISION,DIMENSION(3*NAT),INTENT(OUT):: GRADIENT
+      DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
       COMMON/EHFEN/EHF,EN,EMP2,EMP3
       COMMON/ENERGY/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
       COMMON /LB3/MP,LP,GTOL,STPMIN,STPMAX
       INTEGER,PARAMETER::MSAVE=7
-      REAL(8),DIMENSION(:),ALLOCATABLE::W
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::W
       DOUBLE PRECISION X(3,NAT),G(3*NAT),DIAG(3*NAT)
-      REAL(8)::F,EPS,XTOL,GTOL,STPMIN,STPMAX,EELEC_MIN_LBFGS
+      DOUBLE PRECISION::F,EPS,XTOL,GTOL,STPMIN,STPMAX,EELEC_MIN_LBFGS
       INTEGER::IFLAG,ICALL,N,M,MP,LP,NWORK
       INTEGER,DIMENSION(2)::IPRINT
       LOGICAL::DIAGCO
@@ -4588,19 +4627,20 @@ end
                           KLOC,KKMIN,KKMAX,KSTART,KNG,CX0,CY0,CZ0,ZNUC,&
                           EX1,CS,CP,CD,CF,CG,CJ12,CK12,XINTS,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4 ATMNAME(NATOMS)
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
       INTEGER,INTENT(IN)::IPRINTOPT
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::COEF
-      REAL,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::ELAG
-      REAL,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
-      REAL,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::COEF
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::ELAG
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
 !
 !     ONE-ELECTRON CONTRIBUTION TO THE GRADIENT
 !
@@ -4628,18 +4668,19 @@ end
                            KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,    &
                            CX0,CY0,CZ0,ZNUC,EX1,CS,CP,CD,CF,CG)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG  
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::COEF
-      REAL,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
-      REAL(8),DIMENSION(:,:),ALLOCATABLE::DM2
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::ELAG
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
-      REAL(8),DIMENSION(NBFT)::LEPS
-      REAL(8),PARAMETER::ZERO=0.0D+00
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::COEF
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::DM2
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::ELAG
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
+      DOUBLE PRECISION,DIMENSION(NBFT)::LEPS
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
 !-----------------------------------------------------------------------
 !     MAKE GRADIENT ZERO
       GRADS=ZERO
@@ -4692,11 +4733,11 @@ end
         ENDDO
       ENDIF
 !-----------------------------------------------------------------------
-    1 FORMAT( /,5X,'-----------------------',                 &
-              /5X,' One-Electron Gradient ',                  &
-              /5X,'-----------------------',                  &
-              //2X,'Atom',10X,'EX',13X,'EY',13X,'EZ' )
-    2 FORMAT(/I4,1X,A4,3X,F10.7,5X,F10.7,5X,F10.7)
+!    1 FORMAT( /,5X,'-----------------------',                 &
+!              /5X,' One-Electron Gradient ',                  &
+!              /5X,'-----------------------',                  &
+!              //2X,'Atom',10X,'EX',13X,'EY',13X,'EZ' )
+!    2 FORMAT(/I4,1X,A4,3X,F10.7,5X,F10.7,5X,F10.7)
 !-----------------------------------------------------------------------
       RETURN
       END   
@@ -4705,43 +4746,44 @@ end
                           KSTART,KNG,CJ12,CK12,QD,RO,GRADS,CX0,CY0,CZ0,&
                           EX1,CS,CP,CD,CF,CG,ATMNAME,XINTS,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 !     INPUT-OUTPUT VARIABLES OR ARGUMENTS
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      REAL,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(:,:),ALLOCATABLE::P,DAAUX,DAAUX2
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::P,DAAUX,DAAUX2
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
       CHARACTER*4 ATMNAME(NATOMS)
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
       INTEGER,INTENT(IN)::IPRINTOPT
 !     INTERMEDIATE VARIABLES 
-      INTEGER(8),DIMENSION(NBF)::IA
-      INTEGER(8),DIMENSION(4,35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
-      INTEGER(8),DIMENSION(:,:),ALLOCATABLE::NIJG,IJKLG
+      INTEGER,DIMENSION(NBF)::IA
+      INTEGER,DIMENSION(4,35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
+      INTEGER,DIMENSION(:,:),ALLOCATABLE::NIJG,IJKLG
       INTEGER,DIMENSION(5)::LENSHL
-      INTEGER(8)::MAXFUN,NIJGDIM,MAXVEC,MINVEC,MODTYP,LVAR,LFIX
-      INTEGER(8)::MINMEM,MAXNUM,MINXYZ,MAXXYZ
-      INTEGER(8)::IDER,JDER,KDER,LDER
-      INTEGER(8)::TOTCOUNT,INVTYP,NROOTS,NIJ,NKL,KANG,I
-      INTEGER(8)::II,JJ,KK,LL,MAXLL,ISH,JSH,KSH,LSH,IIAT,JJAT,KKAT,LLAT
-      INTEGER(8)::MINJ,MAXJ,MINK,MAXK,MINL,MAXL,MINI,MAXI,NIJ0,NKL0
-      INTEGER(8)::LIT,LJT,LKT,LLTT,NUMI,NUMJ,NUMK,NUML,IIJJ,KKLL
+      INTEGER::MAXFUN,NIJGDIM,MAXVEC,MINVEC,MODTYP,LVAR,LFIX
+      INTEGER::MINMEM,MAXNUM,MINXYZ,MAXXYZ
+      INTEGER::IDER,JDER,KDER,LDER
+      INTEGER::TOTCOUNT,INVTYP,NROOTS,NIJ,NKL,KANG,I
+      INTEGER::II,JJ,KK,LL,MAXLL,ISH,JSH,KSH,LSH,IIAT,JJAT,KKAT,LLAT
+      INTEGER::MINJ,MAXJ,MINK,MAXK,MINL,MAXL,MINI,MAXI,NIJ0,NKL0
+      INTEGER::LIT,LJT,LKT,LLTT,NUMI,NUMJ,NUMK,NUML,IIJJ,KKLL
       LOGICAL::SKIPI,SKIPJ,SKIPK,SKIPL,SPI,SPJ,SPK,SPL,SPIJ,SPKL,SPIJKL
       LOGICAL::IIEQJJ,KKEQLL,IJEQKL,IJGTKL,IJLTKL,EXPNDI,EXPNDK
-      REAL(8)::DABMAX,DABCUT,CUTOFF,CUTOFF2,GMAX
-      REAL(8),DIMENSION(:,:),ALLOCATABLE::DCHRG
-      REAL(8),DIMENSION(:),ALLOCATABLE::DAB,GINT,FINT
-      REAL(8),DIMENSION(84)::PNRM
-      REAL(8)::FI
-      REAL(8),PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
-      REAL(8),PARAMETER::SQRT3=1.73205080756888D+00
-      REAL(8),PARAMETER::SQRT5=2.23606797749979D+00
-      REAL(8),PARAMETER::SQRT7=2.64575131106459D+00
-      REAL(8),PARAMETER::TEN=10.0D+00,TENM9=1.0D-09,TENM11=1.0D-11
+      DOUBLE PRECISION::DABMAX,DABCUT,CUTOFF,CUTOFF2,GMAX
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::DCHRG
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::DAB,GINT,FINT
+      DOUBLE PRECISION,DIMENSION(84)::PNRM
+      DOUBLE PRECISION::FI
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::SQRT3=1.73205080756888D+00
+      DOUBLE PRECISION,PARAMETER::SQRT5=2.23606797749979D+00
+      DOUBLE PRECISION,PARAMETER::SQRT7=2.64575131106459D+00
+      DOUBLE PRECISION,PARAMETER::TEN=10.0D+00,TENM9=1.0D-09,TENM11=1.0D-11
       DATA LENSHL /1,4,10,20,35/
 !-----------------------------------------------------------------------
 !     ROUTINE BASCHK DO:
@@ -4988,42 +5030,43 @@ end
                            KSTART,KNG,QD,RO,GRADS,CX0,CY0,CZ0,         &
                            EX1,CS,CP,CD,CF,CG,ATMNAME,XINTS,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 !     INPUT-OUTPUT VARIABLES OR ARGUMENTS
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      REAL,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(:,:),ALLOCATABLE::P,CJAUX,CKAUX
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::P,CJAUX,CKAUX
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
       CHARACTER*4 ATMNAME(NATOMS)
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
       INTEGER,INTENT(IN)::IPRINTOPT
 !     INTERMEDIATE VARIABLES
-      INTEGER(8),DIMENSION(NBF)::IA
-      INTEGER(8),DIMENSION(4,35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
-      INTEGER(8),DIMENSION(:,:),ALLOCATABLE::NIJG,IJKLG
+      INTEGER,DIMENSION(NBF)::IA
+      INTEGER,DIMENSION(4,35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
+      INTEGER,DIMENSION(:,:),ALLOCATABLE::NIJG,IJKLG
       INTEGER,DIMENSION(5)::LENSHL
-      INTEGER(8)::MAXFUN,NIJGDIM,MAXVEC,MINVEC,MODTYP,LVAR,LFIX
-      INTEGER(8)::MINMEM,MAXNUM,MINXYZ,MAXXYZ
-      INTEGER(8)::IDER,JDER,KDER,LDER
-      INTEGER(8)::TOTCOUNT,INVTYP,NROOTS,NIJ,NKL,KANG,I
-      INTEGER(8)::II,JJ,KK,LL,MAXLL,ISH,JSH,KSH,LSH,IIAT,JJAT,KKAT,LLAT
-      INTEGER(8)::MINJ,MAXJ,MINK,MAXK,MINL,MAXL,MINI,MAXI,NIJ0,NKL0
-      INTEGER(8)::LIT,LJT,LKT,LLTT,NUMI,NUMJ,NUMK,NUML,IIJJ,KKLL
+      INTEGER::MAXFUN,NIJGDIM,MAXVEC,MINVEC,MODTYP,LVAR,LFIX
+      INTEGER::MINMEM,MAXNUM,MINXYZ,MAXXYZ
+      INTEGER::IDER,JDER,KDER,LDER
+      INTEGER::TOTCOUNT,INVTYP,NROOTS,NIJ,NKL,KANG,I
+      INTEGER::II,JJ,KK,LL,MAXLL,ISH,JSH,KSH,LSH,IIAT,JJAT,KKAT,LLAT
+      INTEGER::MINJ,MAXJ,MINK,MAXK,MINL,MAXL,MINI,MAXI,NIJ0,NKL0
+      INTEGER::LIT,LJT,LKT,LLTT,NUMI,NUMJ,NUMK,NUML,IIJJ,KKLL
       LOGICAL::SKIPI,SKIPJ,SKIPK,SKIPL,SPI,SPJ,SPK,SPL,SPIJ,SPKL,SPIJKL
       LOGICAL::IIEQJJ,KKEQLL,IJEQKL,IJGTKL,IJLTKL,EXPNDI,EXPNDK
-      REAL(8)::DABMAX,DABCUT,CUTOFF,CUTOFF2,GMAX
-      REAL(8),DIMENSION(:,:),ALLOCATABLE::DCHRG
-      REAL(8),DIMENSION(:),ALLOCATABLE::DAB,GINT,FINT
-      REAL(8),DIMENSION(84)::PNRM
-      REAL(8)::FI
-      REAL(8),PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
-      REAL(8),PARAMETER::SQRT3=1.73205080756888D+00
-      REAL(8),PARAMETER::SQRT5=2.23606797749979D+00
-      REAL(8),PARAMETER::SQRT7=2.64575131106459D+00
-      REAL(8),PARAMETER::TEN=10.0D+00,TENM9=1.0D-09,TENM11=1.0D-11
+      DOUBLE PRECISION::DABMAX,DABCUT,CUTOFF,CUTOFF2,GMAX
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::DCHRG
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::DAB,GINT,FINT
+      DOUBLE PRECISION,DIMENSION(84)::PNRM
+      DOUBLE PRECISION::FI
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::SQRT3=1.73205080756888D+00
+      DOUBLE PRECISION,PARAMETER::SQRT5=2.23606797749979D+00
+      DOUBLE PRECISION,PARAMETER::SQRT7=2.64575131106459D+00
+      DOUBLE PRECISION,PARAMETER::TEN=10.0D+00,TENM9=1.0D-09,TENM11=1.0D-11
       DATA LENSHL /1,4,10,20,35/
 !-----------------------------------------------------------------------
 !     ROUTINE BASCHK DO:
@@ -5273,11 +5316,12 @@ end
 ! AOLAGRAN
       SUBROUTINE AOLAGRAN(C,EE,LEPS,N,NL)
       USE PARCOM
-      REAL,DIMENSION(N,N),INTENT(IN)::C,EE
-      REAL,DIMENSION(NL),INTENT(OUT)::LEPS
-      REAL(8),DIMENSION(N,N)::AUXELG,AELG
-      REAL(8)::AUX
-      REAL(8),PARAMETER::PT5=0.5D+00,ZERO=0.0D+00
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N),INTENT(IN)::C,EE
+      DOUBLE PRECISION,DIMENSION(NL),INTENT(OUT)::LEPS
+      DOUBLE PRECISION,DIMENSION(N,N)::AUXELG,AELG
+      DOUBLE PRECISION::AUX
+      DOUBLE PRECISION,PARAMETER::PT5=0.5D+00,ZERO=0.0D+00
 !-----------------------------------------------------------------------
 !     COEF*LAMBDA*COEF
 !-----------------------------------------------------------------------
@@ -5319,8 +5363,9 @@ end
 !-----------------------------------------------------------------------
 ! SQUARETRIAN2
       SUBROUTINE SQUARETRIAN2(FM,F,N,NT)
-      REAL,DIMENSION(N,N)::FM
-      REAL,DIMENSION(NT)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::FM
+      DOUBLE PRECISION,DIMENSION(NT)::F
 !-----------------------------------------------------------------------
 !     PUT SQUARE FM IN TRIANGULAR FORM F
 !-----------------------------------------------------------------------
@@ -5337,8 +5382,9 @@ end
       END
 ! SQUARETRIAN3
       SUBROUTINE SQUARETRIAN3(FM,F,N,NT)
-      REAL,DIMENSION(N,N,N)::FM
-      REAL,DIMENSION(N,NT)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N,N)::FM
+      DOUBLE PRECISION,DIMENSION(N,NT)::F
       NZ=0
       DO I=1,N
        DO J=1,I
@@ -5352,9 +5398,10 @@ end
       END      
 ! TRACEs
       SUBROUTINE TRACEs(E,AA,EEPS,N,NL)
-      REAL,DIMENSION(N,N),INTENT(IN)::AA
-      REAL,DIMENSION(NL),INTENT(IN)::EEPS
-      REAL,INTENT(OUT)::E
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N),INTENT(IN)::AA
+      DOUBLE PRECISION,DIMENSION(NL),INTENT(IN)::EEPS
+      DOUBLE PRECISION,INTENT(OUT)::E
       E = 0.0D+0
       KL = 0
       DO K=1,N
@@ -5370,15 +5417,13 @@ end
 ! VINTNOF
       SUBROUTINE VINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,           &
                          XINT,YINT,ZINT)
-!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!
       INTEGER,INTENT(IN)::NI,NJ
-      REAL,INTENT(IN)::T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ
-      REAL,INTENT(OUT)::XINT,YINT,ZINT
+      DOUBLE PRECISION,INTENT(IN)::T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ
+      DOUBLE PRECISION,INTENT(OUT)::XINT,YINT,ZINT
       INTEGER,DIMENSION(7)::IIMIN,IIMAX
-      REAL(8),DIMENSION(55)::HTOTAL,WTOTAL
-      REAL(8),PARAMETER::ZERO=0.0D+00
+      DOUBLE PRECISION,DIMENSION(55)::HTOTAL,WTOTAL
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
 !
       DATA IIMIN /1,2,4,7,11,16,22/
       DATA IIMAX /1,3,6,10,15,21,28/
@@ -5466,9 +5511,10 @@ end
       END
 ! DERINOF
       SUBROUTINE DERINOF(DXDI,DYDI,DZDI,X,Y,Z,LIT,LJT,AI)
-      REAL,DIMENSION(5,1),INTENT(OUT)::DXDI,DYDI,DZDI
-      REAL,DIMENSION(6,5),INTENT(IN)::X,Y,Z
-      REAL,INTENT(IN)::AI
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(5,1),INTENT(OUT)::DXDI,DYDI,DZDI
+      DOUBLE PRECISION,DIMENSION(6,5),INTENT(IN)::X,Y,Z
+      DOUBLE PRECISION,INTENT(IN)::AI
       INTEGER,INTENT(IN)::LIT,LJT
 !
 !     ----- DXDI ... -----
@@ -5494,15 +5540,13 @@ end
 ! DVINTNOF
       SUBROUTINE DVINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,          &
                           CX,CY,CZ,XINT,YINT,ZINT)
-!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!      
       INTEGER,INTENT(IN)::NI,NJ
-      REAL,INTENT(IN)::T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,CX,CY,CZ
-      REAL,INTENT(OUT)::XINT,YINT,ZINT
+      DOUBLE PRECISION,INTENT(IN)::T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,CX,CY,CZ
+      DOUBLE PRECISION,INTENT(OUT)::XINT,YINT,ZINT
       INTEGER,DIMENSION(7)::IIMIN,IIMAX
-      REAL(8),DIMENSION(55)::HTOTAL,WTOTAL
-      REAL(8),PARAMETER::ZERO=0.0D+00
+      DOUBLE PRECISION,DIMENSION(55)::HTOTAL,WTOTAL
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
 !
       DATA IIMIN /1,2,4,7,11,16,22/
       DATA IIMAX /1,3,6,10,15,21,28/
@@ -5577,11 +5621,12 @@ end
       END      
 ! DTXYZNOF
       SUBROUTINE DTXYZNOF(XT,YT,ZT,XS,YS,ZS,NI,NJ,AJ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::NI,NJ
-      REAL,INTENT(IN)::AJ
-      REAL,DIMENSION(6,5),INTENT(OUT)::XT,YT,ZT
-      REAL,DIMENSION(6,7),INTENT(IN)::XS,YS,ZS
-      REAL(8),PARAMETER::THREE=3.0D+00
+      DOUBLE PRECISION,INTENT(IN)::AJ
+      DOUBLE PRECISION,DIMENSION(6,5),INTENT(OUT)::XT,YT,ZT
+      DOUBLE PRECISION,DIMENSION(6,7),INTENT(IN)::XS,YS,ZS
+      DOUBLE PRECISION,PARAMETER::THREE=3.0D+00
 !
       DO I=1,NI
         XT(I,1)=(XS(I,1  )       - XS(I,3  )*(AJ+AJ))*AJ
@@ -5617,13 +5662,11 @@ end
       END
 ! RT123NOF
       SUBROUTINE RT123NOF(X,NROOTS,UAUX,WAUX)
-!      
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!
-      REAL(8),INTENT(IN)::X
+      DOUBLE PRECISION,INTENT(IN)::X
       INTEGER,INTENT(IN)::NROOTS
-      REAL(8),DIMENSION(13),INTENT(OUT)::UAUX,WAUX
-      REAL(8),DIMENSION(13)::U,W
+      DOUBLE PRECISION,DIMENSION(13),INTENT(OUT)::UAUX,WAUX
+      DOUBLE PRECISION,DIMENSION(13)::U,W
 !      
       EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
       EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
@@ -5764,10 +5807,10 @@ end
            7.51549330892401D-03 )*Y-8.48778120363400D-02 )*Y+          &
            5.73928229597613D-01
       RT3 = ((((((((-2.81496588401439D-10*Y+3.61058041895031D-09)*Y+   &
-          4.53631789436255D-08 )*Y-1.40971837780847D-07 )*Y-          &
-          6.05865557561067D-06 )*Y-5.15964042227127D-05 )*Y+          &
-          3.34761560498171D-05 )*Y+5.04871005319119D-02 )*Y-          &
-          8.24708946991557D-01 )*Y+4.81234667357205D+00
+           4.53631789436255D-08 )*Y-1.40971837780847D-07 )*Y-          &
+           6.05865557561067D-06 )*Y-5.15964042227127D-05 )*Y+          &
+           3.34761560498171D-05 )*Y+5.04871005319119D-02 )*Y-          &
+           8.24708946991557D-01 )*Y+4.81234667357205D+00
       F2 = ((((((((((-1.48044231072140D-10*Y+1.78157031325097D-09 )*Y- &
            1.92514145088973D-08 )*Y+1.92804632038796D-07 )*Y-          &
            1.73806555021045D-06 )*Y+1.39195169625425D-05 )*Y-          &
@@ -5778,24 +5821,24 @@ end
 !     X = 3.0 TO 5.0                   NROOTS =1,2, OR 3               
   340 Y = X-4.0D+00
       IF (NROOTS .EQ. 3) GO TO 380
-      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y-  &
-         +     3.614965656163D-09)*Y+3.760256799971D-08)*Y-             &
-         +     3.553558319675D-07)*Y+3.022556449731D-06)*Y-             &
-         +     2.290098979647D-05)*Y+1.526537461148D-04)*Y-             &
-         +     8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-       &
-         +     1.75257821619926D-02 )*Y+5.28406320615584D-02            
+      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y- &
+           3.614965656163D-09)*Y+3.760256799971D-08)*Y-                &
+           3.553558319675D-07)*Y+3.022556449731D-06)*Y-                &
+           2.290098979647D-05)*Y+1.526537461148D-04)*Y-                &
+           8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-          &
+           1.75257821619926D-02 )*Y+5.28406320615584D-02            
       WW1 = (X+X)*F1+EXP(-X)                                            
       IF (NROOTS .EQ. 2) GO TO 360                                      
       RT1 = F1/(WW1-F1)
       UAUX=U
       WAUX=W
       RETURN
-  360 RT1 = ((((((((-4.11560117487296D-12*Y+7.10910223886747D-11)*Y-    &
+  360 RT1 = ((((((((-4.11560117487296D-12*Y+7.10910223886747D-11)*Y-   &
               1.73508862390291D-09 )*Y+5.93066856324744D-08 )*Y-       &
               9.76085576741771D-07 )*Y+1.08484384385679D-05 )*Y-       &
               1.12608004981982D-04 )*Y+1.16210907653515D-03 )*Y-       &
               9.89572595720351D-03 )*Y+6.12589701086408D-02
-      RT2 = (((((((((-1.80555625241001D-10*Y+5.44072475994123D-10)*Y+   &
+      RT2 = (((((((((-1.80555625241001D-10*Y+5.44072475994123D-10)*Y+  &
            1.603498045240D-08)*Y-1.497986283037D-07)*Y-                &
            7.017002532106D-07)*Y+1.85882653064034D-05 )*Y-             &
            2.04685420150802D-05 )*Y-2.49327728643089D-03 )*Y+          &
@@ -5889,7 +5932,7 @@ end
       GO TO 260                                                          
 !     X = 10.0 TO 15.0                 NROOTS=1,2, OR 3
   480 WW1 = (((-1.8784686463512D-01/X+2.2991849164985D-01)/X -           &
-          +  4.9893752514047D-01)/X-2.1916512131607D-05)*E + SQRT(PIE4/X)
+            4.9893752514047D-01)/X-2.1916512131607D-05)*E + SQRT(PIE4/X)
       F1 = (WW1-E)/(X+X)
       IF (NROOTS-2) 500,520,540
   500 RT1 = F1/(WW1-F1)
@@ -6038,11 +6081,10 @@ end
       END      
 ! ROOT4NOF
       SUBROUTINE ROOT4NOF(X,UAUX,WAUX)
-!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      REAL(8),INTENT(IN)::X
-      REAL(8),DIMENSION(13),INTENT(OUT)::UAUX,WAUX
-      REAL(8),DIMENSION(13)::U,W
+      DOUBLE PRECISION,INTENT(IN)::X
+      DOUBLE PRECISION,DIMENSION(13),INTENT(OUT)::UAUX,WAUX
+      DOUBLE PRECISION,DIMENSION(13)::U,W
 !
       EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
       EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
@@ -6432,11 +6474,10 @@ end
       END            
 ! ROOT5NOF
       SUBROUTINE ROOT5NOF(X,UAUX,WAUX)
-!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      REAL(8),INTENT(IN)::X
-      REAL(8),DIMENSION(13),INTENT(OUT)::UAUX,WAUX
-      REAL(8),DIMENSION(13)::U,W
+      DOUBLE PRECISION,INTENT(IN)::X
+      DOUBLE PRECISION,DIMENSION(13),INTENT(OUT)::UAUX,WAUX
+      DOUBLE PRECISION,DIMENSION(13)::U,W
 !
       EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
       EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
@@ -6971,22 +7012,21 @@ end
       END    
 ! ROOT6NOF
       SUBROUTINE ROOT6NOF(XX,NROOTS,UF,WF)
-!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !
       INTEGER,PARAMETER::MR=13,MXAUX=55
-      REAL(8),PARAMETER::ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D+00
 !
-      REAL(8),INTENT(IN)::XX
+      DOUBLE PRECISION,INTENT(IN)::XX
       INTEGER,INTENT(IN)::NROOTS
-      REAL(8),DIMENSION(13),INTENT(OUT)::UF,WF
+      DOUBLE PRECISION,DIMENSION(13),INTENT(OUT)::UF,WF
 !
-      REAL(8),DIMENSION(0:MR-1)::ALPHA,BETA
-      REAL(8),DIMENSION(MR)::RTS,WTS,WRK
-      REAL(8),DIMENSION(MR)::XASYMP
-      REAL(8),DIMENSION(MR,MR)::RTSASY,WTSASY
-      REAL(8),DIMENSION(55,8)::RTSAUX,WTSAUX
-      REAL(8),DIMENSION(MXAUX)::RGRID,WGRID,P0,P1,P2
+      DOUBLE PRECISION,DIMENSION(0:MR-1)::ALPHA,BETA
+      DOUBLE PRECISION,DIMENSION(MR)::RTS,WTS,WRK
+      DOUBLE PRECISION,DIMENSION(MR)::XASYMP
+      DOUBLE PRECISION,DIMENSION(MR,MR)::RTSASY,WTSASY
+      DOUBLE PRECISION,DIMENSION(55,8)::RTSAUX,WTSAUX
+      DOUBLE PRECISION,DIMENSION(MXAUX)::RGRID,WGRID,P0,P1,P2
       INTEGER,DIMENSION(MR)::NAUXS,MAPRYS
 !
 !           GENERAL CASE (NROOTS=1 TO 13) OF RYS ROOTS/WEIGHTS
@@ -7031,11 +7071,11 @@ end
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
 !      
       INTEGER,INTENT(IN)::NROOTS
-      REAL(8),INTENT(IN)::XX
-      REAL(8),DIMENSION(13,13),INTENT(IN)::RTSASY,WTSASY
-      REAL(8),DIMENSION(NROOTS),INTENT(OUT)::RTS,WTS
+      DOUBLE PRECISION,INTENT(IN)::XX
+      DOUBLE PRECISION,DIMENSION(13,13),INTENT(IN)::RTSASY,WTSASY
+      DOUBLE PRECISION,DIMENSION(NROOTS),INTENT(OUT)::RTS,WTS
 !
-      REAL(8),PARAMETER::ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D+00
 !
 !     THE ROOTS AND WEIGHTS FOR XX = BIG ARE GIVEN BY:
 !       T*T = S*S/XX    W = V/SQRT(XX)
@@ -7056,13 +7096,13 @@ end
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
 !      
       INTEGER,PARAMETER::MR=13, MAUX=55
-      REAL(8),PARAMETER::ZERO=0.0D+00,ONE=1.0D+00,TWO=2.0D+00,FOUR=4.0D+00
-      REAL(8),DIMENSION(MAUX)::RTS,WTS,WRK
-      REAL(8),DIMENSION(0:MAUX-1)::ALPHA,BETA
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00,TWO=2.0D+00,FOUR=4.0D+00
+      DOUBLE PRECISION,DIMENSION(MAUX)::RTS,WTS,WRK
+      DOUBLE PRECISION,DIMENSION(0:MAUX-1)::ALPHA,BETA
 !
-      REAL(8),DIMENSION(MR),INTENT(OUT)::XASYMP
-      REAL(8),DIMENSION(MR,MR),INTENT(OUT)::RTSASY,WTSASY
-      REAL(8),DIMENSION(55,8),INTENT(OUT)::RTSAUX,WTSAUX
+      DOUBLE PRECISION,DIMENSION(MR),INTENT(OUT)::XASYMP
+      DOUBLE PRECISION,DIMENSION(MR,MR),INTENT(OUT)::RTSASY,WTSASY
+      DOUBLE PRECISION,DIMENSION(55,8),INTENT(OUT)::RTSAUX,WTSAUX
       INTEGER,DIMENSION(MR),INTENT(OUT)::NAUXS,MAPRYS
 !
 !     ----- INITIALIZE THE RYS QUADRATURE PROCEDURE -----
@@ -7164,9 +7204,9 @@ end
       SUBROUTINE RYSGWNOF(N,ALPHA,BETA,EPS,ROOTS,WEIGHT,IERR,WRK)
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       INTEGER,INTENT(IN)::N
-      REAL(8),DIMENSION(N),INTENT(IN)::ALPHA,BETA
-      REAL(8),INTENT(IN)::EPS
-      REAL(8),DIMENSION(N),INTENT(OUT)::ROOTS,WEIGHT,WRK
+      DOUBLE PRECISION,DIMENSION(N),INTENT(IN)::ALPHA,BETA
+      DOUBLE PRECISION,INTENT(IN)::EPS
+      DOUBLE PRECISION,DIMENSION(N),INTENT(OUT)::ROOTS,WEIGHT,WRK
       INTEGER,INTENT(OUT)::IERR
 !
 !        INPUT:  N - - THE NUMBER OF POINTS IN THE GAUSSIAN QUADRATURE
@@ -7308,15 +7348,14 @@ end
       RETURN
       END
 ! RYSDSNOF
-      SUBROUTINE RYSDSNOF(N,NCAP,X,W,ALPHA,BETA,IERR,P0,P1,P2)
-!      
+      SUBROUTINE RYSDSNOF(N,NCAP,X,W,ALPHA,BETA,IERR,P0,P1,P2)      
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
 !
       INTEGER,INTENT(IN)::N,NCAP
       INTEGER,INTENT(OUT)::IERR
-      REAL(8),DIMENSION(NCAP),INTENT(IN)::X,W
-      REAL(8),DIMENSION(N),INTENT(OUT)::ALPHA,BETA
-      REAL(8),DIMENSION(NCAP),INTENT(OUT)::P0,P1,P2
+      DOUBLE PRECISION,DIMENSION(NCAP),INTENT(IN)::X,W
+      DOUBLE PRECISION,DIMENSION(N),INTENT(OUT)::ALPHA,BETA
+      DOUBLE PRECISION,DIMENSION(NCAP),INTENT(OUT)::P0,P1,P2
 !
 !      ACM TRANSACTIONS ON MATHEMATICAL SOFTWARE, 20, 21-62(1994)
 !
@@ -7398,14 +7437,15 @@ end
       SUBROUTINE OEDHNDNOF(DCHRG,NIJGDIM,NIJG,KTYPE,KLOC,KKMIN,KKMAX,  &
                         KSTART,KNG,KATOM,IA,CX0,CY0,CZ0,EX1,CS,CP,    &
                         CD,CF,CG)
-      USE PARCOM     
+      USE PARCOM 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(2,(NSHELL*(NSHELL+1))/2),INTENT(OUT)::NIJG
-      REAL,DIMENSION(15,NIJGDIM),INTENT(OUT)::DCHRG
+      DOUBLE PRECISION,DIMENSION(15,NIJGDIM),INTENT(OUT)::DCHRG
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG,KATOM
       INTEGER,DIMENSION(NBF),INTENT(IN)::IA
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
 !
       NIJ0=0
       DO II=1,NSHELL
@@ -7428,21 +7468,21 @@ end
       SUBROUTINE OEDSHLNOF(ISH,JSH,DCHRG,NIJGDIM,NIJ,KTYPE,KLOC,KKMIN, &
                         KKMAX,KSTART,KNG,KATOM,CX,CY,CZ,EX1,       &
                         CS,CP,CD,CF,CG,NIJ0)
-!
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 !
-      REAL(8)::RTOL,DTOL
+      DOUBLE PRECISION::RTOL,DTOL
       INTEGER,INTENT(IN)::ISH,JSH,NIJ0
       INTEGER,INTENT(OUT)::NIJ
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG,KATOM
-      REAL,DIMENSION(15,NIJGDIM),INTENT(OUT)::DCHRG
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX,CY,CZ
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(15,NIJGDIM),INTENT(OUT)::DCHRG
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX,CY,CZ
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
 !     NOTE THAT THIS IS LIMITED TO G SHELL
-      REAL(8),PARAMETER::ONE=1.0D+00
-      REAL,DIMENSION(30)::GA,CCA,CCAS,GB,CCB,CCBS
-      REAL,DIMENSION(NPRIMI,5)::CSPDFG
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D+00
+      DOUBLE PRECISION,DIMENSION(30)::GA,CCA,CCAS,GB,CCB,CCBS
+      DOUBLE PRECISION,DIMENSION(NPRIMI,5)::CSPDFG
       LOGICAL::IIEQJJ,SPI,SPJ,EXPNDI
 !      
       IIEQJJ=ISH.EQ.JSH
@@ -7563,6 +7603,7 @@ end
 ! OEDRDNOF      
       SUBROUTINE OEDRDNOF(NIJG,NIJ,NIJ0,IIJJ)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 !
       INTEGER,INTENT(IN)::IIJJ
       INTEGER,DIMENSION(2,(NSHELL*(NSHELL+1))/2),INTENT(IN)::NIJG
@@ -7576,6 +7617,7 @@ end
       SUBROUTINE JKDATMNOF(II,JJ,KK,LL,SKIPI,SKIPJ,SKIPK,SKIPL,INVTYP, &
                         KATOM,IIAT,JJAT,KKAT,LLAT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM
       INTEGER,INTENT(IN)::II,JJ,KK,LL
       INTEGER,INTENT(OUT)::INVTYP,IIAT,JJAT,KKAT,LLAT
@@ -7696,6 +7738,7 @@ end
                         IIEQJJ,KKEQLL,IJEQKL,IJGTKL,IJLTKL,            &
                         LIT,LJT,LKT,LLTT,NUMI,NUMJ,NUMK,NUML)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::ISH,JSH,KSH,LSH
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,INTENT(OUT)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
@@ -7754,6 +7797,7 @@ end
                         IGXYZ,JGXYZ,KGXYZ,LGXYZ,                 &
                         IIEQJJ,KKEQLL,IJEQKL,IJKLG,MAXNUM,       &
                         IDER,JDER,KDER,LDER)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(4,MAXNUM)::IJKLG
       INTEGER,INTENT(IN)::LIT,LJT,LKT,LLTT,NUMJ,NUMK,NUML
       INTEGER,INTENT(IN)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
@@ -7761,8 +7805,8 @@ end
       INTEGER,DIMENSION(4,35),INTENT(OUT)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       LOGICAL,INTENT(IN)::SKIPI,SKIPJ,SKIPK,SKIPL
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      REAL,DIMENSION(35)::IJKLX,IJKLY,IJKLZ
-      REAL,DIMENSION(5)::IJKLN
+      INTEGER,DIMENSION(35)::IJKLX,IJKLY,IJKLZ
+      INTEGER,DIMENSION(5)::IJKLN
       DATA IJKLN /   1,  4, 10, 20, 35/
       DATA IJKLX /   0,  1,  0,  0,  2,  0,  0,  1,  1,  0,      &
                      3,  0,  0,  2,  2,  1,  0,  1,  0,  1,      &
@@ -7869,10 +7913,11 @@ end
                         GRADS,DABMAX,DABCUT,NKL0,NIJ0,              &
                         LIT,LJT,LKT,LLTT,IDER,JDER,KDER,LDER)          
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::MAXNUM
-      REAL,DIMENSION(MAXNUM),INTENT(IN)::DAB
-      REAL,DIMENSION(15,NIJGDIM),INTENT(IN)::DCHRG
-      REAL,INTENT(IN)::DABMAX,DABCUT
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(IN)::DAB
+      DOUBLE PRECISION,DIMENSION(15,NIJGDIM),INTENT(IN)::DCHRG
+      DOUBLE PRECISION,INTENT(IN)::DABMAX,DABCUT
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL,EXPNDI,EXPNDK
       LOGICAL,INTENT(IN)::SKIPI,SKIPJ,SKIPK,SKIPL,SPI,SPJ,SPK,SPL,SPIJKL
       INTEGER,INTENT(IN)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
@@ -7881,20 +7926,20 @@ end
       INTEGER,INTENT(IN)::LIT,LJT,LKT,LLTT,IDER,JDER,KDER,LDER
       INTEGER,INTENT(IN)::NROOTS,MINVEC
       INTEGER,INTENT(INOUT)::TOTCOUNT
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
-      REAL(8),DIMENSION(12)::FD
-      REAL(8)::XC,YC,ZC,DXIJ,DYIJ,DZIJ
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION,DIMENSION(12)::FD
+      DOUBLE PRECISION::XC,YC,ZC,DXIJ,DYIJ,DZIJ
       INTEGER,DIMENSION(4,MAXNUM),INTENT(IN)::IJKLG
 !      
       LOGICAL::NMAXS,NMAXP,MMAXS,MMAXP
-      INTEGER(8)::NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX
+      INTEGER::NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX
 !     ZERO AND FIRST DERIVATIVE INTEGRALS      
-      REAL(8),DIMENSION(MAXNUM),INTENT(INOUT)::GINT,FINT
-      REAL(8),DIMENSION(:),ALLOCATABLE::GNM,GNKL,GIJKL,FI,FJ,FK,FL,DIJ,DKL
-      REAL(8),DIMENSION(:),ALLOCATABLE::AAI,AAJ,BBK,BBL,DIJSI,DKLSK,DKLSL,DIJSJ
-      REAL(8),DIMENSION(:,:),ALLOCATABLE::C00,D00,F00,B00,B01,B10,RWV,ABV,CV
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(INOUT)::GINT,FINT
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::GNM,GNKL,GIJKL,FI,FJ,FK,FL,DIJ,DKL
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::AAI,AAJ,BBK,BBL,DIJSI,DKLSK,DKLSL,DIJSJ
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::C00,D00,F00,B00,B01,B10,RWV,ABV,CV
 !
-      REAL(8),PARAMETER::ZERO=0.0D+00,PI252=34.986836655250D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,PI252=34.986836655250D+00
       LOGICAL::FIRST,LAST
 !-----------------------------------------------------------------------            
       ALLOCATE(GNM((MODTYP+MODTYP-1)*(MODTYP+MODTYP-1)*MAXXYZ*3))
@@ -8092,7 +8137,7 @@ end
 !
       IF(NUMG*NROOTS*3.LT.MINVEC) THEN
          CALL JKGNMSNOF(GNM,NUMG*NROOTS*3,NMAX,MMAX,   &
-                     B00,B01,B10,C00,D00,F00,       &
+                     B00,B01,B10,C00,D00,F00,          &
                      NMAXS,NMAXP,MMAXS,MMAXP)
       ELSE
          WRITE(6,*) 'SCALAR MACHINES SHOULD NOT CALL -JKGNMV-'
@@ -8104,7 +8149,7 @@ end
 !
       IF(NUMG*NROOTS*3.LT.MINVEC) THEN
          CALL JKXYZSNOF(GIJKL,GIJKL,GNKL,GNKL,GNKL,GNM,      &
-                    NUMG*NROOTS*3,NMAX,MMAX,NIMAX,NJMAX,  &
+                    NUMG*NROOTS*3,NMAX,MMAX,NIMAX,NJMAX,     &
                     NKMAX,NLMAX,DIJ,DKL,EXPNDI,EXPNDK)
       ELSE
          WRITE(6,*) 'SCALAR MACHINES SHOULD NOT CALL -JKXYZV-'
@@ -8115,7 +8160,7 @@ end
 !     ----- COMPUTE -X- , -Y- , -Z- INTEGRALS FOR DERIVATIVES -----
 !
       IF(NUMG*NROOTS*3.LT.MINVEC) THEN
-         CALL JDXYZSNOF(GIJKL,GIJKL,GIJKL,GIJKL,                         &
+         CALL JDXYZSNOF(GIJKL,GIJKL,GIJKL,GIJKL,                       &
                      NUMG*NROOTS*3,NIMAX,NJMAX,NKMAX,NLMAX,            &
                      LIT,LJT,LKT,LLTT,AAI,AAJ,BBK,BBL,FI,FJ,FK,FL,     &
                      SKIPI,SKIPJ,SKIPK,SKIPL) 
@@ -8135,11 +8180,11 @@ end
 !
       IF(NUMG*NROOTS.LT.MINVEC) THEN
          IGIJKL=MODTYP**2*MODTYP**2*MAXXYZ*3
-         CALL DSPDFSNOF(TOTCOUNT,NUMG,NROOTS,IJKLG,GINT,FINT,GIJKL, &
-                     FI,FJ,FK,FL,DIJSI,DIJSJ,DKLSK,DKLSL,      &
-                     DAB,SKIPI,SKIPJ,SKIPK,SKIPL,               &
-                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,  &
-                     MAXNUM,MAXXYZ,IIEQJJ,KKEQLL,IJEQKL,        &
+         CALL DSPDFSNOF(TOTCOUNT,NUMG,NROOTS,IJKLG,GINT,FINT,GIJKL,   &
+                     FI,FJ,FK,FL,DIJSI,DIJSJ,DKLSK,DKLSL,             &
+                     DAB,SKIPI,SKIPJ,SKIPK,SKIPL,                     &
+                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,         &
+                     MAXNUM,MAXXYZ,IIEQJJ,KKEQLL,IJEQKL,              &
                      SPI,SPJ,SPK,SPL,SPIJKL,FD,IGIJKL)
       ELSE
          WRITE(6,*) 'SCALAR MACHINES SHOULD NOT CALL -DSPDFV-'
@@ -8165,9 +8210,10 @@ end
 ! JKDINVNOF
       SUBROUTINE JKDINVNOF(INVTYP,FD,GRADS,II,JJ,KK,LL)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::INVTYP,II,JJ,KK,LL
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
-      REAL,DIMENSION(3,4)::FD
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION,DIMENSION(3,4)::FD
 !     ----- TRANSLATIONAL INVARIANCE FOR GRADIENT ELEMENTS -----
       IF (INVTYP.EQ.2) THEN
         DO IXYZ=1,3
@@ -8232,16 +8278,17 @@ end
                         KKMIN,KKMAX,KLOC,IGXYZ,JGXYZ,KGXYZ,LGXYZ,       &
                         IIEQJJ,KKEQLL,IJEQKL,IA,DA,DAB,MAXNUM,DABMAX)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::II,JJ,KK,LL
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(4,35),INTENT(IN)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(NBF),INTENT(IN)::IA
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      REAL,DIMENSION(NBFT),INTENT(IN)::DA  
-      REAL,INTENT(OUT)::DABMAX
-      REAL(8),DIMENSION(84),INTENT(IN)::PNRM
-      REAL(8),DIMENSION(MAXNUM),INTENT(OUT)::DAB
-      REAL(8),PARAMETER::ZER=0.0D+00,PT5=0.5D+00,F04=4.0D+00
+      DOUBLE PRECISION,DIMENSION(NBFT),INTENT(IN)::DA  
+      DOUBLE PRECISION,INTENT(OUT)::DABMAX
+      DOUBLE PRECISION,DIMENSION(84),INTENT(IN)::PNRM
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::DAB
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00,PT5=0.5D+00,F04=4.0D+00
 !-----------------------------------------------------------------------
       DABMAX=ZER
 !      
@@ -8315,11 +8362,12 @@ end
 ! VNNDERNOF
       SUBROUTINE VNNDERNOF(CX0,CY0,CZ0,ZNUC,DE)
       USE PARCOM
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
-      REAL(8),DIMENSION(3,NATOMS)::C
-      REAL(8),DIMENSION(NATOMS,NATOMS)::DRG
-      REAL(8),PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
+      DOUBLE PRECISION,DIMENSION(3,NATOMS)::C
+      DOUBLE PRECISION,DIMENSION(NATOMS,NATOMS)::DRG
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
 !      
       C(1,:)=CX0
       C(2,:)=CY0
@@ -8372,24 +8420,25 @@ end
       SUBROUTINE SDERNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,      &
                       CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,EPS,DE)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION(NBFT),INTENT(IN)::EPS
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NBFT),INTENT(IN)::EPS
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
 !      
       INTEGER,DIMENSION(NBF)::IA
       INTEGER,DIMENSION(35)::IJX,IJY,IJZ
-      REAL(8),DIMENSION(5,5)::DXS,DYS,DZS
-      REAL(8),DIMENSION(6,5)::XS,YS,ZS
-      REAL(8),DIMENSION(225)::DIJ
-      REAL(8)::TOL
+      DOUBLE PRECISION,DIMENSION(5,5)::DXS,DYS,DZS
+      DOUBLE PRECISION,DIMENSION(6,5)::XS,YS,ZS
+      DOUBLE PRECISION,DIMENSION(225)::DIJ
+      DOUBLE PRECISION::TOL
 !
-      REAL(8),PARAMETER::SQRT3=1.73205080756888D+00
-      REAL(8),PARAMETER::SQRT5=2.23606797749979D+00
-      REAL(8),PARAMETER::SQRT7=2.64575131106459D+00
-      REAL(8),PARAMETER::ONE=1.0D+00,RLN10=2.30258D+00
+      DOUBLE PRECISION,PARAMETER::SQRT3=1.73205080756888D+00
+      DOUBLE PRECISION,PARAMETER::SQRT5=2.23606797749979D+00
+      DOUBLE PRECISION,PARAMETER::SQRT7=2.64575131106459D+00
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D+00,RLN10=2.30258D+00
 !
       DATA IJX / 1, 2, 1, 1, 3, 1, 1, 2, 2, 1,           &
                  4, 1, 1, 3, 3, 2, 1, 2, 1, 2,           &
@@ -8566,28 +8615,29 @@ end
       SUBROUTINE HELFEYNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,    &
                       CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZAN,PM,DE)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::PM
-      REAL,DIMENSION(NBFT)::P
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::PM
+      DOUBLE PRECISION,DIMENSION(NBFT)::P
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
 !
       LOGICAL::IANDJ,DOUBLETE
       INTEGER::NROOTS
       INTEGER,DIMENSION(NBF)::IA
       INTEGER,DIMENSION(35)::IJX,IJY,IJZ
-      REAL(8),DIMENSION(225)::DIJ
-      REAL(8),DIMENSION(5,5,5,2)::XIN,YIN,ZIN
-      REAL(8),DIMENSION(13)::UROOT,WROOT
-      REAL(8)::TOL,XX,ZNUCC      
+      DOUBLE PRECISION,DIMENSION(225)::DIJ
+      DOUBLE PRECISION,DIMENSION(5,5,5,2)::XIN,YIN,ZIN
+      DOUBLE PRECISION,DIMENSION(13)::UROOT,WROOT
+      DOUBLE PRECISION::TOL,XX,ZNUCC      
 !
-      REAL(8),PARAMETER::ZERO=0.0D+00, ONE=1.0D+00
-      REAL(8),PARAMETER::RLN10=2.30258D+00,PI212=1.1283791670955D+00
-      REAL(8),PARAMETER::SQRT3=1.73205080756888D+00
-      REAL(8),PARAMETER::SQRT5=2.23606797749979D+00
-      REAL(8),PARAMETER::SQRT7=2.64575131106459D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00, ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::RLN10=2.30258D+00,PI212=1.1283791670955D+00
+      DOUBLE PRECISION,PARAMETER::SQRT3=1.73205080756888D+00
+      DOUBLE PRECISION,PARAMETER::SQRT5=2.23606797749979D+00
+      DOUBLE PRECISION,PARAMETER::SQRT7=2.64575131106459D+00
 !
 !  THE IJX, IJY, AND IJZ ARRAYS CONTAIN THE POWERS OF THE CARTESIAN
 !  GAUSSIANS PLUS 1 IN EVERY PLACE.
@@ -8831,33 +8881,34 @@ end
       SUBROUTINE TVDERNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,     &
                       CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZAN,PM,DE)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      REAL,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
-      REAL,DIMENSION(NBF,NBF),INTENT(IN)::PM
-      REAL,DIMENSION(NBFT)::P
-      REAL,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::PM
+      DOUBLE PRECISION,DIMENSION(NBFT)::P
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
 !      
       INTEGER::NROOTS
       INTEGER,DIMENSION(NBF)::IA
       INTEGER,DIMENSION(35)::IJX,IJY,IJZ
-      REAL(8),DIMENSION(5,5)::DXS,DYS,DZS,DXT,DYT,DZT
-      REAL(8),DIMENSION(6,7)::XS,YS,ZS
-      REAL(8),DIMENSION(6,5)::XT,YT,ZT
-      REAL(8),DIMENSION(6,5,5)::XV,YV,ZV
-      REAL(8),DIMENSION(5,5,5)::DXV,DYV,DZV
-      REAL(8),DIMENSION(225)::DIJ
-      REAL(8),DIMENSION(13)::UROOT,WROOT
-      REAL(8)::TOL
-      REAL(8)::ZNUCC
-      REAL(8)::XX
+      DOUBLE PRECISION,DIMENSION(5,5)::DXS,DYS,DZS,DXT,DYT,DZT
+      DOUBLE PRECISION,DIMENSION(6,7)::XS,YS,ZS
+      DOUBLE PRECISION,DIMENSION(6,5)::XT,YT,ZT
+      DOUBLE PRECISION,DIMENSION(6,5,5)::XV,YV,ZV
+      DOUBLE PRECISION,DIMENSION(5,5,5)::DXV,DYV,DZV
+      DOUBLE PRECISION,DIMENSION(225)::DIJ
+      DOUBLE PRECISION,DIMENSION(13)::UROOT,WROOT
+      DOUBLE PRECISION::TOL
+      DOUBLE PRECISION::ZNUCC
+      DOUBLE PRECISION::XX
 !
-      REAL(8),PARAMETER::ZERO=0.0D+00, ONE=1.0D+00,TWO=2.0D+00
-      REAL(8),PARAMETER::RLN10=2.30258D+00,PI212=1.1283791670955D+00
-      REAL(8),PARAMETER::SQRT3=1.73205080756888D+00
-      REAL(8),PARAMETER::SQRT5=2.23606797749979D+00
-      REAL(8),PARAMETER::SQRT7=2.64575131106459D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00, ONE=1.0D+00,TWO=2.0D+00
+      DOUBLE PRECISION,PARAMETER::RLN10=2.30258D+00,PI212=1.1283791670955D+00
+      DOUBLE PRECISION,PARAMETER::SQRT3=1.73205080756888D+00
+      DOUBLE PRECISION,PARAMETER::SQRT5=2.23606797749979D+00
+      DOUBLE PRECISION,PARAMETER::SQRT7=2.64575131106459D+00
 !
       DATA IJX / 1, 2, 1, 1, 3, 1, 1, 2, 2, 1,   &
                  4, 1, 1, 3, 3, 2, 1, 2, 1, 2,   &
@@ -9117,9 +9168,9 @@ end
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !
       INTEGER,INTENT(IN)::NUMG,NROOTS,NKL,NIJ
-      REAL(8),DIMENSION(5,NKL*NIJ),INTENT(IN)::ABV
-      REAL(8),DIMENSION(2,NUMG,NROOTS),INTENT(OUT)::RWV
-      REAL(8),DIMENSION(13)::UROOT,WROOT
+      DOUBLE PRECISION,DIMENSION(5,NKL*NIJ),INTENT(IN)::ABV
+      DOUBLE PRECISION,DIMENSION(2,NUMG,NROOTS),INTENT(OUT)::RWV
+      DOUBLE PRECISION,DIMENSION(13)::UROOT,WROOT
 !
       DO NG=1,NUMG
          XX=ABV(5,NG)
@@ -9143,12 +9194,12 @@ end
 !      
       LOGICAL,INTENT(IN)::NMAXS,MMAXS
       INTEGER,INTENT(IN)::NUMG,NROOTS,NKL,NIJ
-      REAL(8),DIMENSION(5,NKL*NIJ),INTENT(IN)::ABV
-      REAL(8),DIMENSION(18,NKL*NIJ),INTENT(IN)::CV
-      REAL(8),DIMENSION(2,NUMG,NROOTS),INTENT(IN)::RWV
-      REAL(8),DIMENSION(NUMG,NROOTS,3),INTENT(OUT)::B00,B01,B10,C00,D00
-      REAL(8),DIMENSION(NUMG,NROOTS,3),INTENT(OUT)::F00,DIJ,DKL
-      REAL(8),PARAMETER::PT5=0.5D+00, ONE=1.0D+00
+      DOUBLE PRECISION,DIMENSION(5,NKL*NIJ),INTENT(IN)::ABV
+      DOUBLE PRECISION,DIMENSION(18,NKL*NIJ),INTENT(IN)::CV
+      DOUBLE PRECISION,DIMENSION(2,NUMG,NROOTS),INTENT(IN)::RWV
+      DOUBLE PRECISION,DIMENSION(NUMG,NROOTS,3),INTENT(OUT)::B00,B01,B10,C00,D00
+      DOUBLE PRECISION,DIMENSION(NUMG,NROOTS,3),INTENT(OUT)::F00,DIJ,DKL
+      DOUBLE PRECISION,PARAMETER::PT5=0.5D+00, ONE=1.0D+00
 !
       DO NR=1,NROOTS
         DO NG=1,NUMG
@@ -9215,12 +9266,12 @@ end
 !
       LOGICAL,INTENT(IN)::NMAXS,NMAXP,MMAXS,MMAXP
       INTEGER,INTENT(IN)::NG,NMAX,MMAX
-      REAL(8),DIMENSION(NG),INTENT(IN)::C00,D00,F00
-      REAL(8),DIMENSION(NG),INTENT(INOUT)::B002,B012,B102
-      REAL(8),DIMENSION(:,:),ALLOCATABLE::B00
-      REAL(8),DIMENSION(NG,NMAX-1)::B10
-      REAL(8),DIMENSION(NG,MMAX-1)::B01
-      REAL(8),DIMENSION(NG,NMAX,MMAX),INTENT(OUT)::GNM
+      DOUBLE PRECISION,DIMENSION(NG),INTENT(IN)::C00,D00,F00
+      DOUBLE PRECISION,DIMENSION(NG),INTENT(INOUT)::B002,B012,B102
+      DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE::B00
+      DOUBLE PRECISION,DIMENSION(NG,NMAX-1)::B10
+      DOUBLE PRECISION,DIMENSION(NG,MMAX-1)::B01
+      DOUBLE PRECISION,DIMENSION(NG,NMAX,MMAX),INTENT(OUT)::GNM
 !
 !     ----- G(0,0) -----
 !
@@ -9340,13 +9391,13 @@ end
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL,INTENT(IN)::EXPNDI,EXPNDK
       INTEGER,INTENT(IN)::NG,NMAX,MMAX,NIMAX,NJMAX,NKMAX,NLMAX
-      REAL(8),DIMENSION(NG*NLMAX*NKMAX,NJMAX,NIMAX),INTENT(OUT)::GIJKL
-      REAL(8),DIMENSION(NG*NLMAX*NKMAX*NJMAX,NIMAX),INTENT(OUT)::HIJKL
-      REAL(8),DIMENSION(NG,NLMAX,NKMAX,NMAX),INTENT(OUT)::GNKL
-      REAL(8),DIMENSION(NG*NLMAX*NKMAX,NMAX),INTENT(IN)::HNKL
-      REAL(8),DIMENSION(NG*NLMAX*NKMAX*NMAX),INTENT(IN)::FNKL
-      REAL(8),DIMENSION(NG,NMAX,MMAX),INTENT(INOUT)::GNM
-      REAL(8),DIMENSION(NG),INTENT(IN)::DIJ,DKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NJMAX,NIMAX),INTENT(OUT)::GIJKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NJMAX,NIMAX),INTENT(OUT)::HIJKL
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX,NMAX),INTENT(OUT)::GNKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NMAX),INTENT(IN)::HNKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NMAX),INTENT(IN)::FNKL
+      DOUBLE PRECISION,DIMENSION(NG,NMAX,MMAX),INTENT(INOUT)::GNM
+      DOUBLE PRECISION,DIMENSION(NG),INTENT(IN)::DIJ,DKL
 !
 !     ----- G(N,K,L) -----
 !
@@ -9450,15 +9501,15 @@ end
       INTEGER,INTENT(IN)::NG,NIMAX,NJMAX,NKMAX,NLMAX,NI,NJ,NK,NL
       LOGICAL,INTENT(IN)::SKIPI,SKIPJ,SKIPK,SKIPL
       LOGICAL::IS,JS,KS,LS
-      REAL(8),DIMENSION(NG,NLMAX,NKMAX*NJMAX*NIMAX),INTENT(IN)::GIJKL
-      REAL(8),DIMENSION(NG,NLMAX,NKMAX,NJMAX*NIMAX),INTENT(IN)::GIJK
-      REAL(8),DIMENSION(NG,NLMAX*NKMAX,NJMAX,NIMAX),INTENT(IN)::GIJ
-      REAL(8),DIMENSION(NG,NLMAX*NKMAX*NJMAX,NIMAX),INTENT(IN)::GI
-      REAL(8),DIMENSION(NG),INTENT(IN)::AAI,AAJ,AAK,AAL
-      REAL(8),DIMENSION(NG,NLMAX*NKMAX*NJMAX,NIMAX),INTENT(OUT)::FI
-      REAL(8),DIMENSION(NG,NLMAX*NKMAX,NJMAX,NIMAX),INTENT(OUT)::FJ
-      REAL(8),DIMENSION(NG,NLMAX,NKMAX,NJMAX*NIMAX),INTENT(OUT)::FK
-      REAL(8),DIMENSION(NG,NLMAX,NKMAX*NJMAX*NIMAX),INTENT(OUT)::FL
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX*NJMAX*NIMAX),INTENT(IN)::GIJKL
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX,NJMAX*NIMAX),INTENT(IN)::GIJK
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX*NKMAX,NJMAX,NIMAX),INTENT(IN)::GIJ
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX*NKMAX*NJMAX,NIMAX),INTENT(IN)::GI
+      DOUBLE PRECISION,DIMENSION(NG),INTENT(IN)::AAI,AAJ,AAK,AAL
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX*NKMAX*NJMAX,NIMAX),INTENT(OUT)::FI
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX*NKMAX,NJMAX,NIMAX),INTENT(OUT)::FJ
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX,NJMAX*NIMAX),INTENT(OUT)::FK
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX*NJMAX*NIMAX),INTENT(OUT)::FL
 !
       IS=NI.EQ.1
       JS=NJ.EQ.1
@@ -9571,17 +9622,17 @@ end
       INTEGER,INTENT(IN)::MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL
       INTEGER,INTENT(IN)::NG,NR,MAXNUM,MAXXYZ,IFI
       INTEGER,INTENT(INOUT)::IIFINT
-      INTEGER(8),DIMENSION(4,MAXNUM),INTENT(IN)::IJKLG
-      REAL(8),DIMENSION(12),INTENT(INOUT)::FD
-      REAL(8),DIMENSION(MAXNUM),INTENT(IN)::DAB
-      REAL(8),DIMENSION(MAXNUM),INTENT(OUT)::GIJKL
-      REAL(8),DIMENSION(12,MAXNUM/4),INTENT(OUT)::FIJKL
+      INTEGER,DIMENSION(4,MAXNUM),INTENT(IN)::IJKLG
+      DOUBLE PRECISION,DIMENSION(12),INTENT(INOUT)::FD
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(IN)::DAB
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::GIJKL
+      DOUBLE PRECISION,DIMENSION(12,MAXNUM/4),INTENT(OUT)::FIJKL
 !     CAUTION, XYZ WHEN CALLING IS GIJKL, BUT HERE GIJKL STORES INTEGRALS
-      REAL(8),DIMENSION(NG*NR,IFI-NG*NR),INTENT(IN)::XYZ
-      REAL(8),DIMENSION(NG*NR,IFI-NG*NR),INTENT(IN)::FIXYZ,FJXYZ,FKXYZ,FLXYZ
-      REAL(8),DIMENSION(MAXXYZ),INTENT(IN)::DIJSI,DIJSJ,DKLSK,DKLSL
-      REAL(8),DIMENSION(NG*NR)::XY,XZ,YZ,SJ,SK,SL
-      REAL(8),PARAMETER::ZERO=0.0D+00
+      DOUBLE PRECISION,DIMENSION(NG*NR,IFI-NG*NR),INTENT(IN)::XYZ
+      DOUBLE PRECISION,DIMENSION(NG*NR,IFI-NG*NR),INTENT(IN)::FIXYZ,FJXYZ,FKXYZ,FLXYZ
+      DOUBLE PRECISION,DIMENSION(MAXXYZ),INTENT(IN)::DIJSI,DIJSJ,DKLSK,DKLSL
+      DOUBLE PRECISION,DIMENSION(NG*NR)::XY,XZ,YZ,SJ,SK,SL
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
 !
       IF(SPIJKL) GO TO 1000
 !
@@ -9934,8 +9985,6 @@ end
  2630   CONTINUE
  2640 CONTINUE
 !
- 3000 CONTINUE
-!
 !     ----- ZEROTH AND FIRST DERIVATIVE INTEGRALS -----
 !
 !     REMOVE NEXT RETURN FOR STORING EACH INTEGRAL CONTRIBUTION
@@ -10106,18 +10155,19 @@ end
                         IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL,  &
                         IA,DA,DAB,MAXNUM,DABMAX,DAAUX,DAAUX2)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::II,JJ,KK,LL
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(4,35),INTENT(IN)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(NBF),INTENT(IN)::IA
       INTEGER,INTENT(IN)::MAXNUM
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      REAL,DIMENSION(NBF,NBFT),INTENT(IN)::DA
-      REAL,DIMENSION(NBF,NBFT),INTENT(IN)::DAAUX,DAAUX2
-      REAL,INTENT(OUT)::DABMAX
-      REAL(8),DIMENSION(84),INTENT(IN)::PNRM
-      REAL(8),DIMENSION(MAXNUM),INTENT(OUT)::DAB
-      REAL(8),PARAMETER::ZER=0.0D+00,PT5=0.5D+00
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DA
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DAAUX,DAAUX2
+      DOUBLE PRECISION,INTENT(OUT)::DABMAX
+      DOUBLE PRECISION,DIMENSION(84),INTENT(IN)::PNRM
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::DAB
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00,PT5=0.5D+00
 !-----------------------------------------------------------------------
       DABMAX=ZER         
 !
@@ -10200,11 +10250,12 @@ end
 ! DABNOF2PRE
       SUBROUTINE DABNOF2PRE(CJ12,CK12,RO,DA,DAAUX,DAAUX2)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(NBF,NBFT),INTENT(IN)::DA
-      REAL(8),DIMENSION(NBF,NBFT),INTENT(OUT)::DAAUX,DAAUX2
-      REAL(8),PARAMETER::ZER=0.0D+00
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DA
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(OUT)::DAAUX,DAAUX2
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00
 !-----------------------------------------------------------------------
 !      
 !     FIRST CONTRACT OVER ONE NATURAL ORBITAL COEFFICIENT
@@ -10230,17 +10281,18 @@ end
 ! DABNOF5PRE
       SUBROUTINE DABNOF5PRE(RO,DA,CJAUX,CKAUX)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Extended (Nc>1): NBF5 = NBF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(NBF5)::BETA
-      REAL,DIMENSION(NBF,NBFT),INTENT(IN)::DA
-      REAL,DIMENSION(NBFT)::DENS5
-      REAL,DIMENSION(NDOC,NBFT)::DAAUX2
-      REAL,DIMENSION(NCO,NBFT)::DAAUX
-      REAL,DIMENSION(NBFT,NBFT),INTENT(OUT)::CJAUX,CKAUX
-      REAL,PARAMETER::ZER=0.0D+00
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5)::BETA
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DA
+      DOUBLE PRECISION,DIMENSION(NBFT)::DENS5
+      DOUBLE PRECISION,DIMENSION(NDOC,NBFT)::DAAUX2
+      DOUBLE PRECISION,DIMENSION(NCO,NBFT)::DAAUX
+      DOUBLE PRECISION,DIMENSION(NBFT,NBFT),INTENT(OUT)::CJAUX,CKAUX
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO i=1,NBF5
         BETA(i)=DSQRT(RO(i))
@@ -10292,18 +10344,19 @@ end
 ! DABNOF7PRE
       SUBROUTINE DABNOF7PRE(RO,DA,CJAUX,CKAUX)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Extended (Nc>1): NBF5 = NBF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      REAL,DIMENSION(NBF5),INTENT(IN)::RO
-      REAL,DIMENSION(NBF5)::BETA
-      REAL,DIMENSION(NBF,NBFT),INTENT(IN)::DA
-      REAL,DIMENSION(NBFT)::DENS5,DENS7
-      REAL,DIMENSION(NDOC,NBFT)::DAAUX2,DAAUX3
-      REAL,DIMENSION(NCO,NBFT)::DAAUX
-      REAL,DIMENSION(NBFT,NBFT),INTENT(OUT)::CJAUX,CKAUX
-      REAL,DIMENSION(:),ALLOCATABLE::FIs
-      REAL,PARAMETER::ZER=0.0D+00
+      DOUBLE PRECISION,DIMENSION(NBF5),INTENT(IN)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5)::BETA
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DA
+      DOUBLE PRECISION,DIMENSION(NBFT)::DENS5,DENS7
+      DOUBLE PRECISION,DIMENSION(NDOC,NBFT)::DAAUX2,DAAUX3
+      DOUBLE PRECISION,DIMENSION(NCO,NBFT)::DAAUX
+      DOUBLE PRECISION,DIMENSION(NBFT,NBFT),INTENT(OUT)::CJAUX,CKAUX
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::FIs
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO i=1,NBF5
         BETA(i)=DSQRT(RO(i))
@@ -10375,17 +10428,18 @@ end
                         IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL,  &
                         IA,DAB,MAXNUM,DABMAX,CJAUX,CKAUX)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN)::II,JJ,KK,LL
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(4,35),INTENT(IN)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(NBF),INTENT(IN)::IA
       INTEGER,INTENT(IN)::MAXNUM
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      REAL,DIMENSION(NBFT,NBFT),INTENT(IN)::CJAUX,CKAUX
-      REAL,INTENT(OUT)::DABMAX
-      REAL(8),DIMENSION(84),INTENT(IN)::PNRM
-      REAL(8),DIMENSION(MAXNUM),INTENT(OUT)::DAB
-      REAL(8),PARAMETER::ZER=0.0D+00,PT5=0.5D+00
+      DOUBLE PRECISION,DIMENSION(NBFT,NBFT),INTENT(IN)::CJAUX,CKAUX
+      DOUBLE PRECISION,INTENT(OUT)::DABMAX
+      DOUBLE PRECISION,DIMENSION(84),INTENT(IN)::PNRM
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::DAB
+      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00,PT5=0.5D+00
 !-----------------------------------------------------------------------
       DABMAX=ZER         
 !

@@ -51,10 +51,11 @@
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IAN,IMIN,IMAX,KSTART,KATOM
       INTEGER,ALLOCATABLE,DIMENSION(:) :: KTYPE,KLOC,INTYP,KNG,KMIN
       INTEGER,ALLOCATABLE,DIMENSION(:) :: KMAX,ISH,ITYP
-      REAL,ALLOCATABLE,DIMENSION(:) :: EVEC,ZAN,ZMASS,GRADS
-      REAL,ALLOCATABLE,DIMENSION(:) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: Cxyz0,Cxyz
-      REAL,DIMENSION(3) :: DIPS
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EVEC,ZAN,ZMASS,GRADS
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: C1,C2,EX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: Cxyz0,Cxyz
+      DOUBLE PRECISION,DIMENSION(3) :: DIPS
 !-----------------------------------------------------------------------
 !     MPI initialization
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -62,7 +63,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       call date_and_time(date,time,zone,val)
       write(6,1)val(5),val(6),val(2),val(3),val(1)
-      T1 = SECNDS(0.0)
+      call cpu_time(timestart)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Header on the output file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -161,7 +162,8 @@
       DEALLOCATE(INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG)
       DEALLOCATE(CH,CI)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DELTATIME = SECNDS(T1)
+      call cpu_time(timefinish)
+      DELTATIME = timefinish - timestart
       WRITE(6,3)DELTATIME
 !-----------------------------------------------------------------------
       call date_and_time(date,time,zone,val)
@@ -213,51 +215,60 @@
 
 C PARCOM
       MODULE PARCOM
+       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 C-----------------------------------------------------------------------
-       REAL(8),PARAMETER :: DFAC = 2.54174D0     ! Debye
-       REAL(8),PARAMETER :: QFAC = 1.345044D0    ! Buckinham
-       REAL(8),PARAMETER :: OFAC = 7.117668D-01  ! X10**34 ESU-CM**3
+       DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
+       DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
+       DOUBLE PRECISION,PARAMETER::OFAC=7.117668D-01 ! X10**34 ESU-CM**3
 C-----------------------------------------------------------------------
        CHARACTER(80) :: TITLE
-       COMMON/TIT/TITLE       
-       LOGICAL RESTART,PRINTLAG,CHKORTHO
-       LOGICAL ORTHO
-       LOGICAL DIAGLAG
-       LOGICAL SCALING,DIIS,PERDIIS
-       LOGICAL OIMP2,SC2MCPT
-       LOGICAL HFID
-       LOGICAL APSG
-       LOGICAL FROZEN
-       LOGICAL HighSpin
+       COMMON/TIT/TITLE
        COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,IECP
        COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
        COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,HighSpin,MSpin
+       LOGICAL HighSpin
+       COMMON/INPNOF_ORBSPACE_1/HighSpin
+       COMMON/INPNOF_ORBSPACE_2/NSOC,NDNS,MSpin
        COMMON/INPNOF_STATIC/Ista
+       LOGICAL DIAGLAG
        COMMON/INPNOF_DIAGELAG/DIAGLAG
-       COMMON/INPNOF_INPUT_0/IEINI
-       COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID,KOOPMANS
-       COMMON/INPNOF_INPUT_2/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG
-       COMMON/INPNOF_INPUT_3/INPUTCXYZ
+       LOGICAL HFID
+       COMMON/INPNOF_INPUT_0/HFID
+       COMMON/INPNOF_INPUT_1/IEINI,NTHRESHEID,MAXITID,KOOPMANS
+       LOGICAL RESTART
+       COMMON/INPNOF_INPUT_2/RESTART
+       COMMON/INPNOF_INPUT_3/INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
        COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
        COMMON/INPNOF_THRESH/THRESHEID,THRESHL,THRESHE,THRESHEC,THRESHEN
-       COMMON/INPNOF_OUTPUT_1/NPRINT,PRINTLAG,IWRITEC
-       COMMON/INPNOF_OUTPUT_2/IMULPOP,IAIMPAC
+       LOGICAL PRINTLAG
+       COMMON/INPNOF_OUTPUT_1/PRINTLAG
+       COMMON/INPNOF_OUTPUT_2/NPRINT,IWRITEC,IMULPOP,IAIMPAC
        COMMON/INPNOF_OUTPUT_3/IEKT
-       COMMON/INPNOF_OUTPUT_4/NOUTRDM,THRESHDM,NTHRESHDM,NSQT
-       COMMON/INPNOF_OUTPUT_5/NOUTCJK,NTHRESHCJK,THRESHCJK
-       COMMON/INPNOF_OUTPUT_6/NOUTTijab,NTHRESHTijab,THRESHTijab
-       COMMON/INPNOF_OUTPUT_7/APSG,THAPSG
+       COMMON/INPNOF_OUTPUT_4/NOUTRDM,NTHRESHDM,NSQT
+       COMMON/INPNOF_OUTPUT_5/THRESHDM,THRESHCJK,THRESHTijab
+       COMMON/INPNOF_OUTPUT_6/NOUTCJK,NTHRESHCJK
+       COMMON/INPNOF_OUTPUT_7/NOUTTijab,NTHRESHTijab
+       LOGICAL APSG
+       COMMON/INPNOF_OUTPUT_8/APSG
+       COMMON/INPNOF_OUTPUT_9/THAPSG
        COMMON/INPNOF_COEFOPT/THFMIUG0,MAXLOOP,LOOP
        COMMON/INPNOF_LIMITS/NOPTORB
-       COMMON/INPNOF_SCALING_1/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER
-       COMMON/INPNOF_DIIS/PERDIIS,DIIS,NTHDIIS,THDIIS,NDIIS
-       COMMON/INPNOF_SC2MCPT/SC2MCPT       
+       LOGICAL SCALING
+       COMMON/INPNOF_SCALING_1/SCALING
+       COMMON/INPNOF_SCALING_2/NZEROS,NZEROSm,NZEROSr,ITZITER
+       LOGICAL DIIS,PERDIIS       
+       COMMON/INPNOF_DIIS_1/DIIS,PERDIIS
+       COMMON/INPNOF_DIIS_2/NDIIS,NTHDIIS,THDIIS
+       LOGICAL SC2MCPT
+       COMMON/INPNOF_SC2MCPT/SC2MCPT
+       LOGICAL OIMP2
        COMMON/INPNOF_OIMP2/OIMP2
        COMMON/INPNOF_CGM/ICGMETHOD
+       LOGICAL CHKORTHO,ORTHO
        COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
-       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200)
-       COMMON/TIEMPO/T1,TT1,TT2,TT3,TT4,TT5,TT6
+       LOGICAL FROZEN
+       COMMON/INPNOF_FROZEN_1/FROZEN
+       COMMON/INPNOF_FROZEN_2/IFROZEN(200)
 C-----------------------------------------------------------------------
        LOGICAL EFIELDL
        COMMON/INPFILE_0/NATOMS,ICH,MUL,NBF,NQMT,NE,NA,NB,NSHELL
@@ -272,12 +283,13 @@ C-----------------------------------------------------------------------
        COMMON/INPFILE_FRAG_2/NBFf,NBFTf,NSQf,NBF5f,NBFT5f,NSQ5f
 C-----------------------------------------------------------------------
        COMMON/EHFEN/EHF,EN,EMP2,EMP3
-       COMMON/ENERGY/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
+       COMMON/ENERGIAS/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
        COMMON/CorrNonDynamic/ECnd,ECndl,ECndHF,ECndInter
        COMMON/MCPT2/Ecorr,OCCLIM
 C-----------------------------------------------------------------------
        LOGICAL CONVGDELAG
-       COMMON/CONVERGENCE/CONVGDELAG,DUMEL,PCONV
+       COMMON/CONVERGENCE_1/CONVGDELAG
+       COMMON/CONVERGENCE_2/DUMEL,PCONV
        COMMON/CONVERGESUM/SUMDIF_OLD,SUMDIF
 C-----------------------------------------------------------------------
        COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,
@@ -294,10 +306,11 @@ C RUNNOFHEADER
      &                        EXn,EYn,EZn,NSHELLn,NPRIMIn,IAN,IEMOMn,
      &                        IECPn,IRUNTYP,Cxyz,ZNUC)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
       INTEGER,DIMENSION(NATOMSn) :: IAN
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IZCORE
-      REAL,DIMENSION(3,NATOMSn) :: Cxyz
-      REAL,DIMENSION(NATOMSn) :: ZNUC
+      DOUBLE PRECISION,DIMENSION(3,NATOMSn) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NATOMSn) :: ZNUC
       CHARACTER*4 ATMNAME(NATOMSn)
 C-----------------------------------------------------------------------
 C     Basic information
@@ -408,6 +421,7 @@ C-----------------------------------------------------------------------
 C SETORBSPACE
       SUBROUTINE SETORBSPACE
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       WRITE(6,10)
       WRITE(6,11)
@@ -549,6 +563,7 @@ C-----------------------------------------------------------------------
 C POINTERS
       SUBROUTINE POINTERS
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     Define Pointers of the USER array
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -615,24 +630,28 @@ C ENERGRAD
      &                    C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,
      &                    DIPS,NOPTCG,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/INPNOF_INPUT_2/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG
+      LOGICAL RESTART
+      COMMON/INPNOF_INPUT_2/RESTART
+      COMMON/INPNOF_INPUT_3/INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ      
 #include "mpip.h"
-      REAL,DIMENSION(NAT) :: ZAN
-      REAL,DIMENSION(3,NAT) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       INTEGER :: IPRINTOPT,NOPTCG
-      REAL,DIMENSION(NPRIMI) :: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(3*NAT) :: GRADS
-      REAL,DIMENSION(3) :: DIPS
-      REAL,DIMENSION(:),ALLOCATABLE :: XINTS
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: C1,C2,EX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3*NAT) :: GRADS
+      DOUBLE PRECISION,DIMENSION(3) :: DIPS
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE :: XINTS
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IBUF
-      REAL,ALLOCATABLE,DIMENSION(:) :: H,S,EiHF,CHF,BUF
-      REAL,ALLOCATABLE,DIMENSION(:) :: DIPN,QUADN,OCTUN,DQOInt,AUX
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: AHCORE,OVERLAP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: H,S,EiHF,CHF,BUF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DIPN,QUADN,OCTUN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DQOInt,AUX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AHCORE,OVERLAP
 C-----------------------------------------------------------------------
 C     Allocate necessary arrays for 1e- and 2e- integrals + Guess
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -711,11 +730,12 @@ C-----------------------------------------------------------------------
 
 C DQONuclear
       SUBROUTINE DQONuclear(DIPN,QUADN,OCTUN,Cxyz,ZAN,NAT)
-      REAL,DIMENSION(3) :: DIPN
-      REAL,DIMENSION(6) :: QUADN
-      REAL,DIMENSION(10):: OCTUN
-      REAL,DIMENSION(3,NAT) :: Cxyz
-      REAL,DIMENSION(NAT) :: ZAN
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3) :: DIPN
+      DOUBLE PRECISION,DIMENSION(6) :: QUADN
+      DOUBLE PRECISION,DIMENSION(10):: OCTUN
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
 C-----------------------------------------------------------------------
       DIPN  = 0.0d0                                                     
       QUADN = 0.0d0                                                       
@@ -762,42 +782,53 @@ C RunNOF
      &                 DQOInt,NINTMXn,NREC,IX2,BUFP2,NINTEGt,IDONTW,
      &                 GRADS,IRUNTYP,DIPS,XINTS,IPRINTOPT)
       USE PARCOM
-      REAL,DIMENSION(NATOMSn):: ZAN
-      REAL,DIMENSION(3,NATOMSn):: Cxyz
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NATOMSn):: ZAN
+      DOUBLE PRECISION,DIMENSION(3,NATOMSn):: Cxyz
       INTEGER,DIMENSION(NATOMSn):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELLn):: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELLn):: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMIn):: ISH,ITYP
-      REAL,DIMENSION(NPRIMIn):: C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(NBFn):: EiHF
-      REAL,DIMENSION(NBFn,NBFn):: AHCORE,OVERLAP,CHF
-      REAL,DIMENSION(3):: DIPN
-      REAL,DIMENSION(6):: QUADN
-      REAL,DIMENSION(10):: OCTUN
-      REAL,DIMENSION(NVAL*NBFTn):: DQOInt
+      DOUBLE PRECISION,DIMENSION(NPRIMIn):: C1,C2,EX1
+      DOUBLE PRECISION,DIMENSION(NPRIMIn):: CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NBFn):: EiHF
+      DOUBLE PRECISION,DIMENSION(NBFn,NBFn):: AHCORE,OVERLAP,CHF
+      DOUBLE PRECISION,DIMENSION(3):: DIPN
+      DOUBLE PRECISION,DIMENSION(6):: QUADN
+      DOUBLE PRECISION,DIMENSION(10):: OCTUN
+      DOUBLE PRECISION,DIMENSION(NVAL*NBFTn):: DQOInt
       INTEGER,DIMENSION(NINTEGt) :: IX2
       INTEGER:: IPRINTOPT
-      REAL,DIMENSION(NINTEGt) :: BUFP2
-      REAL,DIMENSION(3*NATOMSn) :: GRADS
-      REAL,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(NINTEGt) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(3*NATOMSn) :: GRADS
+      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      REAL,ALLOCATABLE,DIMENSION(:,:):: COEF
-      REAL,ALLOCATABLE,DIMENSION(:):: XIJKL,USER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:):: COEF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: XIJKL,USER
       CHARACTER*4,ALLOCATABLE,DIMENSION(:)::ATMNAME
       INTEGER,ALLOCATABLE,DIMENSION(:)::IZCORE,LIMLOW,LIMSUP,IJKL
 C
       LOGICAL CONVG
-      REAL,ALLOCATABLE,DIMENSION(:):: GAMMA,FMIUG0
-      REAL,ALLOCATABLE,DIMENSION(:)::   ELAGN,RON
-      REAL,ALLOCATABLE,DIMENSION(:,:):: ELAG,COEFN
-      REAL,ALLOCATABLE,DIMENSION(:):: ADIPx,ADIPy,ADIPz
-      REAL,ALLOCATABLE,DIMENSION(:):: AQUADxx,AQUADyy,AQUADzz
-      REAL,ALLOCATABLE,DIMENSION(:):: AQUADxy,AQUADxz,AQUADyz
-      REAL,ALLOCATABLE,DIMENSION(:):: AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxz
-      REAL,ALLOCATABLE,DIMENSION(:):: AOCTxyy,AOCTyyz,AOCTxzz,AOCTxxy
-      REAL,ALLOCATABLE,DIMENSION(:):: AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: GAMMA,FMIUG0
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::   ELAGN,RON
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:):: ELAG,COEFN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AQUADxx,AQUADyy
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AQUADzz,AQUADxy
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AQUADxz,AQUADyz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AOCTxxx,AOCTyyy
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AOCTzzz,AOCTxxz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AOCTxyy,AOCTyyz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AOCTxzz,AOCTxxy
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: XATOM,YATOM,ZATOM
 C-----------------------------------------------------------------------
+      ALLOCATE(XATOM(NATOMS),YATOM(NATOMS),ZATOM(NATOMS))
+      XATOM(1:NATOMS) = Cxyz(1,1:NATOMS)
+      YATOM(1:NATOMS) = Cxyz(2,1:NATOMS)
+      ZATOM(1:NATOMS) = Cxyz(3,1:NATOMS)
+C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(COEF(NBF,NBF),STAT=IER)
       COEF = CHF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -953,8 +984,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(IRUNTYP/=3) EELEC_MIN = 1.0d20 ! GLOBAL FIRST CALL
       CALL OCCOPTr(IFIRSTCALL,CONVG,ATMNAME,ZAN,OVERLAP,LIMLOW,
      &             LIMSUP,COEF,GAMMA,FMIUG0,AHCORE,IJKL,XIJKL,
-     &             ELAG,USER,IZCORE,Cxyz(1,1:NATOMS),Cxyz(2,1:NATOMS),
-     &             Cxyz(3,1:NATOMS),KSTART,KNG,KMIN,KMAX,KATOM,KTYPE,
+     &             ELAG,USER,IZCORE,XATOM,YATOM,ZATOM,
+     &             KSTART,KNG,KMIN,KMAX,KATOM,KTYPE,
      &             KLOC,EX1,CS,CP,CD,CF,CG,CH,CI,ELAGN,COEFN,RON,
      &             IT,ITTOTAL,DIPS,IPRINTOPT)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -971,9 +1002,9 @@ C      Analytical Gradient Calculation for PNOF
        IF(IRUNTYP==2.or.IRUNTYP==3)THEN
         IF(.not.HighSpin)THEN
          CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,  
-     &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,Cxyz(1,1:NATOMS),
-     &                 Cxyz(2,1:NATOMS),Cxyz(3,1:NATOMS),ZAN,EX1,
-     &                 CS,CP,CD,CF,CG,USER(N2),USER(N3),XINTS,IPRINTOPT) 
+     &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,
+     &                 YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,
+     &                 USER(N2),USER(N3),XINTS,IPRINTOPT) 
         ELSE
          WRITE(6,*)'Sorry: GRADIENT is not implemented for High Spin'
          STOP
@@ -1008,8 +1039,8 @@ C      Occupation Optimization
        ITTOTAL=ITTOTAL+ILOOP
        CALL OCCOPTr(IFIRSTCALL,CONVG,ATMNAME,ZAN,OVERLAP,LIMLOW,LIMSUP,
      &              COEF,GAMMA,FMIUG0,AHCORE,IJKL,XIJKL,ELAG,
-     &              USER,IZCORE,Cxyz(1,1:NATOMS),Cxyz(2,1:NATOMS),
-     &              Cxyz(3,1:NATOMS),KSTART,KNG,KMIN,KMAX,KATOM,KTYPE,
+     &              USER,IZCORE,XATOM,YATOM,ZATOM,
+     &              KSTART,KNG,KMIN,KMAX,KATOM,KTYPE,
      &              KLOC,EX1,CS,CP,CD,CF,CG,CH,CI,ELAGN,COEFN,RON,
      &              IT,ITTOTAL,DIPS,IPRINTOPT)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1025,9 +1056,9 @@ C       SC2-MCPT (Hartree-Fock Partition)
 C       Analytical Gradient Calculation for PNOF
         IF((IRUNTYP==2.or.IRUNTYP==3).and.(.not.HighSpin))THEN
          CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,  
-     &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,Cxyz(1,1:NATOMS),
-     &                 Cxyz(2,1:NATOMS),Cxyz(3,1:NATOMS),ZAN,EX1,
-     &                 CS,CP,CD,CF,CG,USER(N2),USER(N3),XINTS,IPRINTOPT)
+     &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,
+     &                 YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,
+     &                 USER(N2),USER(N3),XINTS,IPRINTOPT)
         END IF
 C-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
         IF(IPRINTOPT==0)GOTO 10
@@ -1048,11 +1079,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     STOP PROGRAM, DEALLOCATE MEMORY, GIVES ELAPSED TIME if IT > MAXIT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    10 CONTINUE 
-      DEALLOCATE(COEF,IZCORE,ATMNAME,LIMLOW,LIMSUP)
+      DEALLOCATE(COEF,IZCORE,ATMNAME,LIMLOW,LIMSUP,XATOM,YATOM,ZATOM)
       DEALLOCATE(GAMMA,FMIUG0,ELAG,ELAGN,RON,USER,COEFN)
       DEALLOCATE(IJKL,XIJKL)
 C-----------------------------------------------------------------------
-    1 FORMAT(/,'  ELAPSED REAL TIME :',F10.2,'  (SECONDS)')
+C    1 FORMAT(/,'  ELAPSED REAL TIME :',F10.2,'  (SECONDS)')
     2 FORMAT(//2X,'**************************************************',
      *        /2X,'*                                                *',
      *        /2x,'*       SINGLE-POINT DoNOF CALCULATION           *',
@@ -1078,7 +1109,6 @@ C-----------------------------------------------------------------------
      *       /2X,'*         No. EXTERNAL ITER =',I6,'              *',
      *       /2X,'*         No. of TOTAL ITER =',I6,'              *',
      *       /2X,'**************************************************')
-    6 FORMAT(/,'  J and K TIME :',6F10.2,'  (SECONDS)')
 C-----------------------------------------------------------------------
       RETURN
       END
@@ -1094,14 +1124,15 @@ C-----------------------------------------------------------------------
 C HFIDr
       SUBROUTINE HFIDr(AHCORE,IJKL,XIJKL,CHF,EIHF,USER,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NBF,NBF)::AHCORE,CHF
-      REAL,DIMENSION(NBF)::EIHF
-      REAL,DIMENSION(NUSER)::USER
-      REAL,ALLOCATABLE,DIMENSION(:)::RO10,EVA,TEMP,FMIUG0
-      REAL,ALLOCATABLE,DIMENSION(:,:)::CJ12HF,CK12HF,ELAG,G
-      REAL,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W,CHFNEW
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,CHF
+      DOUBLE PRECISION,DIMENSION(NBF)::EIHF
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::RO10,EVA,TEMP,FMIUG0
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CJ12HF,CK12HF,ELAG
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,FMIUG,W,CHFNEW
       INTEGER:: IPRINTOPT
 C-----------------------------------------------------------------------
 C     Initial Values
@@ -1213,7 +1244,7 @@ C       Intermediate Output at each interation (Nprint=2)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C       Check for energy convergent solution
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF( DABS(DIF_EHF) < THRESHEID )THEN
+        IF( ABS(DIF_EHF) < THRESHEID )THEN
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C        One-particle HF energies
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1330,8 +1361,9 @@ C-----------------------------------------------------------------------
       
 C PRINTEiHF
       SUBROUTINE PRINTEiHF(EIHF,NA,NBF)
-      REAL,DIMENSION(NBF)::EIHF
-      REAL,ALLOCATABLE,DIMENSION(:)::E1
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF)::EIHF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::E1
 C-----------------------------------------------------------------------
 C     ORDERING ENERGIES
 C-----------------------------------------------------------------------
@@ -1377,11 +1409,12 @@ C=======================================================================
 C     DIAGONALIZATION OF LAGRANGE MULTIPLIERS (ELAG)
 C=======================================================================
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF)::ELAGN,RON
-      REAL,DIMENSION(NBF,NBF)::ELAG,COEF,COEFN
-      REAL,ALLOCATABLE,DIMENSION(:)::TEMP
-      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DENMAT
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF)::ELAGN,RON
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF,COEFN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::TEMP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DENMAT
 C-----------------------------------------------------------------------
 C     INTERMEDIATE MATRICES
 C-----------------------------------------------------------------------
@@ -1464,8 +1497,9 @@ C-----------------------------------------------------------------------
 
 C NUCLEARm
       SUBROUTINE NUCLEARm(NATOMS,ZNUC,Cxyz,Enuc)
-      REAL,DIMENSION(NATOMS) :: ZNUC
-      REAL,DIMENSION(3,NATOMS) :: Cxyz
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NATOMS) :: ZNUC
+      DOUBLE PRECISION,DIMENSION(3,NATOMS) :: Cxyz
 C-----------------------------------------------------------------------
       Enuc = 0.0
       DO I=1,NATOMS-1
@@ -1481,6 +1515,7 @@ C-----------------------------------------------------------------------
 
 C COREPOTENTIAL
       SUBROUTINE COREPOTENTIAL(IECP,NATOMS,IAN,IZCORE)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NATOMS)::IAN,IZCORE
 C-----------------------------------------------------------------------
 C     IZCORE: Number of electrons removed from each atom (ECP)
@@ -1516,6 +1551,7 @@ C-----------------------------------------------------------------------
 C ATOMNAMES
       SUBROUTINE ATOMNAMES(NATOMS,ZNUC,IZCORE,ATMNAME,Cxyz,NPRINT,
      &                     IWRITECXYZ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER:: IWRITECXYZ      
       CHARACTER*4 ATMNAME(NATOMS)
       DIMENSION ZNUC(NATOMS),IZCORE(NATOMS)
@@ -1562,6 +1598,7 @@ C-----------------------------------------------------------------------
 C ATOMBASIS
       SUBROUTINE ATOMBASIS(NATOMS,ATMNAME,IMIN,IMAX,NPRIMI,ITYP,ISH,
      &                     EX1,C1,C2)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4 ATMNAME(NATOMS)
       DIMENSION IMIN(NATOMS),IMAX(NATOMS),ITYP(NPRIMI),ISH(NPRIMI)
       DIMENSION EX1(NPRIMI),C1(NPRIMI),C2(NPRIMI)
@@ -1610,6 +1647,7 @@ C-----------------------------------------------------------------------
 C SYMBOLTABLE
       SUBROUTINE SYMBOLTABLE(KATOM,ATMNAME,INTYP,KLOC,LIMLOW,LIMSUP)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4 LABELAT,ATMNAME(NATOMS),BFNAM1(35)
       CHARACTER*6 BFNAM2(49)
       DIMENSION KATOM(NSHELL),INTYP(NSHELL),KLOC(NSHELL)
@@ -1740,6 +1778,7 @@ C-----------------------------------------------------------------------
 C NAMELIST_INPRUN
       SUBROUTINE NAMELIST_INPRUN(ITYPRUN,ICHARG,MULT,NINTEG,IDONTW,
      &                           IEMOMENTS,EVECTOR,IECPO)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INFOA /NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,ZAN(100),C(3,100),
      *              IAN(100)
       COMMON/NSHEL /EX(2000),CS(2000),CP(2000),CD(2000),      
@@ -1748,8 +1787,9 @@ C NAMELIST_INPRUN
      *              KLOC(500),KMIN(500),KMAX(500),NSHELL   
       COMMON/INFO  /IUNTRD            
       COMMON/INTFIL/NINTMX           
-      LOGICAL       EFLDL                                                  
-      COMMON/EFLDC /EFLDL,EVEC(3) 
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
       COMMON/ELPROP/IEMOM      
       CHARACTER(8):: UNITS
       COMMON/CONTROL/UNITS
@@ -1757,14 +1797,11 @@ C NAMELIST_INPRUN
       COMMON/RUNTYPE/IRUNTYP            
 #include "mpip.h"
       LOGICAL DONTW
-      REAL,DIMENSION(3) :: EVECTOR
+      DOUBLE PRECISION,DIMENSION(3) :: EVECTOR
       CHARACTER(6) :: RUNTYP,ENERGY,GRAD,OPTGEO
       DATA ENERGY,GRAD,OPTGEO /'ENERGY','GRAD  ','OPTGEO'/
       CHARACTER(8) :: ANGS,BOHR
       DATA ANGS, BOHR /'ANGS    ','BOHR    '/
-C-----------------------------------------------------------------------
-      TI = 0.0D0                                                           
-      TX = 0.0D0                                                           
 C-----------------------------------------------------------------------
 C                     --- NAMELIST VARIABLES ---
 C-----------------------------------------------------------------------
@@ -1804,6 +1841,9 @@ C       = T         (Default)
 C
 C-----------------------------------------------------------------------
       NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,UNITS,EVEC,DONTW
+C-----------------------------------------------------------------------
+      TI = 0.0D0                                                           
+      TX = 0.0D0                                                           
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Initial Values for the namelist variables
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1863,7 +1903,6 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Integral Options (TRFOPT common block)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ISCHWZ  = 0         ! Schwarz inequality off 
-      PK     = .FALSE.
       NINTMX = 15000
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
 C     Errors in the Input Namelist
@@ -1906,18 +1945,19 @@ C-----------------------------------------------------------------------
 
 C INIINTQUAD
       SUBROUTINE INIINTQUAD
-      REAL(8),PARAMETER :: SQRT3 = 1.73205080756887729353D0
-      REAL(8),PARAMETER :: SQRT5 = 2.23606797749978969641D0
-      REAL(8),PARAMETER :: SQRT7 = 2.64575131106459059050D0
-      REAL(8),PARAMETER :: SQRT9 = 3.00000000000000000000D0
-      REAL(8),PARAMETER :: SQRT11 = 3.31662479035539984911D0
-      REAL(8),PARAMETER :: PI = 3.141592653589793238D0      
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      DOUBLE PRECISION,PARAMETER :: SQRT3 = 1.73205080756887729353D0
+      DOUBLE PRECISION,PARAMETER :: SQRT5 = 2.23606797749978969641D0
+      DOUBLE PRECISION,PARAMETER :: SQRT7 = 2.64575131106459059050D0
+      DOUBLE PRECISION,PARAMETER :: SQRT9 = 3.00000000000000000000D0
+      DOUBLE PRECISION,PARAMETER :: SQRT11 = 3.31662479035539984911D0
+      DOUBLE PRECISION,PARAMETER :: PI = 3.141592653589793238D0      
       COMMON/HERMIT/H1(55),W1(55)
       COMMON/RYSPAR/XASYMP(13),RTSASY(13,13),WTSASY(13,13),
      *              NAUXS(13),MAPRYS(13),RTSAUX(55,8),WTSAUX(55,8)
       COMMON/SHLNRM/PNRM(84)     
-      REAL,DIMENSION(55)::RTS,WTS,WRK
-      REAL,DIMENSION(0:54)::ALPHA1,BETA1
+      DOUBLE PRECISION,DIMENSION(55)::RTS,WTS,WRK
+      DOUBLE PRECISION,DIMENSION(0:54)::ALPHA1,BETA1
 C-----------------------------------------------------------------------
 C     Set up the primitive factors for the 1e- integrals.
 C     Initialize for the integral quadratures.
@@ -2063,7 +2103,7 @@ C-----------------------------------------------------------------------
 C SETHERMITE
       SUBROUTINE SETHERMITE(HTOTAL,WTOTAL)                                             
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      REAL(8),DIMENSION(55),INTENT(OUT)::HTOTAL,WTOTAL
+      DOUBLE PRECISION,DIMENSION(55),INTENT(OUT)::HTOTAL,WTOTAL
 !                                                                       
       HTOTAL(1)=  0.0D0
 !                                                                       
@@ -2203,14 +2243,16 @@ C START
      &                 NPRIMIT,ZNUC,COORD,IANUC,IMIN,IMAX,ZMASA,KSTAR,
      &                 KATOMO,KTIPO,KLO,INTIPO,KNUG,KMINI,KMAXI,ISHE,
      &                 ITIPO,C1,C2,EXn,CSn,CPn,CDn,CFn,CGn,CHn,CIn)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INFOA /NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,ZAN(100),C(3,100),
      *              IAN(100)
       COMMON/NSHEL /EX(2000),CS(2000),CP(2000),CD(2000),      
      *              CF(2000),CG(2000),CH(2000),CI(2000),      
      *              KSTART(500),KATOM(500),KTYPE(500),KNG(500),   
      *              KLOC(500),KMIN(500),KMAX(500),NSHELL   
-      LOGICAL       EFLDL                                                  
-      COMMON/EFLDC /EFLDL,EVEC(3)   
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
       COMMON/ELPROP/IEMOM      
       CHARACTER(8):: UNITS
       COMMON/CONTROL/UNITS  
@@ -2219,18 +2261,19 @@ C START
       COMMON/INTOPT/ISCHWZ,IECP,NECP            
       COMMON/RUNTYPE/IRUNTYP            
       COMMON/MASSES/ZMASS(100)                                                  
-      COMMON/BASISPIRIS/INTYPPIR(500),NPRIMI,IMINPIR(100),          
-     *                  IMAXPIR(100),ISHPIR(2000),ITYPPIR(2000), 
-     *                  C1PIR(2000),C2PIR(2000)                          
+      COMMON/BASISPIRIS1/INTYPPIR(500),NPRIMI,IMINPIR(100),          
+     *                   IMAXPIR(100),ISHPIR(2000),ITYPPIR(2000) 
+      COMMON/BASISPIRIS2/C1PIR(2000),C2PIR(2000)                          
       INTEGER,DIMENSION(100) :: IANUC,IMIN,IMAX
       INTEGER,DIMENSION(500) :: KSTAR,KATOMO,KTIPO,KLO,INTIPO,KNUG
       INTEGER,DIMENSION(500) :: KMINI,KMAXI
       INTEGER,DIMENSION(2000) :: ISHE,ITIPO
-      REAL, DIMENSION(2000) :: C1,C2,EXn,CSn,CPn,CDn,CFn,CGn,CHn,CIn
-      REAL, DIMENSION(3) :: VMOI
-      REAL, DIMENSION(100) :: ZNUC,ZMASA
-      REAL, DIMENSION(3,100) :: COORD
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: COM
+      DOUBLE PRECISION, DIMENSION(2000) :: C1,C2,EXn
+      DOUBLE PRECISION, DIMENSION(2000) :: CSn,CPn,CDn,CFn,CGn,CHn,CIn
+      DOUBLE PRECISION, DIMENSION(3) :: VMOI
+      DOUBLE PRECISION, DIMENSION(100) :: ZNUC,ZMASA
+      DOUBLE PRECISION, DIMENSION(3,100) :: COORD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COM
 C-----------------------------------------------------------------------
 C     System                                   
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2338,7 +2381,8 @@ C-----------------------------------------------------------------------
       END                                                               
 
 C BASCHK                                           
-      SUBROUTINE BASCHK(LMAXIMA,KTYPE,NSHELL)                                           
+      SUBROUTINE BASCHK(LMAXIMA,KTYPE,NSHELL)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(500) :: KTYPE
 C-----------------------------------------------------------------------
 C     Return the highest angular momentum in the basis
@@ -2354,6 +2398,7 @@ C-----------------------------------------------------------------------
       
 C MOLECULE
       SUBROUTINE MOLECULE
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/FRAME /U1,U2,U3,V1,V2,V3,WW1,WW2,WW3,X0,Y0,Z0     ! PTGRP            
       COMMON/MAPSHEL/MAPSHL(500,48),NT      
       CHARACTER(80) :: TITLE 
@@ -2407,13 +2452,14 @@ C-----------------------------------------------------------------------
 
 C ATOMS                                            
       SUBROUTINE ATOMS
-      REAL(8),PARAMETER :: PT2953=29.53125D0
-      REAL(8),PARAMETER :: PT1624=162.421875D0
-      REAL(8),PARAMETER :: PT75=0.75D0
-      REAL(8),PARAMETER :: PT187=1.875D0
-      REAL(8),PARAMETER :: TM10=1.0D-10
-      REAL(8),PARAMETER :: PT6562=6.5625D0
-      REAL(8),PARAMETER :: UNIT=0.52917724924D0
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)            
+      DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
+      DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
+      DOUBLE PRECISION,PARAMETER :: PT75=0.75D0
+      DOUBLE PRECISION,PARAMETER :: PT187=1.875D0
+      DOUBLE PRECISION,PARAMETER :: TM10=1.0D-10
+      DOUBLE PRECISION,PARAMETER :: PT6562=6.5625D0
+      DOUBLE PRECISION,PARAMETER :: UNIT=0.52917724924D0
       CHARACTER(8), DIMENSION(103,7) :: ABASIS
       INTEGER, DIMENSION(103,7) :: IAGAUS      
       COMMON/INTNAL/NATIN 
@@ -2426,13 +2472,15 @@ C ATOMS
      *              KLOC(500),KMIN(500),KMAX(500),NSHELL   
       COMMON/MAPSHEL/MAPSHL(500,48),NT
       COMMON/TRANSF/XP,YP,ZP 
-      COMMON/BASISPIRIS/INTYPPIR(500),NPRIMI,IMINPIR(100),          
-     *                  IMAXPIR(100),ISHPIR(2000),ITYPPIR(2000), 
-     *                  C1PIR(2000),C2PIR(2000)      
+      COMMON/BASISPIRIS1/INTYPPIR(500),NPRIMI,IMINPIR(100),          
+     *                   IMAXPIR(100),ISHPIR(2000),ITYPPIR(2000) 
+      COMMON/BASISPIRIS2/C1PIR(2000),C2PIR(2000)                          
       INTEGER,DIMENSION(100,48) :: MAPCTR
-      REAL,DIMENSION(100) :: ANAM,BNAM
-      REAL,ALLOCATABLE,DIMENSION(:) :: CSINP,CPINP,CDINP,CFINP,CGINP
-      REAL,ALLOCATABLE,DIMENSION(:) :: CHINP,CIINP,EXX,CSS,CPP,CDD,SCFAC
+      DOUBLE PRECISION,DIMENSION(100) :: ANAM,BNAM
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CSINP,CPINP,CDINP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CFINP,CGINP,CHINP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CIINP,EXX,CSS
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CPP,CDD,SCFAC
       INTEGER,ALLOCATABLE,DIMENSION(:) :: INTYP,NS,KS
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
       CHARACTER(8) :: BLANK
@@ -2460,7 +2508,7 @@ C-----------------------------------------------------------------------
       ALLOCATE(CGINP(2000),CHINP(2000),CIINP(2000))
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       PI = 2.0d0*DASIN(1.0d0)
-      PI32 = PI*DSQRT(PI)                                              
+      PI32 = PI*SQRT(PI)                                              
       CBASIS = BLANK                                                 
       BASIS  = BLANK
       IDUM   = 0                                                          
@@ -3121,6 +3169,7 @@ C-----------------------------------------------------------------------
 
 C BERROR
       SUBROUTINE BERROR(K)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER(8), DIMENSION(4) :: BASIS
       DATA BASIS /'MINIMAL ','EXTENDED','GENERAL ','        '/
 C-----------------------------------------------------------------------
@@ -3133,7 +3182,8 @@ C-----------------------------------------------------------------------
       END
 
 C READAT                                           
-      SUBROUTINE READAT(ATOMNM,ZNUC,X,Y,Z) 
+      SUBROUTINE READAT(ATOMNM,ZNUC,X,Y,Z)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       COMMON/INFO  /IUNTRD            
       COMMON/INTNAL/NATIN            
       CHARACTER*10 ATOMNM,ENDWRD,BLANK10                                  
@@ -3180,6 +3230,7 @@ C-----------------------------------------------------------------------
 
 C SETLAB
       SUBROUTINE SETLAB
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INFOA /NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,ZAN(100),C(3,100),
      *              IAN(100)
       COMMON/NSHEL /EX(2000),CS(2000),CP(2000),CD(2000),      
@@ -3261,8 +3312,9 @@ C-----------------------------------------------------------------------
 
 C AMT
       SUBROUTINE AMT(ZAN,ZMASS,NAT)
-      REAL, DIMENSION(106) :: AMS
-      REAL, DIMENSION(NAT) :: ZAN,ZMASS,AMASS
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION, DIMENSION(106) :: AMS
+      DOUBLE PRECISION, DIMENSION(NAT) :: ZAN,ZMASS,AMASS
 C-----------------------------------------------------------------------
 C     Mass of most abundant Isotopes
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -3321,15 +3373,15 @@ C INRTIA
       IMPLICIT NONE
 C     ARGUMENTS
       INTEGER,INTENT(IN) :: NPART
-      REAL,DIMENSION(3,NPART),INTENT(IN) :: C
-      REAL,DIMENSION(3,NPART),INTENT(OUT) :: COM
-      REAL,DIMENSION(3),INTENT(OUT) :: VMOI
-      REAL,DIMENSION(NPART),INTENT(IN) :: ZMASS
+      DOUBLE PRECISION,DIMENSION(3,NPART),INTENT(IN) :: C
+      DOUBLE PRECISION,DIMENSION(3,NPART),INTENT(OUT) :: COM
+      DOUBLE PRECISION,DIMENSION(3),INTENT(OUT) :: VMOI
+      DOUBLE PRECISION,DIMENSION(NPART),INTENT(IN) :: ZMASS
 C     VARIABLES
-      REAL,DIMENSION(3):: CMASS,WRK
-      REAL,DIMENSION(3,3):: TROT,TMOIsq
-      REAL,DIMENSION(6):: TMOI
-      REAL :: XX,YY,ZZ,XY,XZ,YZ,WEIGHT,TOTWT,XC,YC,ZC
+      DOUBLE PRECISION,DIMENSION(3):: CMASS,WRK
+      DOUBLE PRECISION,DIMENSION(3,3):: TROT,TMOIsq
+      DOUBLE PRECISION,DIMENSION(6):: TMOI
+      DOUBLE PRECISION :: XX,YY,ZZ,XY,XZ,YZ,WEIGHT,TOTWT,XC,YC,ZC
       INTEGER :: I,J
 C-----------------------------------------------------------------------
 C     C: Nuclear Coordinates
@@ -3393,9 +3445,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END
 
 C ENUC                                             
-      DOUBLE PRECISION FUNCTION ENUC(N,Z,COORD)                             
-      LOGICAL       EFLDL                                                  
-      COMMON/EFLDC /EFLDL,EVEC(3)                                                                       
+      DOUBLE PRECISION FUNCTION ENUC(N,Z,COORD)  
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
       DIMENSION Z(N),COORD(3,N)                                             
 C-----------------------------------------------------------------------                                                        
       REPNUC = 0.0d0                                                     
@@ -3432,6 +3486,7 @@ C-----------------------------------------------------------------------
 
 C FNDGRP
       SUBROUTINE FNDGRP(GRPNAM,IEOF)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*8 WORD,GRPNAM
       IEOF = 0
     1 CONTINUE
@@ -3447,6 +3502,7 @@ C FNDGRP
 
 C UPRCAS
       SUBROUTINE UPRCAS(STRING,LENSTR)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*(*) STRING
       CHARACTER*26 UCASE,LCASE
       DATA UCASE /'ABCDEFGHIJKLMNOPQRSTUVWXYZ'/
@@ -3463,6 +3519,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C OPNCRD
       SUBROUTINE OPNCRD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*1 LCONT,LEOD,LEOC
       CHARACTER*80 CARD
       COMMON /FREFM1/ NCOL,LSTCOL,MAXCOL,KEOF,KERR,LUIN,LUOUT,
@@ -3604,7 +3661,6 @@ C
       RETURN
 C
   900 FORMAT(A80)
-  901 FORMAT(1X,A8,'>',A80)
   902 FORMAT(10X,10HREREAD AT ,A8)
   903 FORMAT(10X,8HCOLUMNS ,I2,3H - ,I2,1X,8HREAD AT ,A8)
   904 FORMAT(/6X,I2,' CARD PARAMETERS HAVE BEEN RESET --'/1X,
@@ -3621,7 +3677,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       KOLSV = NCOL
       KERR = IERR
       CALL DECODN(VARABL,VALUE,ISIGN,FIXPNT,FRACT,IEXPFR,ISIGNE,IEXP)
-      RFIND=VALUE
+      RFIND = VALUE
       IERR = KERR
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
       RETURN
@@ -3993,6 +4049,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C NAMELIST_NOFINP                                                     
       SUBROUTINE NAMELIST_NOFINP(IRUNTYP)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER:: IRUNTYP
 C-----------------------------------------------------------------------
 C                     --- NAMELIST VARIABLES ---
@@ -4519,6 +4576,7 @@ C-----------------------------------------------------------------------
 C OUTPUTHEADER
       SUBROUTINE OUTPUTHEADER
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     Set NZEROSm equul to NTHRESHL if NZEROSm < NTHRESHL
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -4723,6 +4781,7 @@ C-----------------------------------------------------------------------
 C OPENFILES
       SUBROUTINE OPENFILES(IRUNTYP)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     NOF Files    CONTENTS
 C     ------------------------------------------------------------------
@@ -4765,7 +4824,7 @@ C-----------------------------------------------------------------------
      &                      FORM='UNFORMATTED')
       IF(NOUTTijab==1)OPEN(13,FILE='CND',STATUS='UNKNOWN',
      &                        FORM='UNFORMATTED')
-      IF(NOUTRDM)THEN
+      IF(NOUTRDM==1)THEN
        if(NSQT==0)then
         OPEN(14,FILE='2DM',STATUS='UNKNOWN',ACCESS='SEQUENTIAL',
      &          FORM='FORMATTED')
@@ -4787,6 +4846,7 @@ C-----------------------------------------------------------------------
 C OUTPUTBASIC
       SUBROUTINE OUTPUTBASIC
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     NE: Number of Electrons
 C     MUL: State Multiplicity
@@ -4849,15 +4909,15 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C-----------------------------------------------------------------------
 C     Format definitions
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    1 FORMAT(/1X,72('-'),
-     *      //1X,'Total Number of Atoms                        =',I5,
-     *       /1X,'Total Number of Electrons                    =',I5,
-     *       /1X,'CHARGE of the Molecule                       =',I5,
-     *       /1X,'STATE Multiplicity                           =',I5,
-     *       /1X,'Total Number of Basis Set Shells             =',I5,
-     *       /1X,'Total Number of Primitive Exponents          =',I5,
-     *       /1X,'Number of Cartesian Gaussian Basis Functions =',I5,
-     *      //1X,72('-'))
+c    1 FORMAT(/1X,72('-'),
+c     *      //1X,'Total Number of Atoms                        =',I5,
+c     *       /1X,'Total Number of Electrons                    =',I5,
+c     *       /1X,'CHARGE of the Molecule                       =',I5,
+c     *       /1X,'STATE Multiplicity                           =',I5,
+c     *       /1X,'Total Number of Basis Set Shells             =',I5,
+c     *       /1X,'Total Number of Primitive Exponents          =',I5,
+c     *       /1X,'Number of Cartesian Gaussian Basis Functions =',I5,
+c     *      //1X,72('-'))
     2 FORMAT(/'Spin compensated but NA (',I3,') not equal NB (',I3,')' 
      *       /' JOB ABANDONED'/)
     3 FORMAT(/,' Error: NO1 > NB (doubly filled NOs) -> Stop Program')
@@ -4868,6 +4928,7 @@ C-----------------------------------------------------------------------
 C SETNO1
       SUBROUTINE SETNO1(IAN)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NATOMS)::IAN
 C-----------------------------------------------------------------------
 C     Determine NO1 (NOs with ONs equal to 1, according to the true 
@@ -4901,9 +4962,10 @@ C-----------------------------------------------------------------------
 C INITr
       SUBROUTINE INITr(COEF,OVERLAP,GAMMA,FMIUG0,IPRINTOPT)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::COEF,OVERLAP
-      REAL,DIMENSION(NBF)::FMIUG0
-      REAL,DIMENSION(NBF5)::GAMMA
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
+      DOUBLE PRECISION,DIMENSION(NBF5)::GAMMA
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
 C     INPUTGAMMA=0: Initial Values for GAMMA close to Fermi-Dirac dist.
@@ -4952,8 +5014,9 @@ C-----------------------------------------------------------------------
 C READGAMMAr
       SUBROUTINE READGAMMAr(GAMMA)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::GAMMA
-      REAL,ALLOCATABLE,DIMENSION(:)::RO,HR
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::GAMMA
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::RO,HR
       ALLOCATE (RO(NBF5),HR(ndoc*(ncwo-1)))
 C-----------------------------------------------------------------------
 C     Read Occupations from the GCF file
@@ -4978,9 +5041,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          ig = ndoc+ic                        ! ig=ndoc+1,ndoc*ncwo
          in = na+ncwo*(ndoc-i)+iw            ! in=na+1,na+ncwo*ndoc-1         
          if(HR(ic)>0.0d0)then
-          ARGUM=dsqrt(RO(in)/HR(ic))
+          ARGUM=sqrt(RO(in)/HR(ic))
           if(ARGUM>1.0d0)ARGUM=1.0d0
-          GAMMA(ig)=dasin(ARGUM)
+          GAMMA(ig)=asin(ARGUM)
          else 
           GAMMA(ig) = 0.0d0
          endif
@@ -5000,7 +5063,8 @@ C-----------------------------------------------------------------------
 
 C READCOEFMr
       SUBROUTINE READCOEFMr(C,NSQ,NBF)
-      REAL,DIMENSION(NSQ)::C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NSQ)::C
 C-----------------------------------------------------------------------
       REWIND(3)
       DO I=1,NBF
@@ -5016,7 +5080,8 @@ C-----------------------------------------------------------------------
 
 C READFMIUG0
       SUBROUTINE READFMIUG0(F,NBF,NSQ)
-      REAL,DIMENSION(NBF)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF)::F
 C-----------------------------------------------------------------------
 C     Read diagonal elements of the Gen Fock Operator (FMIUG)
 C-----------------------------------------------------------------------
@@ -5037,10 +5102,11 @@ C-----------------------------------------------------------------------
 
 C READCXYZ
       SUBROUTINE READCXYZ(ZNUC,C,NAT,NBF,NSQ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NAT):: IZNUC
-      REAL,DIMENSION(NAT):: ZNUC
-      REAL,DIMENSION(3,NAT):: C
-      REAL,PARAMETER:: BOHR = 0.52917724924D+00
+      DOUBLE PRECISION,DIMENSION(NAT):: ZNUC
+      DOUBLE PRECISION,DIMENSION(3,NAT):: C
+      DOUBLE PRECISION,PARAMETER:: BOHR = 0.52917724924D+00
 C-----------------------------------------------------------------------
 C     Read diagonal elements of the Gen Fock Operator (FMIUG)
 C-----------------------------------------------------------------------
@@ -5078,15 +5144,16 @@ C GuessHJK
      &                    NINTEGtm,NINTEGt,NREC,XINTS,NSH2,IDONTW,
      &                    INPUTC,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      REAL,DIMENSION(3,NAT) :: Cxyz                                                         
-      REAL,DIMENSION(NBF) :: EIG
-      REAL,DIMENSION(NSQ) :: VEC
-      REAL,DIMENSION(NBFT) :: H,S
-      REAL,DIMENSION(NINTEGtm) :: BUF
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz                                                         
+      DOUBLE PRECISION,DIMENSION(NBF) :: EIG
+      DOUBLE PRECISION,DIMENSION(NSQ) :: VEC
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUF
       INTEGER,DIMENSION(NINTEGtm) :: IBUF
-      REAL,DIMENSION(NSH2) :: XINTS
+      DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
       INTEGER :: IPRINTOPT
-      REAL,ALLOCATABLE,DIMENSION(:)::TKIN,DipoInt,OCCa,OCCb,DENa,DENb,Q
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: TKIN,DipoInt,Q
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCCa,OCCb,DENa,DENb
 C-----------------------------------------------------------------------
 C     1e Integrals
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5115,14 +5182,16 @@ C-----------------------------------------------------------------------
 C GuessCore
       SUBROUTINE GuessCore(OCCa,OCCb,DENa,DENb,EIG,VEC,
      &                     Q,H,S,NBF,NSQ,NBFT,IPRINTOPT)
-      LOGICAL:: HFID
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER:: IPRINTOPT
-      COMMON/INPNOF_INPUT_1/HFID,NTHRESHEID,MAXITID,KOOPMANS
+      LOGICAL HFID
+      COMMON/INPNOF_INPUT_0/HFID
+      COMMON/INPNOF_INPUT_1/IEINI,NTHRESHEID,MAXITID,KOOPMANS
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      REAL,DIMENSION(NBF) :: OCCa,OCCb,EIG
-      REAL,DIMENSION(NSQ) :: VEC,Q
-      REAL,DIMENSION(NBFT) :: DENa,DENb,H,S
-      REAL, ALLOCATABLE,DIMENSION(:,:) :: OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF) :: OCCa,OCCb,EIG
+      DOUBLE PRECISION,DIMENSION(NSQ) :: VEC,Q
+      DOUBLE PRECISION,DIMENSION(NBFT) :: DENa,DENb,H,S
+      DOUBLE PRECISION, ALLOCATABLE,DIMENSION(:,:) :: OVERLAP
 C-----------------------------------------------------------------------
 C     Initial Molecular Orbitals
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5152,14 +5221,15 @@ C-----------------------------------------------------------------------
 
 C HCORE
       SUBROUTINE HCORE(EIG,H,S,VEC,Q,NBF,NBFT,NSQ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INFOA /NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,ZAN(100),C(3,100),
      *              IAN(100)
 C-----------------------------------------------------------------------
-      REAL,DIMENSION(NBF) :: EIG
-      REAL,DIMENSION(NBFT) :: H,S
-      REAL,DIMENSION(NSQ) :: VEC,Q
-      REAL,ALLOCATABLE,DIMENSION(:) :: H0,HH,W
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: SCR,Hsq
+      DOUBLE PRECISION,DIMENSION(NBF) :: EIG
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S
+      DOUBLE PRECISION,DIMENSION(NSQ) :: VEC,Q
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: H0,HH,W
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: SCR,Hsq
       ALLOCATE(H0(NBFT),HH(NBFT),SCR(NBF,NBF))
 C-----------------------------------------------------------------------
 C         Initial orbitals by diagonalization of 1e Hamiltonian
@@ -5228,11 +5298,13 @@ C-----------------------------------------------------------------------
       
 C INIDEN
       SUBROUTINE INIDEN(V,OCCa,OCCb,DENa,DENb,NBF,NBFT,NSQ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INFOA /NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,ZAN(100),C(3,100),
      *              IAN(100)
-      DIMENSION V(NBF,*),OCCa(NBF),OCCb(NBF)
       CHARACTER*4,ALLOCATABLE,DIMENSION(:) :: RLABMO
-      REAL,DIMENSION(NBFT) :: DENa,DENb
+      DOUBLE PRECISION,DIMENSION(NBF) :: OCCa,OCCb
+      DOUBLE PRECISION,DIMENSION(NSQ) :: V
+      DOUBLE PRECISION,DIMENSION(NBFT) :: DENa,DENb
       ALLOCATE(RLABMO(NBF))
 C-----------------------------------------------------------------------
       IF(NA>NBF)THEN
@@ -5302,11 +5374,12 @@ C-----------------------------------------------------------------------
      
 C QMTSYM
       SUBROUTINE QMTSYM(S,WRK,Q,EE,SCR,NBF,NBFT,NSQ)
-      REAL,DIMENSION(NBF) :: EE
-      REAL,DIMENSION(NBFT) :: S
-      REAL,DIMENSION(NSQ) :: WRK
-      REAL,DIMENSION(NBF,NBF) :: Q,SCR
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: WRKq
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF) :: EE
+      DOUBLE PRECISION,DIMENSION(NBFT) :: S
+      DOUBLE PRECISION,DIMENSION(NSQ) :: WRK
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: Q,SCR
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: WRKq
 C-----------------------------------------------------------------------
 C     Symmetry Adapted Orthonormal Orbitals
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5372,7 +5445,8 @@ C-----------------------------------------------------------------------
       END
 
 C TFTRI                                            
-      SUBROUTINE TFTRI(H,FMAT,TMAT,WRK,M,N,LDT)                               
+      SUBROUTINE TFTRI(H,FMAT,TMAT,WRK,M,N,LDT) 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       DIMENSION H(*),FMAT(*),TMAT(LDT,M),WRK(N)                               
 C-----------------------------------------------------------------------
 C     Transform triangular matrix FMAT: H = TMAT+ * FMAT * TMAT
@@ -5409,7 +5483,8 @@ C-----------------------------------------------------------------------
       END                                                               
 
 C TFSQB                                            
-      SUBROUTINE TFSQB(V,Q,WRK,M,N,LDQV)                                
+      SUBROUTINE TFSQB(V,Q,WRK,M,N,LDQV)  
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DIMENSION V(LDQV,M),Q(LDQV,M),WRK(N)  
 C-----------------------------------------------------------------------
 C     Back Transform: V = Q*V                            
@@ -5433,6 +5508,7 @@ C-----------------------------------------------------------------------
 
 C SYMMOS
       SUBROUTINE SYMMOS(RLABMO,V,NAO,NMO,LDQV)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION V(LDQV,NMO)
       CHARACTER*4,DIMENSION(NMO) :: RLABMO
 C-----------------------------------------------------------------------
@@ -5446,8 +5522,9 @@ C-----------------------------------------------------------------------
       
 C STFASEd        
       SUBROUTINE STFASEd(A,LDA,N,M)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,INTENT(IN) :: LDA,M,N
-      REAL,DIMENSION(LDA,M),INTENT(INOUT):: A
+      DOUBLE PRECISION,DIMENSION(LDA,M),INTENT(INOUT):: A
       INTEGER:: I,J
 C-----------------------------------------------------------------------      
 C     SET THE PHASE OF EACH COLUMN OF A MATRIX SO THE LARGEST
@@ -5522,18 +5599,20 @@ C-----------------------------------------------------------------------
 
 C OneElecInt                                           
       SUBROUTINE OneElecInt(Cxyz,H,S,TKIN,DInteg,NBFT,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INTOPT/ISCHWZ,IECP,NECP            
       COMMON /INFOA / NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,                    
      *                ZAN(100),C(3,100),IAN(100)                        
-      LOGICAL       EFLDL                                                  
-      COMMON/EFLDC /EFLDL,EVEC(3)                                                                             
-      REAL,DIMENSION(3,NAT) :: Cxyz                                                         
-      REAL,DIMENSION(NBFT) :: H,S,TKIN    
-      REAL,DIMENSION(3*NBFT) :: DInteg
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz                                                         
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN    
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
       INTEGER :: IPRINTOPT
 C-----------------------------------------------------------------------
       IF(IPRINTOPT==1)WRITE(6,'(/1X,A13/,1X,13(1H-))')'1e- integrals'
-      ToneE = SECNDS(0.0)
+      call cpu_time(timestartoneE)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
 C     Nuclear Coordinates
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5556,7 +5635,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        CALL ElecFieldInt(H,DInteg,NBFT)              
       END IF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DeltaToneE = SECNDS(ToneE)
+      call cpu_time(timefinishoneE)
+      DeltaToneE = timefinishoneE - timestartoneE 
       IF(IPRINTOPT==1)
      & WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE                                                                                                    
 C-----------------------------------------------------------------------
@@ -5565,10 +5645,11 @@ C-----------------------------------------------------------------------
 
 C HSandT                                           
       SUBROUTINE HSandT(H,S,TKIN,NBFT)        
-      REAL,PARAMETER :: PI212 = 1.1283791670955D0      
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,PARAMETER :: PI212 = 1.1283791670955D0      
       LOGICAL DOBLE
-      REAL,DIMENSION(NBFT) :: H,S,TKIN
-      REAL,DIMENSION(84) :: IX,IY,IZ,JX,JY,JZ
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN
+      INTEGER,DIMENSION(84) :: IX,IY,IZ,JX,JY,JZ
       LOGICAL       LINEAR
       COMMON/ZMAT  /LINEAR      
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,                    
@@ -5585,8 +5666,10 @@ C HSandT
       LOGICAL                                         IIANDJJ
       COMMON/SYMIND/II,JJ,LIT,LJT,MINI,MINJ,MAXI,MAXJ,IIANDJJ            
       INTEGER,ALLOCATABLE,DIMENSION(:)::IJX,IJY,IJZ
-      REAL,ALLOCATABLE,DIMENSION(:) :: Z,ESP1E,SBLK,TBLK,VBLK,ZBLK,FT
-      REAL,ALLOCATABLE,DIMENSION(:) :: DIJ,XIN,YIN,ZIN,CONI,CONJ
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Z,ESP1E,SBLK,TBLK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: VBLK,ZBLK,FT
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DIJ,XIN,YIN,ZIN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CONI,CONJ
       ALLOCATE(IJX(784),IJY(784),IJZ(784))
       ALLOCATE(Z(NBFT),ESP1E(NBFT))
       ALLOCATE(SBLK(784),TBLK(784),VBLK(784),ZBLK(784),FT(784),DIJ(784))
@@ -5655,7 +5738,8 @@ C-----------------------------------------------------------------------
 C-----------------------------------------------------------------------
 C                      H, S & TKIN integrals
 C-----------------------------------------------------------------------
-      TOL = 20*2.30258D0                                                 
+      TOL = 20*2.30258D0     
+      ZBLK = 0.0D+00
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     I SHELL                                               
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5806,7 +5890,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
               TBLK(I) =  TBLK(I) + DIJ(I)*(DUM*AJ*FT(I)+DUM1) 
              IF(LINEAR)THEN                                     
               DUM2 = XIN(NXNX+147)*YIN(NYNY+196) 
-     *             - XIN(NXNX+196)*YIN(NYNY+147)                  
+     *             - XIN(NXNX+196)*YIN(NYNY+147)   
               ZBLK(I) = ZBLK(I) + DIJ(I)*DUM2*ZIN(NZNZ)         
              END IF                                             
             END DO
@@ -5899,10 +5983,11 @@ C-----------------------------------------------------------------------
                                                                        
 C DipInt                                           
       SUBROUTINE DipInt(DInteg,NBFT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/ELPROP/IEMOM      
       COMMON/TRANSF/XP,YP,ZP      
-      REAL,DIMENSION(3*NBFT) :: DInteg
-      REAL,ALLOCATABLE,DIMENSION(:) :: AUX
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Dipole integrals
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5922,6 +6007,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C PRCALC                                           
       SUBROUTINE PRCALC(XVAL,WINT,NVAL,L2)                
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       PARAMETER (SQRT3 = 1.73205080756887729353D+00)
       PARAMETER (SQRT5 = 2.23606797749978969641D+00)
       PARAMETER (SQRT7 = 2.64575131106459059050D+00) 
@@ -6206,10 +6292,12 @@ C-----------------------------------------------------------------------
       
 C ElecFieldInt
       SUBROUTINE ElecFieldInt(H,DInteg,NBFT)   
-      LOGICAL       EFLDL                                                  
-      COMMON/EFLDC /EFLDL,EVEC(3)                                                                       
-      REAL,DIMENSION(NBFT) :: H
-      REAL,DIMENSION(3*NBFT) :: DInteg
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
 C-----------------------------------------------------------------------
       WRITE(6,'(1X,A16,3F10.5)')'Electric Field =',(EVEC(I),I=1,3)                     
       IF(EVEC(1)/=0.0d0)CALL DAXPY(NBFT,EVEC(1),DInteg(1       ),1,H,1)              
@@ -6221,6 +6309,7 @@ C-----------------------------------------------------------------------
 
 C STVINT                                           
       SUBROUTINE STVINT(HH,WW)                                                 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION HH(28),WW(28),MINIMO(7),MAXIMO(7)  
       COMMON/STV/XINTT,YINTT,ZINTT,TAA,X0X0,Y0Y0,Z0Z0,                      
      *           XIXI,YIYI,ZIZI,XJXJ,YJYJ,ZJZJ,NINI,NJNJ      
@@ -6304,6 +6393,7 @@ C-----------------------------------------------------------------------
 
 C SETCONI
       SUBROUTINE SETCONI(CONI,IPP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/NSHEL /EX(2000),CS(2000),CP(2000),CD(2000),      
      *              CF(2000),CG(2000),CH(2000),CI(2000),      
      *              KSTART(500),KATOM(500),KTYPE(500),KNG(500),   
@@ -7837,6 +7927,7 @@ C
 C JandK                                            
       SUBROUTINE JandK(BUFP2,IX2,NINTEGtm,NINTEGt,NRECO,XINTS,NSH2,
      &                 IDONTW,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/NSHEL /EX(2000),CS(2000),CP(2000),CD(2000),      
      *              CF(2000),CG(2000),CH(2000),CI(2000),      
      *              KSTART(500),KATOM(500),KTYPE(500),KNG(500),   
@@ -7846,15 +7937,15 @@ C JandK
       COMMON/RESTAR/NREC,IST,JST,KST,LST           
       LOGICAL SCHWRZ
       INTEGER,DIMENSION(NINTEGtm) :: IX2
-      REAL,DIMENSION(NINTEGtm) :: BUFP2
-      REAL,DIMENSION(NSH2) :: XINTS
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IX
-      REAL,ALLOCATABLE,DIMENSION(:) :: BUFP,GHOND
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFP,GHOND
       INTEGER :: IPRINTOPT
 C-----------------------------------------------------------------------                                                                       
 C     Driver for 2e integrals (HONDO)
 C-----------------------------------------------------------------------
-      TtwoE = SECNDS(0.0)
+      call cpu_time(timestarttwoE)
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
       MAXG = 4**4                                                                                  
       IF(LMAXIMA==2)MAXG =  6**4                                                                                  
@@ -7881,7 +7972,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE(BUFP,IX,GHOND)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NRECO = NREC
-      DeltaTtwoE = SECNDS(TtwoE)                                          
+      call cpu_time(timefinishtwoE)
+      DeltaTtwoE = timefinishtwoE - timestarttwoE                                          
       IF(IPRINTOPT==1)
      & WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
 C-----------------------------------------------------------------------
@@ -7890,6 +7982,7 @@ C-----------------------------------------------------------------------
 
 C Debut                                            
       SUBROUTINE Debut(IDONTW,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INTFIL/NINTMX           
       COMMON/RESTAR/NREC,IST,JST,KST,LST           
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB,                    
@@ -7899,7 +7992,7 @@ C Debut
      *             KSTART(500),KATOM(500),KTYPE(500),KNG(500),   
      *             KLOC(500),KMIN(500),KMAX(500),NSHELL   
       COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT       
-      REAL,DIMENSION(500,3) :: CO
+      DOUBLE PRECISION,DIMENSION(500,3) :: CO
       INTEGER :: IPRINTOPT
 C-----------------------------------------------------------------------
 C     Initialize 2e- integral Calculation
@@ -7945,6 +8038,7 @@ C-----------------------------------------------------------------------
 
 C ExchangeInt                                           
       SUBROUTINE ExchangeInt(XINTS,GHONDO,NSH2,MAXG)             
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER, DIMENSION(4,3) :: IB                                                       
       COMMON/INTDEX1/IJGT(784),KLGT(784)   
       COMMON/NSHEL/EX(2000),CS(2000),CP(2000),CD(2000),      
@@ -7954,7 +8048,7 @@ C ExchangeInt
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)  
       COMMON/SHLNOS1/QQ4,IJKL                                                                              
       DIMENSION XINTS(NSH2),GHONDO(MAXG)
-      REAL,ALLOCATABLE,DIMENSION(:) :: DDIJ
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DDIJ
       LOGICAL ISHandJSH
 C-----------------------------------------------------------------------
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
@@ -8021,6 +8115,7 @@ C-----------------------------------------------------------------------
 C TwoERI                                            
       SUBROUTINE TwoERI(SCHWRZ,NINTEGtm,NINTEGt,NSCHWZ,BUFP,IX,BUFP2,
      *                  IX2,XINTS,NSH2,GHONDO,MAXG,IDONTW,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/INTFIL/NINTMX           
       COMMON/NSHEL/EX(2000),CS(2000),CP(2000),CD(2000),      
      *             CF(2000),CG(2000),CH(2000),CI(2000),      
@@ -8032,9 +8127,9 @@ C TwoERI
       LOGICAL SCHSKP,SKIPA,SKIPB,SKIPC,NPSYM                                   
       DIMENSION BUFP(NINTMX),IX(NINTMX),XINTS(NSH2),GHONDO(MAXG)
       INTEGER,DIMENSION(NINTEGtm) :: IX2
-      REAL,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)       
-      REAL,ALLOCATABLE,DIMENSION(:) :: AUX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
       INTEGER :: IPRINTOPT
       ALLOCATE(AUX(49*900))                                                   
 C-----------------------------------------------------------------------
@@ -8206,7 +8301,7 @@ C QOUT
      *                KLOC(500),KMIN(500),KMAX(500),NSHELL           
       COMMON /RESTAR/ NREC,IST,JST,KST,LST 
       INTEGER,DIMENSION(NINTEGtm) :: IX2
-      REAL,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,          
      *                MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          
      *                NIJ,IJ,KL                                    
@@ -8321,7 +8416,7 @@ C FINAL
       DIMENSION BUFP(NINTMX),IX(NINTMX)
       COMMON /RESTAR/ NREC,IST,JST,KST,LST          
       INTEGER,DIMENSION(NINTEGtm) :: IX2
-      REAL,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
 C-----------------------------------------------------------------------                                                                       
       IST = 1                                                           
@@ -10054,6 +10149,7 @@ C-----------------------------------------------------------------------
 
 C INTMOM                                           
       SUBROUTINE INTMOM(LIT1,LJT1,IJ,IJX,IJY,IJZ,DIJ,WINT,AA,AX,AY,AZ)    
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/ELPROP/IEMOM      
       COMMON/PRPINT/XINT0,XINT1,XINT2,XINT3,YINT0,YINT1,YINT2,YINT3,
      *              ZINT0,ZINT1,ZINT2,ZINT3
@@ -10162,6 +10258,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C EMOMINT                                           
       SUBROUTINE EMOMINT(H,WW)                                                 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/ELPROP/IEMOM      
       COMMON/PRPINT/XINT0,XINT1,XINT2,XINT3,YINT0,YINT1,YINT2,YINT3,
      *              ZINT0,ZINT1,ZINT2,ZINT3
@@ -10319,20 +10416,22 @@ C OCCOPTr
      &                   KTYPE,KLOC,EX1,CS,CP,CD,CF,CG,CH,CI,ELAGN,
      &                   COEFN,RON,IT,ITTOTAL,DIPS,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       LOGICAL CONVG
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP,IZCORE
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(NBF)::FMIUG0,ELAGN,RON
-      REAL,DIMENSION(NBF5)::GAMMA
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NUSER)::USER
-      REAL,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG,COEFN
-      REAL,ALLOCATABLE,DIMENSION(:)::GAMMA_OLD,EAHF,E
-      REAL,DIMENSION(3)::DIPS
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0,ELAGN,RON
+      DOUBLE PRECISION,DIMENSION(NBF5)::GAMMA
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,ELAG,COEFN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::GAMMA_OLD,EAHF,E
+      DOUBLE PRECISION,DIMENSION(3)::DIPS
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
 C     Define the number of variables in the occupation optimization
@@ -10548,6 +10647,7 @@ C-----------------------------------------------------------------------
 C FORMQHJK
       SUBROUTINE FORMQHJK(COEF,QD,HCORE,QJ,QK,AHCORE,IJKL,XIJKL)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION COEF(NBF,NBF)
       DIMENSION QD(NBF,NBF,NBF),HCORE(NBF5),QJ(NBFT5),QK(NBFT5)
       DIMENSION AHCORE(NBF,NBF),IJKL(NSTORE),XIJKL(NSTORE)
@@ -10564,6 +10664,7 @@ C-----------------------------------------------------------------------
 C OUTQJQK
       SUBROUTINE OUTQJQK(QJ,QK)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION QJ(NBFT5),QK(NBFT5)
 C-----------------------------------------------------------------------
 C     Print molecular integrals (called from OCCOPTr)
@@ -10591,23 +10692,30 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C QHMATm
       SUBROUTINE QHMATm(C,QD,HCORE,AHCORE)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION C(NBF,NBF),QD(NBF,NBF,NBF),HCORE(NBF5),AHCORE(NBF,NBF)
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX
 C-----------------------------------------------------------------------
 C     Calculate D matrix for each value J and keep in QD(J,:,:)
 C     Calculate molecular Hcore matrix (HCORE)
 C-----------------------------------------------------------------------
+      ALLOCATE(AUX(NBF,NBF))
       DO J=1,NBF
-       CALL DENMATj(J,QD(J,1:NBF,1:NBF),C,NBF)
+       CALL DENMATj(J,AUX,C,NBF)
+       QD(J,1:NBF,1:NBF) = AUX(1:NBF,1:NBF)
       ENDDO
       DO J=1,NBF5
-       CALL TRACEm(HCORE(J),QD(J,1:NBF,1:NBF),AHCORE,NBF)
+       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL TRACEm(HCORE(J),AUX,AHCORE,NBF)
       ENDDO
 C-----------------------------------------------------------------------
+      DEALLOCATE(AUX)
       RETURN
       END
 
 C DENMATj
       SUBROUTINE DENMATj(J,D,C,NBF)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION D(NBF,NBF),C(NBF,NBF)
       DO M=1,NBF
        DO N=M,NBF
@@ -10622,29 +10730,33 @@ C QJMATm
       SUBROUTINE QJMATm(QD,QJ,IJKL,XIJKL)
 C     Coulomb Integrals QJ(i,j)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION QD(NBF,NBF,NBF),QJ(NBFT5),IJKL(NSTORE),XIJKL(NSTORE)
-      ALLOCATABLE::AUX(:,:)
-      ALLOCATE (AUX(NBF,NBF))                            ! AUX:Jj(i,l)
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX1,AUX2
+      ALLOCATE (AUX1(NBF,NBF),AUX2(NBF,NBF))       ! AUX1:Jj(i,l)
 C-----------------------------------------------------------------------
       DO J=1,NBF5
-       CALL HSTARJ(AUX,QD(J,1:NBF,1:NBF),IJKL,XIJKL)
+       AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL HSTARJ(AUX1,AUX2,IJKL,XIJKL)
        DO I=1,J
         IJ=I+J*(J-1)/2
-        CALL TRACEm(QJ(IJ),QD(I,1:NBF,1:NBF),AUX,NBF)
+        AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
+        CALL TRACEm(QJ(IJ),AUX2,AUX1,NBF)
        ENDDO
       ENDDO
 C-----------------------------------------------------------------------
-      DEALLOCATE (AUX)
+      DEALLOCATE (AUX1,AUX2)
       RETURN
       END
 
 C HSTARJ
       SUBROUTINE HSTARJ(FM,PM,IERI,ERI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NBF,NBF):: FM,PM
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
       ALLOCATABLE::P(:),F(:)
 #ifdef MPI
       ALLOCATABLE::FF(:)
@@ -10666,14 +10778,10 @@ C----------------------------------------------------------------------
 C----------------------------------------------------------------------
       F = 0.0d0
 #ifdef MPI
-      T2 = SECNDS(0.0)
       FF = 0.0d0
       CALL MPI_BCAST(NBF,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-      DELTATIME = SECNDS(T2)
-      TT1=TT1+DELTATIME
 #endif
-      T2 = SECNDS(0.0)
       DO M=1,NINTCR
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
@@ -10686,17 +10794,12 @@ C----------------------------------------------------------------------
                        F(NIJ)=F(NIJ)+0.5*P(NKL)*XJ
        IF(NIJ/=NKL)    F(NKL)=F(NKL)+0.5*P(NIJ)*XJ
       ENDDO
-      DELTATIME = SECNDS(T2)
-      TT2=TT2+DELTATIME
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Get the pieces from slaves
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      T2 = SECNDS(0.0)
       CALL MPI_REDUCE(F,FF,NBFT,MPI_REAL8,MPI_SUM,MASTER,
      &                MPI_COMM_WORLD,IERR)
-      DELTATIME = SECNDS(T2)
-      TT3=TT3+DELTATIME
       CALL TRIANSQUARE(FM,FF,NBF,NBFT)
       DEALLOCATE(P,F,FF)
 #else
@@ -10711,29 +10814,33 @@ C QKMATm
       SUBROUTINE QKMATm(QD,QK,IJKL,XIJKL)
 C     Exchange Integrals QK(i,j)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION QD(NBF,NBF,NBF),QK(NBFT5),IJKL(NSTORE),XIJKL(NSTORE)
-      ALLOCATABLE::AUX(:,:)
-      ALLOCATE (AUX(NBF,NBF))                            ! AUX:Kj(i,l)
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX1,AUX2
+      ALLOCATE (AUX1(NBF,NBF),AUX2(NBF,NBF))       ! AUX1:Kj(i,l)
 C-----------------------------------------------------------------------
       DO J=1,NBF5
-       CALL HSTARK(AUX,QD(J,1:NBF,1:NBF),IJKL,XIJKL)
+       AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
+       CALL HSTARK(AUX1,AUX2,IJKL,XIJKL)
        DO I=1,J
         IJ=I+J*(J-1)/2
-        CALL TRACEm(QK(IJ),QD(I,1:NBF,1:NBF),AUX,NBF)
+        AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
+        CALL TRACEm(QK(IJ),AUX2,AUX1,NBF)
        ENDDO
       ENDDO
 C-----------------------------------------------------------------------
-      DEALLOCATE (AUX)
+      DEALLOCATE (AUX1,AUX2)
       RETURN
       END
 
 C HSTARK
       SUBROUTINE HSTARK(FM,PM,IERI,ERI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NBF,NBF):: FM,PM
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
       ALLOCATABLE::P(:),F(:)
 #ifdef MPI
       ALLOCATABLE::FF(:)
@@ -10753,13 +10860,9 @@ C----------------------------------------------------------------------
       F = 0.0d0
 #ifdef MPI
       FF = 0.0d0
-      T2 = SECNDS(0.0)
       CALL MPI_BCAST(NBF,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-      DELTATIME = SECNDS(T2)
-      TT4=TT4+DELTATIME
 #endif
-      T2 = SECNDS(0.0)
       DO M=1,NINTCR
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
@@ -10784,17 +10887,12 @@ C----------------------------------------------------------------------
         IF(NIL/=NJK)       F(NJK)=F(NJK)+P(NIL)*XJ
        ENDIF
       ENDDO
-      DELTATIME = SECNDS(T2)
-      TT5=TT5+DELTATIME
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Get the pieces from slaves
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      T2 = SECNDS(0.0)
       CALL MPI_REDUCE(F,FF,NBFT,MPI_REAL8,MPI_SUM,MASTER,
      &                MPI_COMM_WORLD,IERR)
-      DELTATIME = SECNDS(T2)
-      TT6=TT6+DELTATIME
       CALL TRIANSQUARE(FM,FF,NBF,NBFT)
       DEALLOCATE (P,F,FF)
 #else
@@ -10807,6 +10905,7 @@ C----------------------------------------------------------------------
 
 C LABELIJKL
       SUBROUTINE LABELIJKL(LABEL,I,J,K,L)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     Determine label (ijkl) (2**16-1=65535)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -10829,11 +10928,12 @@ C-----------------------------------------------------------------------
 C ENENEWr
       SUBROUTINE ENENEWr(RO,HCORE,QJ,QK,CJ12,CK12,DIPx,DIPy,DIPz,EAHF,E)
       USE PARCOM
-      REAL,DIMENSION(NBF)::EAHF,E
-      REAL,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBFT5)::QJ,QK
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF)::EAHF,E
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX
 C-----------------------------------------------------------------------
 C     EAHF: New HF energies
 C-----------------------------------------------------------------------
@@ -10980,13 +11080,14 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C OCUPACIONr
       SUBROUTINE OCUPACIONr(GAMMA,RO,CJ12,CK12,DR,DCJ12r,DCK12r,NV)
       USE PARCOM
-      REAL,DIMENSION(NV)::GAMMA                     ! NV = NCWO*NDOC
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
-      REAL,ALLOCATABLE,DIMENSION(:)::DRO,BETA,DBETA,HR
-      REAL,ALLOCATABLE,DIMENSION(:,:)::DB,DHR
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
+      DOUBLE PRECISION,DIMENSION(NV)::GAMMA       ! NV = NCWO*NDOC
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::DRO,BETA,DBETA,HR
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::DB,DHR
 C-----------------------------------------------------------------------
 C                 Occupations and their Derivatives
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -11186,10 +11287,11 @@ C-----------------------------------------------------------------------
 C CGOCUPNAGr
       SUBROUTINE CGOCUPNAGr(NV,GAMMA,USER,ENERGY)
       USE PARCOM
-      REAL,DIMENSION(NV)::GAMMA
-      REAL,DIMENSION(NUSER)::USER
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NV)::GAMMA
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
       INTEGER,ALLOCATABLE,DIMENSION(:)::IUSER,IWORK
-      REAL,ALLOCATABLE,DIMENSION(:)::GRAD,WORK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::GRAD,WORK
       EXTERNAL ENERFUNr
       ALLOCATE (IUSER(1),IWORK(NV+1),GRAD(NV),WORK(13*NV))
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -11244,9 +11346,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C ENERFUNr
       SUBROUTINE ENERFUNr(MODE,NV,X,ENERGY,GRAD,NSTATE,IUSER,USER)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(*)::IUSER
-      REAL,DIMENSION(NV)::X,GRAD
-      REAL,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,DIMENSION(NV)::X,GRAD
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 C-----------------------------------------------------------------------
       NSTATE=NSTATE
       IUSER(1)=IUSER(1)
@@ -11279,15 +11382,16 @@ C OCUPENERGYrc
      &                        QD,HCORE,QJ,QK,DIPN,ADIPx,ADIPy,ADIPz,
      &                        DIPx,DIPy,DIPz,ENERGY,GRAD,NV)
       USE PARCOM
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NV)::GAMMA,GRAD
-      REAL,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBFT5)::QJ,QK
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NV)::GAMMA,GRAD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C----------------------------------------------------------------------- 
 C     Occupations
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -11449,15 +11553,16 @@ C OCUPENERGYro
      &                        QD,HCORE,QJ,QK,DIPN,ADIPx,ADIPy,ADIPz,
      &                        DIPx,DIPy,DIPz,ENERGY,GRAD,NV)
       USE PARCOM
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NV)::GAMMA,GRAD
-      REAL,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBFT5)::QJ,QK
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NV)::GAMMA,GRAD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,HCORE,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C----------------------------------------------------------------------- 
 C     Occupations
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -11635,14 +11740,14 @@ C LBFGSOCUPr
       SUBROUTINE LBFGSOCUPr(NV,GAMMA,USER,ENERGY)
       USE PARCOM
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      REAL,DIMENSION(NV)::GAMMA
-      REAL,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,DIMENSION(NV)::GAMMA
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
 C
       COMMON /LB3/MP,LP,GTOL,STPMIN,STPMAX
       INTEGER,PARAMETER::MSAVE=7
-      REAL(8),DIMENSION(:),ALLOCATABLE::W
+      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::W
       DOUBLE PRECISION X(NV),G(NV),DIAG(NV)
-      REAL(8)::F,EPS,XTOL,GTOL,STPMIN,STPMAX
+      DOUBLE PRECISION::F,EPS,XTOL,GTOL,STPMIN,STPMAX
       INTEGER::IFLAG,ICALL,N,M,MP,LP,NWORK
       INTEGER,DIMENSION(2)::IPRINT
       LOGICAL::DIAGCO
@@ -11771,27 +11876,33 @@ C OUTINITIALSr
      &                        OCTxzz,OCTyzz,OCTxyz,ATMNAME,ZNUC,LIMLOW,
      &                        LIMSUP,OVERLAP,IT,ITTOTAL,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(6)::QUADN
-      REAL,DIMENSION(10)::OCTUN
-      REAL,DIMENSION(NATOMS)::ZNUC
-      REAL,DIMENSION(NBF5)::GAMMA,RO,HCORE,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz,QUADxy,QUADxz,QUADyz
-      REAL,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy,OCTxxz
-      REAL,DIMENSION(NBF5)::OCTxyy,OCTyyz,OCTxzz,OCTyzz,OCTxyz
-      REAL,DIMENSION(NBFT5)::QJ,QK
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBF,NBF)::COEF,OVERLAP,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
-      REAL,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
-      REAL,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
-      REAL,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,ALLOCATABLE,DIMENSION(:)::GRAD,EAHF,E
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(6)::QUADN
+      DOUBLE PRECISION,DIMENSION(10)::OCTUN
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC
+      DOUBLE PRECISION,DIMENSION(NBF5)::GAMMA,RO,HCORE,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz,QUADxy
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxz,QUADyz      
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxz,OCTxyy,OCTyyz,OCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTyzz,OCTxyz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxy,AOCTxxz,AOCTxyy
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyyz,AOCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::GRAD,EAHF,E
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
 C     Evaluate the Electronic Energy
@@ -11966,7 +12077,8 @@ C----------------------------------------------------------------------
 C GENOUTPUTr
       SUBROUTINE GENOUTPUTr(RO,E)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO,E
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,E
 C-----------------------------------------------------------------------
 C     Print the Occupations
 C     SUMRO: Sum of the Occupations
@@ -12022,29 +12134,34 @@ C PRINTOCr
      &                    KKMIN,KKMAX,KATOM,KTYPE,KLOC,
      &                    EX1,CS,CP,CD,CF,CG,CH,CI,IFIRSTCALL,DIPS)                          
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP,IZCORE
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(6)::QUADN
-      REAL,DIMENSION(10)::OCTUN
-      REAL,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(NBF)::E
-      REAL,DIMENSION(NBF5)::RO,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz
-      REAL,DIMENSION(NBF5)::QUADxy,QUADxz,QUADyz
-      REAL,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy,OCTxxz
-      REAL,DIMENSION(NBF5)::OCTxyy,OCTyyz,OCTxzz,OCTyzz,OCTxyz
-      REAL,DIMENSION(NBFT5)::QK
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12      
-      REAL,DIMENSION(NBF,NBF)::COEF,OVERLAP,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
-      REAL,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
-      REAL,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
-      REAL,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(6)::QUADN
+      DOUBLE PRECISION,DIMENSION(10)::OCTUN
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NBF)::E
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxy,QUADxz,QUADyz
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxz,OCTxyy,OCTyyz,OCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTyzz,OCTxyz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12      
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxy,AOCTxxz,AOCTxyy
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyyz,AOCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
 C-----------------------------------------------------------------------
       KLOC(1) = KLOC(1)
       IFIRSTCALL = IFIRSTCALL
@@ -12168,7 +12285,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'
      *      ,/1X,'========================================')
-    2 FORMAT(/,3X,'Chem Pot =',F12.6,4X,F15.6)
+C    2 FORMAT(/,3X,'Chem Pot =',F12.6,4X,F15.6)
     3 FORMAT(/,
      * 18X,'------------------------------------------',/,
      * 18X,' NATURAL ORBITALS IN ATOMIC ORBITAL BASIS ',/,
@@ -12181,9 +12298,9 @@ C----------------------------------------------------------------------
      * /,2X,'------------------------------',/,
      *   2X,' Mulliken Population Analysis ',/,
      *   2X,'------------------------------')
-    6 FORMAT( 2X,'-------------',
-     *       /2X,' Occupations',
-     *       /2X,'-------------')
+C    6 FORMAT( 2X,'-------------',
+C     *       /2X,' Occupations',
+C     *       /2X,'-------------')
     7 FORMAT(/,6X,'Electric Field (',D8.1,',',D8.1,',',D8.1,')')
     8 FORMAT(/,2X,'---------------',
      *        /2X,' Dipole Moment',
@@ -12217,9 +12334,10 @@ C-----------------------------------------------------------------------
 C WRITEGCFr
       SUBROUTINE WRITEGCFr(NFILE,RO,SUMS,C,E,F,NSQ,NBF,NBF5,IT,EELEC,EN,
      &            NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,CX0,CY0,CZ0,NAT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION RO(NBF5),C(NSQ),E(NBF),F(NBF)
-      REAL,DIMENSION(NAT):: ZNUC,CX0,CY0,CZ0
-      REAL,PARAMETER::BOHR = 0.52917724924D+00
+      DOUBLE PRECISION,DIMENSION(NAT):: ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,PARAMETER::BOHR = 0.52917724924D+00
 C-----------------------------------------------------------------------
       REWIND(NFILE)
       DO I=1,NBF5
@@ -12266,32 +12384,37 @@ C FINALOUTPUTr
      &                        CG,CH,CI,ELAGN,COEFN,RON,AHCORE,
      &                        IJKL,XIJKL,IFIRSTCALL,DIPS,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP,IZCORE
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NIJKL)::IJKL
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(6)::QUADN
-      REAL,DIMENSION(10)::OCTUN
-      REAL,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(NBF5)::HCORE,RO,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz
-      REAL,DIMENSION(NBF5)::QUADxy,QUADxz,QUADyz
-      REAL,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy,OCTxxz
-      REAL,DIMENSION(NBF5)::OCTxyy,OCTyyz,OCTxzz,OCTyzz,OCTxyz
-      REAL,DIMENSION(NBFT5)::QJ,QK
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF)::E,ELAGN,RON
-      REAL,DIMENSION(NBF,NBF)::ELAG,COEF,OVERLAP,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
-      REAL,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
-      REAL,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz
-      REAL,DIMENSION(NBF,NBF)::AOCTxyy,AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz
-      REAL,DIMENSION(NBF,NBF)::COEFN,AHCORE
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,DIMENSION(NIJKL)::XIJKL
-      REAL,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(6)::QUADN
+      DOUBLE PRECISION,DIMENSION(10)::OCTUN
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NBF5)::HCORE,RO,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxx,QUADyy,QUADzz
+      DOUBLE PRECISION,DIMENSION(NBF5)::QUADxy,QUADxz,QUADyz
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxx,OCTyyy,OCTzzz,OCTxxy
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTxxz,OCTxyy,OCTyyz,OCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF5)::OCTyzz,OCTxyz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF)::E,ELAGN,RON
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxx,AQUADyy,AQUADzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AQUADxy,AQUADxz,AQUADyz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxx,AOCTyyy,AOCTzzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTxxy,AOCTxxz,AOCTxyy
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyyz,AOCTxzz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyzz,AOCTxyz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEFN,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NIJKL)::XIJKL
+      DOUBLE PRECISION,DIMENSION(3):: DIPS
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
       KLOC(1) = KLOC(1)
@@ -12440,7 +12563,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'
      *      ,/1X,'========================================')
-    2 FORMAT(/,3X,'Chem Pot =',F12.6,4X,F15.6)
+C    2 FORMAT(/,3X,'Chem Pot =',F12.6,4X,F15.6)
     3 FORMAT(/,
      * 18X,'--------------------------------',/,
      * 18X,' MATRIX OF LAGRANGE MULTIPLIERS ',/,
@@ -12453,8 +12576,8 @@ C-----------------------------------------------------------------------
      * /,2X,'------------------------------',/,
      *   2X,' Mulliken Population Analysis ',/,
      *   2X,'------------------------------')
-    6 FORMAT(/2X,' Occupations ',
-     *       /2X,'-------------')
+C    6 FORMAT(/2X,' Occupations ',
+C     *       /2X,'-------------')
     7 FORMAT(/,6X,'Electric Field (',D8.1,',',D8.1,',',D8.1,')')
     8 FORMAT(/,2X,'---------------',
      *        /2X,' Dipole Moment',
@@ -12492,11 +12615,12 @@ C=======================================================================
 C     DIAGONALIZATION OF LAGRANGE MULTIPLIERS (ELAG)
 C=======================================================================
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF)::ELAGN,RON
-      REAL,DIMENSION(NBF,NBF)::ELAG,COEF,COEFN
-      REAL,ALLOCATABLE,DIMENSION(:)::TEMP
-      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DENMAT
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF)::ELAGN,RON
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF,COEFN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::TEMP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DENMAT
 C-----------------------------------------------------------------------
 C     INTERMEDIATE MATRICES
 C-----------------------------------------------------------------------
@@ -12566,7 +12690,8 @@ C-----------------------------------------------------------------------
 
 C PRINTV
       SUBROUTINE PRINTV(NFILE,V,N)
-      REAL,DIMENSION(N,N)::V
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::V
 C-----------------------------------------------------------------------
       MAX=0
   10  MIN=MAX+1
@@ -12589,11 +12714,12 @@ C-----------------------------------------------------------------------
 
 C PRINTVERO
       SUBROUTINE PRINTVERO(NFILE,V,E,RO,N,NL)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*2 LABELAT
       CHARACTER*4 BFNAM1
       CHARACTER*6 BFNAM2
-      REAL,DIMENSION(N)::E,RO
-      REAL,DIMENSION(N,N)::V
+      DOUBLE PRECISION,DIMENSION(N)::E,RO
+      DOUBLE PRECISION,DIMENSION(N,N)::V
 C-----------------------------------------------------------------------
       MAX=0
   10  MIN=MAX+1
@@ -12643,10 +12769,11 @@ C-----------------------------------------------------------------------
 
 C ORTHONORMAL
       SUBROUTINE ORTHONORMAL(NV,NBF,NBFT,OVERLAP,COEF,ICHECK,IPRINTOPT)
-      REAL,DIMENSION(NBF,NV)::COEF
-      REAL,DIMENSION(NBF,NBF)::OVERLAP
-      REAL,ALLOCATABLE,DIMENSION(:)::EVA,AUXE,S
-      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX,W,COEFN
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NV)::COEF
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,AUXE,S
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX,W,COEFN
       INTEGER::IPRINTOPT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Form Canonical Orthonormal Orbitals: Diagonalize the Overlap (AUX)
@@ -12741,6 +12868,7 @@ C-----------------------------------------------------------------------
 
 C ORTHOGONALIZE
       SUBROUTINE ORTHOGONALIZE(Q,S,V,T,N,LIV,NT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       DIMENSION Q(N,LIV),S(NT),V(N,N),T(N)
 C-----------------------------------------------------------------------
       DO J=1,N
@@ -12777,6 +12905,7 @@ C-----------------------------------------------------------------------
 
 C ORTHONORMALIZE
       SUBROUTINE ORTHONORMALIZE(V,N,LIV)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION V(N,N)
 C-----------------------------------------------------------------------
 C     Orthonormalize first LIV Orbitals
@@ -12840,6 +12969,7 @@ C-----------------------------------------------------------------------
 C CHECKORTHO
       SUBROUTINE CHECKORTHO(COEF,OVERLAP,IVIOORTHO,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION COEF(NBF,NBF),OVERLAP(NBF,NBF)
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
@@ -12900,10 +13030,11 @@ C-----------------------------------------------------------------------
 C CJCKD3 = PNOF3 + pairing conditions
       SUBROUTINE CJCKD3(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO,BETA
-      REAL,DIMENSION(NBF5,NV)::DR,DB
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR,DB
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
       ALLOCATABLE::DSUMS(:)
 C-----------------------------------------------------------------------
 C                  CJ12, CK12, DCJ12r and DCK12r
@@ -12997,10 +13128,11 @@ C-----------------------------------------------------------------------
 C CJCKD4 = PNOF4 + pairing conditions + SUMS>1 implementation as PNOF6
       SUBROUTINE CJCKD4(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO,BETA
-      REAL,DIMENSION(NBF5,NV)::DR,DB
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR,DB
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
       ALLOCATABLE::DSUMS(:),G(:),FI(:),DG(:,:),DF(:,:),DSUMF(:),DSUMG(:)
 C-----------------------------------------------------------------------
 C          Alpha-Beta Components of CJ12, CK12, DCJ12 and DCK12
@@ -13253,10 +13385,11 @@ C-----------------------------------------------------------------------
 C CJCKD6 = PNOF6(Nc)
       SUBROUTINE CJCKD6(NV,RO,DR,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
       ALLOCATABLE::DSUMS(:),G(:),FI(:),DG(:,:),DF(:,:),DSUMF(:),DSUMG(:)
 C-----------------------------------------------------------------------
 C          Alpha-Beta Components of CJ12, CK12, DCJ12r and DCK12r
@@ -13420,8 +13553,9 @@ C-----------------------------------------------------------------------
 C AACOMP
       SUBROUTINE AACOMP(NV,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
 C-----------------------------------------------------------------------
       DO j=1,NBF5
        DO i=1,NBF5
@@ -13440,13 +13574,14 @@ C-----------------------------------------------------------------------
 C CJCKD5 = PNOF5(Nc)
       SUBROUTINE CJCKD5(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Extended (Nc>1)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      REAL,DIMENSION(NBF5)::RO,BETA
-      REAL,DIMENSION(NBF5,NV)::DR,DB
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR,DB
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
 C-----------------------------------------------------------------------
 C                Inter-pair interactions for PNOF5(Nc)
 C-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -13513,10 +13648,11 @@ C-----------------------------------------------------------------------
 C CJCKD7 = PNOF7n(Nc)(Ista=0) and PNOF7s(Nc)(Ista=1)
       SUBROUTINE CJCKD7(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO,BETA
-      REAL,DIMENSION(NBF5,NV)::DR,DB
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR,DB
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
       ALLOCATABLE::FIs(:),DFIs(:,:)
 C-----------------------------------------------------------------------
 C     FIs
@@ -13620,10 +13756,11 @@ C----------------------------------------------------------------------C
 C ECorrNonDyn (ECndl in NOF-MP2)
       SUBROUTINE ECorrNonDyn(RO,QK,ENonDEnergy)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QK
-      REAL,ALLOCATABLE,DIMENSION(:)::BETA,FIs
-      REAL,ALLOCATABLE,DIMENSION(:,:)::CK12nd
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::BETA,FIs
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CK12nd
 C-----------------------------------------------------------------------
       ALLOCATE(FIs(NBF5),CK12nd(NBF5,NBF5))
       CK12nd = 0.0d0      
@@ -13745,19 +13882,20 @@ C ORBOPTr
      &                   CJ12,CK12,ELAG,FMIUG0,DIPN,ADIPx,ADIPy,ADIPz,
      &                   ILOOP,IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/RUNTYPE/IRUNTYP      
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NBF)::FMIUG0
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
-      REAL,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W,COEFNEW,BFM,G
-      REAL,ALLOCATABLE,DIMENSION(:,:,:)::FK
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W,COEFNEW,BFM,G
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::FK
       INTEGER::IPRINTOPT
 C-----------------------------------------------------------------------
       CONVGDELAG=.FALSE.
@@ -13915,24 +14053,31 @@ C-----------------------------------------------------------------------
 C     Calculate the Electronic Energy and Lagrange Multipliers
 C-----------------------------------------------------------------------
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF5)::G      
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,ALLOCATABLE,DIMENSION(:,:)::WJj,WKj,WF
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF5)::G      
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::WJj,WKj,WF,AUX1
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::AUX2
 C-----------------------------------------------------------------------
 C     Calculate Dj: QD(j,miu,niu), Jj(miu,niu), Kj(miu,niu) (j=1,NBF5) 
 C-----------------------------------------------------------------------
-      ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5))
+      ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5),AUX1(NBF,NBF),AUX2(NSQ))
       DO j=1,NBF5
-       CALL DENMATj(j,QD(j,1:NBF,1:NBF),COEF,NBF)
-       CALL HSTARJ(WJj(1,j),QD(j,1:NBF,1:NBF),IJKL,XIJKL)
-       CALL HSTARK(WKj(1,j),QD(j,1:NBF,1:NBF),IJKL,XIJKL)
+       CALL DENMATj(j,AUX1,COEF,NBF)
+       QD(j,1:NBF,1:NBF) = AUX1(1:NBF,1:NBF) 
+       CALL HSTARJ(AUX2,AUX1,IJKL,XIJKL)
+       WJj(1:NSQ,j) = AUX2(1:NSQ)
+       CALL HSTARK(AUX2,AUX1,IJKL,XIJKL)
+       WKj(1:NSQ,j) = AUX2(1:NSQ)
       ENDDO
+      DEALLOCATE (AUX1,AUX2)
 C-----------------------------------------------------------------------
 C     Form F Matrix and keep it in WF
 C-----------------------------------------------------------------------
@@ -13973,7 +14118,8 @@ C-----------------------------------------------------------------------
 C PCONVE
       SUBROUTINE PCONVE(ELAG,DUM,MAXI,MAXJ,SUMDIFF)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::ELAG
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG
 C-----------------------------------------------------------------------
 C     Check for the symmetry of Lagrangian [ ELAG(ij)-ELAG(ji) ], i.e.,
 C     the convergence of the difference of Lagrange multipliers
@@ -13982,7 +14128,7 @@ C-----------------------------------------------------------------------
       SUMDIFF=0.0d0
       DO IQ=1,NBF
        DO JQ=1,NBF
-        GCF=DABS(ELAG(IQ,JQ)-ELAG(JQ,IQ))
+        GCF=ABS(ELAG(IQ,JQ)-ELAG(JQ,IQ))
         SUMDIFF=SUMDIFF+GCF
         IF(GCF>DUM)THEN
          DUM=GCF
@@ -13999,10 +14145,11 @@ C-----------------------------------------------------------------------
 C FFJMN1rc
       SUBROUTINE FFJMN1rc(RO,CJ12,CK12,H,DJ,DK,F,ADIPx,ADIPy,ADIPz)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NSQ,NBF5)::DJ,DK,F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK,F
 C-----------------------------------------------------------------------
 C     Calculate Fj(m,n)
 C-----------------------------------------------------------------------
@@ -14072,10 +14219,11 @@ C-----------------------------------------------------------------------
 C FFJMN1ro
       SUBROUTINE FFJMN1ro(RO,CJ12,CK12,H,DJ,DK,F,ADIPx,ADIPy,ADIPz)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NSQ,NBF5)::DJ,DK,F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK,F
 C-----------------------------------------------------------------------
 C     Calculate Fj(m,n)
 C-----------------------------------------------------------------------
@@ -14147,8 +14295,9 @@ C-----------------------------------------------------------------------
 C ELG
       SUBROUTINE ELG(ELAG,C,G)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::ELAG,C
-      REAL,DIMENSION(NBF,NBF5)::G
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,C
+      DOUBLE PRECISION,DIMENSION(NBF,NBF5)::G
 C-----------------------------------------------------------------------
 C     Calculate the Lagrange Multipliers
 C-----------------------------------------------------------------------
@@ -14177,8 +14326,9 @@ C-----------------------------------------------------------------------
 C EELECTRr
       SUBROUTINE EELECTRr(ENERGIA,H,ELAG,C,RO)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::H,ELAG,C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ELAG,C
 C-----------------------------------------------------------------------
 C     Calculate the electronic energy [ Trace( Ct*RO*H*C + Ct*G ) ]
 C-----------------------------------------------------------------------
@@ -14221,9 +14371,10 @@ C-----------------------------------------------------------------------
 C EELECTRr_EFIELD
       SUBROUTINE EELECTRr_EFIELD(EELEC_EF,C,RO,DIPN,ADIPx,ADIPy,ADIPz)
       USE PARCOM
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::C,ADIPx,ADIPy,ADIPz
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::C,ADIPx,ADIPy,ADIPz
 C-----------------------------------------------------------------------
 C     Calculate the electronic energy associated to the electric field
 C     EELEC_EF = Trace [ Ct*RO*(Ei*ADIPi)*C ] - Ei*DIPN(i)
@@ -14243,9 +14394,10 @@ C-----------------------------------------------------------------------
 C FFMIUG_SCALING
       SUBROUTINE FFMIUG_SCALING(FMIUG,ELAG,FMIUG0,ITCALL)
       USE PARCOM
-      REAL,DIMENSION(NBF)::FMIUG0
-      REAL,DIMENSION(NOPTORB,NOPTORB)::FMIUG
-      REAL,DIMENSION(NBF,NBF)::ELAG
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
+      DOUBLE PRECISION,DIMENSION(NOPTORB,NOPTORB)::FMIUG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG
 C-----------------------------------------------------------------------
 C     Generalized Fock Matrix (FMIUG)
 C-----------------------------------------------------------------------
@@ -14283,8 +14435,9 @@ C-----------------------------------------------------------------------
 
 C F01
       SUBROUTINE F01(imax,Fij)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       do i=0,imax
-       VAL=DABS(Fij)
+       VAL=ABS(Fij)
        if(VAL>10.0d0**(9-i).and.VAL<10.0d0**(10-i))then
         Fij = Fij * 0.1d0
        endif
@@ -14295,13 +14448,14 @@ C F01
 C FFMIUG_DIIS
       SUBROUTINE FFMIUG_DIIS(NUM,FMIUG,CFM,BFM,FK,IDIIS)
       USE PARCOM
-      REAL,DIMENSION(MAXLOOP+1)::CFM
-      REAL,DIMENSION(MAXLOOP+1,MAXLOOP+1)::BFM
-      REAL,DIMENSION(NUM,NUM)::FMIUG
-      REAL,DIMENSION(MAXLOOP,NUM,NUM)::FK
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(MAXLOOP+1)::CFM
+      DOUBLE PRECISION,DIMENSION(MAXLOOP+1,MAXLOOP+1)::BFM
+      DOUBLE PRECISION,DIMENSION(NUM,NUM)::FMIUG
+      DOUBLE PRECISION,DIMENSION(MAXLOOP,NUM,NUM)::FK
 C
       INTEGER,ALLOCATABLE,DIMENSION(:)::IPIV
-      REAL,ALLOCATABLE,DIMENSION(:,:)::A
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::A
 C-----------------------------------------------------------------------
       IDIIS = IDIIS+1
       FK(IDIIS,1:NUM,1:NUM) = FMIUG(1:NUM,1:NUM)
@@ -14320,7 +14474,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(idiis>NDIIS)then
 C- - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE (A(NN,NN),IPIV(NN))
-       IPIV = 0.0d0
+       IPIV = 0
        A = BFM(1:NN,1:NN)
        CFM(1:idiis) = 0.0d0
        CFM(NN) =  -1.0d0
@@ -14351,7 +14505,8 @@ C-----------------------------------------------------------------------
 
 C TRACEFF
       FUNCTION TRACEFF(maxloop,N,m,idiis,F)
-      REAL,DIMENSION(maxloop,N,N)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(maxloop,N,N)::F
 C-----------------------------------------------------------------------
       TRACEFF = 0.0d0
       do i=1,N
@@ -14380,11 +14535,11 @@ C NUCDIST
       USE PARCOM
       IMPLICIT NONE
       INTEGER,INTENT(IN):: NV
-      REAL,DIMENSION(NV),INTENT(IN)::CXYZ
-      REAL,DIMENSION(NATOMS)::DIST
-      REAL::RR
+      DOUBLE PRECISION,DIMENSION(NV),INTENT(IN)::CXYZ
+      DOUBLE PRECISION,DIMENSION(NATOMS)::DIST
+      DOUBLE PRECISION::RR
       INTEGER::I,J,MAXX,MINN
-      REAL,PARAMETER::BOHR = 0.52917724924D+00               
+      DOUBLE PRECISION,PARAMETER::BOHR = 0.52917724924D+00               
 C-----------------------------------------------------------------------
       WRITE(11,'(1X)')
       WRITE(11,*)'Internuclear distances (Angs)'
@@ -14427,6 +14582,7 @@ C-----------------------------------------------------------------------
 C MULLIKENrc
       SUBROUTINE MULLIKENrc(ATMNAME,ZNUC,LIMLOW,LIMSUP,S,RO,QD)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4 ATMNAME(NATOMS)
       DIMENSION ZNUC(NATOMS),LIMLOW(NATOMS),LIMSUP(NATOMS)
       DIMENSION S(NBF,NBF),RO(NBF5),QD(NBF,NBF,NBF)
@@ -14538,6 +14694,7 @@ C-----------------------------------------------------------------------
 
 C WRITEMULLAPMOrc
       SUBROUTINE WRITEMULLAPMOrc(QMOAT,RO,NBF5,NATOMS)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION QMOAT(NATOMS,NBF5),RO(NBF5)
 C-----------------------------------------------------------------------
 C     Print Atomic populations in each Molecular Orbital
@@ -14566,6 +14723,7 @@ C-----------------------------------------------------------------------
 
 C ATDENMATrc
       FUNCTION ATDENMATrc(K,L,RO,QD,NBF,NBF5)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION RO(NBF5),QD(NBF,NBF,NBF)
 C-----------------------------------------------------------------------
       ATDENMATrc = 0.0d0
@@ -14595,13 +14753,14 @@ C                Extended Koopmans' Theorem (EKT)
 C                This subroutine is called when IEKT=1
 C-----------------------------------------------------------------------
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NIJKL)::IJKL
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::ELAG,COEF,OVERLAP,AHCORE
-      REAL,DIMENSION(NIJKL)::XIJKL
-      REAL,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,OCCD
-      REAL,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DYSON
-      REAL,ALLOCATABLE,DIMENSION(:,:)::DM,GFOCK,COEFT
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF,OVERLAP,AHCORE
+      DOUBLE PRECISION,DIMENSION(NIJKL)::XIJKL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,OCCD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX,W,DYSON
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::DM,GFOCK,COEFT
 C-----------------------------------------------------------------------
 C     Intermediate matrices
 C-----------------------------------------------------------------------
@@ -14757,9 +14916,10 @@ C-----------------------------------------------------------------------
 C DYSONORB
       SUBROUTINE DYSONORB(OCCD,DYSON,COEF,RO,W,OVERLAP)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO,OCCD
-      REAL,DIMENSION(NBF,NBF)::COEF,W,OVERLAP
-      REAL,DIMENSION(NBF,NBF5)::DYSON
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,OCCD
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,W,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF,NBF5)::DYSON
 C-----------------------------------------------------------------------
 C     DYSON=COEF*BETA*WC (unnormalized)
 C-----------------------------------------------------------------------
@@ -14795,15 +14955,16 @@ C-----------------------------------------------------------------------
 
 C DYSVECOUTrc
       SUBROUTINE DYSVECOUTrc(V,RO,NBF,NBF5,NL)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     Print Eigenvectors
 C-----------------------------------------------------------------------
       CHARACTER*2 LABELAT
       CHARACTER*4 BFNAM1
       CHARACTER*6 BFNAM2
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::V
-      REAL,ALLOCATABLE,DIMENSION(:)::DOSRO
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::V
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::DOSRO
       ALLOCATE(DOSRO(NBF))
 C-----------------------------------------------------------------------
       DO J=1,NBF5
@@ -14848,8 +15009,9 @@ C-----------------------------------------------------------------------
 C DENMATrc
       SUBROUTINE DENMATrc(DM,C,RO)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::DM,C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::DM,C
 C----------------------------------------------------------------------
       DO M=1,NBF
        DO N=M,NBF
@@ -14881,13 +15043,14 @@ C-----------------------------------------------------------------------
 C     Create an input File for Bader's AIMPAC Program
 C-----------------------------------------------------------------------
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NATOMS)::IZCORE
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE
-      REAL,DIMENSION(NBF)::E
-      REAL,DIMENSION(NBF,NBF)::COEF
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NBF)::E
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
 C-----------------------------------------------------------------------
       NPRIMS = 0
       DO I = 1,NSHELL
@@ -14905,16 +15068,17 @@ C AIMPACrc
      &                    KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,RO,E,
      &                    EX1,CS,CP,CD,CF,CG,CH,CI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*4,DIMENSION(106)::ATMLAB
       INTEGER,DIMENSION(NATOMS)::IZCORE
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE
       INTEGER,DIMENSION(NPRIMS)::ICENT,ITYPE
-      REAL,DIMENSION(NBF)::E
-      REAL,DIMENSION(NBF,NBF)::VEC
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
-      REAL,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
-      REAL,DIMENSION(NPRIMS)::EXPON,AIC,ACO
+      DOUBLE PRECISION,DIMENSION(NBF)::E
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::VEC
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
+      DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NPRIMS)::EXPON,AIC,ACO
 C-----------------------------------------------------------------------
       DATA ATMLAB/'  H ','  HE','  LI','  BE','  B ','  C ',
      *            '  N ','  O ','  F ','  NE','  NA','  MG',
@@ -15056,7 +15220,8 @@ C-----------------------------------------------------------------------
 
 C PUNCHVEC
       SUBROUTINE PUNCHVEC(V,NBF)
-      REAL,DIMENSION(NBF,NBF)::V
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::V
 C-----------------------------------------------------------------------
       DO J = 1,NBF
        K = 0
@@ -15076,7 +15241,8 @@ C-----------------------------------------------------------------------
 
 C PUNCHAPSG
       SUBROUTINE PUNCHAPSG(NO1,NCWO,NCO,NBF5,RO,SUMA,THAPSG)
-      REAL,DIMENSION(NBF5)::RO
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
       ALLOCATABLE::IOCU(:),BB(:,:)
 C-----------------------------------------------------------------------
 C     NCO:  Number of HF occupied MOs (OCC=1)
@@ -15133,8 +15299,9 @@ C-----------------------------------------------------------------------
 
 C OneNCO
       SUBROUTINE OneNCO(I1,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,DD,THAPSG)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
       INTEGER,DIMENSION(NO1NAC)::IOCU
-      REAL,DIMENSION(NCO,NO1NAC)::BB
+      DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 C-----------------------------------------------------------------------
       do i=I1+1,NCO
        do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
@@ -15154,8 +15321,9 @@ C-----------------------------------------------------------------------
 
 C OddNCO
       SUBROUTINE OddNCO(I1,I2,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,DD,THAPSG)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NO1NAC)::IOCU
-      REAL,DIMENSION(NCO,NO1NAC)::BB
+      DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 C-----------------------------------------------------------------------
       do i=I1+1,I2-2
        do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
@@ -15171,8 +15339,9 @@ C-----------------------------------------------------------------------
 
 C EvenNCO
       SUBROUTINE EvenNCO(I1,I2,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,DD,THAPSG)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NO1NAC)::IOCU
-      REAL,DIMENSION(NCO,NO1NAC)::BB
+      DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 C-----------------------------------------------------------------------
       do i=I1+1,I2-1
        do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
@@ -15204,8 +15373,9 @@ C-----------------------------------------------------------------------
 C     This subroutine is called when ICHEMPOT = 1 for PNOF5 and PNOF7
 C-----------------------------------------------------------------------
       USE PARCOM
-      REAL,DIMENSION(NBF5)::HCORE,RO,DIPx,DIPy,DIPz
-      REAL,DIMENSION(NBFT5)::QJ,QK
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::HCORE,RO,DIPx,DIPy,DIPz
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
       ALLOCATABLE::CMIU(:),DCJ12DRO(:,:),DCK12DRO(:,:)
       ALLOCATE (CMIU(NBF5))
       ALLOCATE (DCJ12DRO(NBF5,NBF5),DCK12DRO(NBF5,NBF5))
@@ -15353,10 +15523,11 @@ C-----------------------------------------------------------------------
       
       SUBROUTINE OUTPUTCJKrc(RO,CJ12,CK12)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,ALLOCATABLE,DIMENSION(:)::BETA,FIs
-      REAL,ALLOCATABLE,DIMENSION(:,:)::CK12nd
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::BETA,FIs
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CK12nd
 C----------------------------------------------------------------------- 
 C     Print CJ12 and -CK12
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -15442,8 +15613,6 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END IF
 C-----------------------------------------------------------------------
-1     FORMAT(4I4,D20.10)
-C-----------------------------------------------------------------------
       RETURN
       END
       
@@ -15458,7 +15627,8 @@ C-----------------------------------------------------------------------
       
       SUBROUTINE OUTPUTTijab_rc(NOC,NVI,NN,Tijab)
       USE PARCOM
-      REAL,DIMENSION(NN)::Tijab
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NN)::Tijab
 C-----------------------------------------------------------------------  
       DO i=1,NOC
        DO j=1,NOC
@@ -15480,8 +15650,6 @@ C-----------------------------------------------------------------------
        ENDDO
       ENDDO
       WRITE(13)0,0,0,0,0.0d0
-C-----------------------------------------------------------------------
-1     FORMAT(4I4,D20.10)
 C-----------------------------------------------------------------------
       RETURN
       END
@@ -15508,10 +15676,11 @@ C-----------------------------------------------------------------------
 C OUTPUTRDMrc
       SUBROUTINE OUTPUTRDMrc(OVERLAP,RO,QD,CJ12,CK12)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::OVERLAP
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       ALLOCATABLE::IDXD(:),BUFD(:)
 C-----------------------------------------------------------------------
 C     2DM
@@ -15598,9 +15767,10 @@ C-----------------------------------------------------------------------
 C SUMDDL (2RDM)
       FUNCTION SUMDDL(IETA,IMIU,INIU,ILAM,RO,QD,CJ12,CK12)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       ALLOCATABLE::Dj(:,:),Di(:,:)
       ALLOCATE (Dj(NBF,NBF),Di(NBF,NBF))
 C-----------------------------------------------------------------------
@@ -15633,8 +15803,9 @@ C-----------------------------------------------------------------------
 C SUMDL (1RDM)
       FUNCTION SUMDL(IETA,IMIU,RO,QD)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C-----------------------------------------------------------------------
       SUMDL=0.0d0
       DO J=1,NB
@@ -15659,9 +15830,10 @@ C-----------------------------------------------------------------------
 C RDM1NORM
       SUBROUTINE RDM1NORM(S,RO,QD)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::S
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::S
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C-----------------------------------------------------------------------
       SUMNORM=0.0d0
       DO IETA=1,NBF
@@ -15680,10 +15852,11 @@ C-----------------------------------------------------------------------
 C RDM2NORM
       SUBROUTINE RDM2NORM(S,RO,QD,CJ12,CK12)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::S
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::S
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C-----------------------------------------------------------------------
       TWONORMA=0.D0
       DO I=1,NBF
@@ -15705,9 +15878,10 @@ C-----------------------------------------------------------------------
 C DENSI
       DOUBLE PRECISION FUNCTION DENSI(II,JJ,KK,LL,RO,QD,CJ12,CK12)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 C-----------------------------------------------------------------------
       IF((II==KK).AND.(JJ==LL))THEN
        DENSI=SUMDDL(ii,jj,kk,ll,RO,QD,CJ12,CK12)
@@ -15744,17 +15918,18 @@ C-----------------------------------------------------------------------
 C SC2MCPThf
       SUBROUTINE SC2MCPThf(RO,COEF,AHCORE,IERI,ERI,QK)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NIJKL)::IERI
-      REAL,DIMENSION(NIJKL)::ERI
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QK
-      REAL,DIMENSION(NBF,NBF)::COEF,AHCORE
+      DOUBLE PRECISION,DIMENSION(NIJKL)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QK
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,AHCORE
 C
       INTEGER,ALLOCATABLE,DIMENSION(:):: IPOS,IEX
-      REAL,ALLOCATABLE,DIMENSION(:)::  OCC,OCCn,QKv,EIG
-      REAL,ALLOCATABLE,DIMENSION(:,:):: VEC,DMhf,BBn
-      REAL,ALLOCATABLE,DIMENSION(:,:):: AUX,FOCK,TVEC,FOCKm
-      REAL,ALLOCATABLE,DIMENSION(:,:,:,:):: ERImol
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::  OCC,OCCn,QKv,EIG
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:):: VEC,DMhf,BBn
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:):: AUX,FOCK,TVEC,FOCKm
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:):: ERImol
 C-----------------------------------------------------------------------
 C     NA:  Number of HF occupied MOs (OCC=1)
 C     NVI: Number of HF virtual  MOs (OCC=0)
@@ -15988,10 +16163,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C ERIC1c
       SUBROUTINE ERIC1c(ERImol,IERI,ERI,VEC,NORB)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
-      REAL,DIMENSION(NBF,NORB)::VEC
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
 C-----------------------------------------------------------------------
       ERImol = 0.0d0
       DO M=1,NINTCR
@@ -16020,8 +16196,9 @@ C-----------------------------------------------------------------------
 C ERIC23c
       SUBROUTINE ERIC23c(ERImol,VEC,NORB)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
-      REAL,DIMENSION(NBF,NORB)::VEC
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
       ALLOCATABLE::AUX1(:,:),AUX2(:,:)
       ALLOCATE(AUX1(NBF,NBF),AUX2(NBF,NORB))
 C-----------------------------------------------------------------------
@@ -16069,8 +16246,9 @@ C-----------------------------------------------------------------------
 C ERIC4c
       SUBROUTINE ERIC4c(ERImol,VEC,NORB)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
-      REAL,DIMENSION(NBF,NORB)::VEC
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
       ALLOCATABLE::AUX1(:,:),AUX2(:,:)
       ALLOCATE(AUX1(NBF,NORB),AUX2(NBF,NORB))
 C-----------------------------------------------------------------------
@@ -16110,8 +16288,9 @@ C-----------------------------------------------------------------------
 
 C E2HFs
       FUNCTION E2HFs(NOC,NORB,EIG,FOCKm)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NORB,NORB)::FOCKm
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2HFs = 0.0d0
       DO i=1,noc
@@ -16127,8 +16306,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2HFd
       FUNCTION E2HFd(NOC,NORB,NBF,EIG,ERImol)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2HFd = 0.0d0
       DO i=1,noc
@@ -16149,9 +16329,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2F
       FUNCTION E2F(NOC,NCWO,NORB,EIG,FOCKm,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NORB,NORB)::FOCKm
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2F = 0.0d0
       DO i=1,noc
@@ -16168,10 +16349,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2FERI
       FUNCTION E2FERI(NOC,NCWO,NORB,NBF,EIG,FOCKm,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NORB,NORB)::FOCKm
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2FERI = 0.0d0
 c
@@ -16210,9 +16392,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2ERIERI
       FUNCTION E2ERIERI(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2ERIERI = 0.0d0
       DO i=1,noc
@@ -16242,9 +16425,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2dHF
       FUNCTION E2dHF(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2dHF = 0.0d0
       DO i=1,noc
@@ -16272,9 +16456,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2Ql
       FUNCTION E2Ql(NOC,NCWO,NORB,NOCNCT,EIG,QKv,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOCNCT)::QKv
-      REAL,DIMENSION(NOC,NCWO)::BBn
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOCNCT)::QKv
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2Ql = 0.0d0
       DO i=1,noc
@@ -16301,9 +16486,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2Qd
       FUNCTION E2Qd(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       E2Qd = 0.0d0
       DO i=1,noc
@@ -16347,8 +16533,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2HFdex
       FUNCTION E2HFdex(NOC,NORB,NBF,EIG,ERImol)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     i,j (i/=j) -> k,l
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16373,10 +16560,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2FERIex
       FUNCTION E2FERIex(NOC,NCWO,NORB,NBF,EIG,FOCKm,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NORB,NORB)::FOCKm
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C-----------------------------------------------------------------------
       E2FERIex = 0.0d0
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16418,9 +16606,10 @@ C-----------------------------------------------------------------------
 
 C E2ERIERIex
       FUNCTION E2ERIERIex(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     j/=m -> k,k         ( BBn(i,iw)*Xiiln*Xlnkk/Enlii is excluded )
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16446,9 +16635,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       
 C E2dHFex
       FUNCTION E2dHFex(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn)
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 c     i/=j -> k,l
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16487,9 +16677,10 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2HFs_nex
       FUNCTION E2HFs_nex(NOC,NCWO,NORB,EIG,FOCKm,IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NORB,NORB)::FOCKm
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
 C-----------------------------------------------------------------------
 c     excluding ix -> lx < norb
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16512,9 +16703,10 @@ C-----------------------------------------------------------------------
 
 C E2HFdex_nex
       FUNCTION E2HFdex_nex(NOC,NCWO,NORB,NBF,EIG,ERImol,IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 c     excluding mx,nx (mx/=nx) -> kx,lx
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16549,10 +16741,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2F_nex
       FUNCTION E2F_nex(NOC,NCWO,NORB,EIG,FOCKm,BBn,IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NORB,NORB)::FOCKm
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
 C-----------------------------------------------------------------------
 c     excluding ix -> kx                     
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16573,11 +16766,12 @@ C-----------------------------------------------------------------------
 C E2FERIex_nex
       FUNCTION E2FERIex_nex(NOC,NCWO,NORB,NBF,EIG,FOCKm,ERImol,BBn,
      &                      IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NORB,NORB)::FOCKm
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NORB,NORB)::FOCKm
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C-----------------------------------------------------------------------
       E2FERIex_nex = 0.0d0
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16628,10 +16822,11 @@ C-----------------------------------------------------------------------
 C E2ERIERIex_nex
       FUNCTION E2ERIERIex_nex(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn,
      &                        IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C-----------------------------------------------------------------------
 c     excluding ix,jx -> lx,lx                        
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16661,10 +16856,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C E2dHFex_nex
       FUNCTION E2dHFex_nex(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn,IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C-----------------------------------------------------------------------
 c     excluding ix,jx -> kx,lx
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16702,10 +16898,11 @@ C-----------------------------------------------------------------------
 
 C E2Qd_nex
       FUNCTION E2Qd_nex(NOC,NCWO,NORB,NBF,EIG,ERImol,BBn,IEX,NEX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NEX)::IEX
-      REAL,DIMENSION(NORB)::EIG
-      REAL,DIMENSION(NOC,NCWO)::BBn
-      REAL,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NORB)::EIG
+      DOUBLE PRECISION,DIMENSION(NOC,NCWO)::BBn
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
 C-----------------------------------------------------------------------
 c     excluding ix,jx -> kx,lx
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -16746,15 +16943,16 @@ C ORBINVMP2 (oiMP2)
       SUBROUTINE ORBINVMP2(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,
      &                     ADIPx,ADIPy,ADIPz)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NIJKL) :: IERI
-      REAL,DIMENSION(NIJKL) :: ERI
-      REAL,DIMENSION(NBF5) :: RO
-      REAL,DIMENSION(NBF5,NBF5) :: CJ12,CK12
-      REAL,DIMENSION(NBF,NBF) :: AHCORE,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF) :: ELAG,COEF
-      REAL,ALLOCATABLE,DIMENSION(:) :: OCC,EIG,FI1,FI2,Tijab
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: VEC,FOCKm
-      REAL,ALLOCATABLE,DIMENSION(:,:,:) :: ERImol
+      DOUBLE PRECISION,DIMENSION(NIJKL) :: ERI
+      DOUBLE PRECISION,DIMENSION(NBF5) :: RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5) :: CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: AHCORE,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: ELAG,COEF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCC,EIG,FI1,FI2,Tijab
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,FOCKm
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:) :: ERImol
 C-----------------------------------------------------------------------
 C     NO1:  Number of inactive doubly occupied orbitals (OCC=1)         
 C     NDOC: Number of strongly doubly occupied MOs                      
@@ -16907,12 +17105,13 @@ C CALTijabIsym
       SUBROUTINE CALTijabIsym(NOCB,NOC,NVI,NORB,NN,EIG,FOCKm,
      &                        ERImol,Tijab,FI1,FI2)
       USE PARCOM
-      REAL,DIMENSION(NN) :: Tijab
-      REAL,DIMENSION(NORB) :: EIG,FI1,FI2
-      REAL,DIMENSION(NORB,NORB) :: FOCKm
-      REAL,DIMENSION(NOC,NBFT,NBF) :: ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NN) :: Tijab
+      DOUBLE PRECISION,DIMENSION(NORB) :: EIG,FI1,FI2
+      DOUBLE PRECISION,DIMENSION(NORB,NORB) :: FOCKm
+      DOUBLE PRECISION,DIMENSION(NOC,NBFT,NBF) :: ERImol
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IROW,ICOL,NPAIR
-      REAL,ALLOCATABLE,DIMENSION(:) :: A,B
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: A,B
 C-----------------------------------------------------------------------
 C     NPAIR: number of the pair to which the virtual orbital belongs
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17110,13 +17309,14 @@ C-----------------------------------------------------------------------
 
 C SparseSymLinearSystem_NAG
       SUBROUTINE SparseSymLinearSystem_NAG(NN,NNZ,A,IROW,ICOL,B,Tijab)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER PRECON
       CHARACTER*6 METHOD
       INTEGER,DIMENSION(NNZ) :: IROW,ICOL
-      REAL,DIMENSION(NNZ) :: A
-      REAL,DIMENSION(NN) :: B,Tijab
+      DOUBLE PRECISION,DIMENSION(NNZ) :: A
+      DOUBLE PRECISION,DIMENSION(NN) :: B,Tijab
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IWORK
-      REAL,ALLOCATABLE,DIMENSION(:) :: WORK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: WORK
 C-----------------------------------------------------------------------
 C     The iterative method to be used:
 C     'CG'      ==> Conjugate gradient method
@@ -17223,11 +17423,12 @@ C-----------------------------------------------------------------------
 
 C SparseSymLinearSystem_CG      
       SUBROUTINE SparseSymLinearSystem_CG(NN,NNZ,A,IROW,ICOL,B,Tijab)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NNZ) :: IROW,ICOL
-      REAL,DIMENSION(NNZ) :: A
-      REAL,DIMENSION(NN) :: B,Tijab
+      DOUBLE PRECISION,DIMENSION(NNZ) :: A
+      DOUBLE PRECISION,DIMENSION(NN) :: B,Tijab
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IIROW,IICOL
-      REAL,ALLOCATABLE,DIMENSION(:) :: AA,AP,R,P
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AA,AP,R,P
 C-----------------------------------------------------------------------
 C     Symmetric A -> Square AA
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17273,9 +17474,10 @@ C-----------------------------------------------------------------------
 
 C BeqProdAT      
       SUBROUTINE BeqProdAT(N,NZ,IROW,ICOL,A,T,B )
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NZ) :: ICOL,IROW
-      REAL,DIMENSION(NZ) :: A
-      REAL,DIMENSION(N) :: T,B
+      DOUBLE PRECISION,DIMENSION(NZ) :: A
+      DOUBLE PRECISION,DIMENSION(N) :: T,B
 C-----------------------------------------------------------------------      
       B = 0.0d0
       do k = 1,NZ
@@ -17290,8 +17492,9 @@ C-----------------------------------------------------------------------
 C ORBINVE2Totalsym
       SUBROUTINE ORBINVE2Totalsym(NOCB,NOC,NVI,NN,NBF,NBFT,ERImol,
      &                            Tijab,E2)
-      REAL,DIMENSION(NN) :: Tijab
-      REAL,DIMENSION(NOC,NBFT,NBF) :: ERImol
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NN) :: Tijab
+      DOUBLE PRECISION,DIMENSION(NOC,NBFT,NBF) :: ERImol
 C-----------------------------------------------------------------------
       E2 = 0.0d0
       DO k=1,nvi
@@ -17357,10 +17560,11 @@ C-----------------------------------------------------------------------
 C ERIC1
       SUBROUTINE ERIC1(XIJKN,IERI,ERI,VEC,NOC,NORB)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NOC,NBFT,NBF)::XIJKN
-      REAL,DIMENSION(NBF,NORB)::VEC
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NOC,NBFT,NBF)::XIJKN
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
 C-----------------------------------------------------------------------
       XIJKN=0.0d0
       DO M=1,NINTCR
@@ -17387,8 +17591,9 @@ C-----------------------------------------------------------------------
 C ERIC23
       SUBROUTINE ERIC23(ERImol,VEC,NVI,NOC,NORB)
       USE PARCOM
-      REAL,DIMENSION(NOC,NBFT,NBF)::ERImol
-      REAL,DIMENSION(NBF,NORB)::VEC
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NOC,NBFT,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
       ALLOCATABLE::AUX1(:,:),AUX2(:,:)
       ALLOCATE(AUX1(NBF,NBF),AUX2(NBF,NBF))
 C-----------------------------------------------------------------------
@@ -17432,8 +17637,9 @@ C-----------------------------------------------------------------------
 C ERIC4
       SUBROUTINE ERIC4(ERImol,VEC,NOC,NVI,NORB)
       USE PARCOM
-      REAL,DIMENSION(NOC,NBFT,NBF)::ERImol
-      REAL,DIMENSION(NBF,NORB)::VEC
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NOC,NBFT,NBF)::ERImol
+      DOUBLE PRECISION,DIMENSION(NBF,NORB)::VEC
       ALLOCATABLE::AUX1(:,:),AUX2(:,:)
       ALLOCATE(AUX1(NBF,NBF),AUX2(NBF,NBF))
 C-----------------------------------------------------------------------
@@ -17466,13 +17672,15 @@ C FOCKMOL
       SUBROUTINE FOCKMOL(NORB,COEF,VEC,ELAG,EIG,FOCKm,AHCORE,IERI,ERI,
      &                   EHFL)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NIJKL) :: IERI
-      REAL,DIMENSION(NIJKL) :: ERI
-      REAL,DIMENSION(NORB) :: EIG
-      REAL,DIMENSION(NBF,NBF) :: COEF,ELAG,AHCORE
-      REAL,DIMENSION(NBF,NORB) :: VEC
-      REAL,DIMENSION(NORB,NORB) :: FOCKm
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: DMhf,FOCK,DMa,FOCKa,AUX,TVEC
+      DOUBLE PRECISION,DIMENSION(NIJKL) :: ERI
+      DOUBLE PRECISION,DIMENSION(NORB) :: EIG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,ELAG,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NORB) :: VEC
+      DOUBLE PRECISION,DIMENSION(NORB,NORB) :: FOCKm
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DMhf,FOCK,DMa
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: FOCKa,AUX,TVEC
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     DMhf: HF Density Matrix
 C     FOCK: Fock Matrix in the atomic basis set ( FOCK = H + 2J-K )
@@ -17557,7 +17765,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C DENMATHFr
       SUBROUTINE DENMATHFr(DM,CHF)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::DM,CHF
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::DM,CHF
 C----------------------------------------------------------------------
       DO M=1,NBF
        DO N=M,NBF
@@ -17576,10 +17785,11 @@ C----------------------------------------------------------------------
 C FORM2JK
       SUBROUTINE FORM2JK(FM,PM,IERI,ERI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NBF,NBF):: FM,PM
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
       ALLOCATABLE::P(:),F(:)
 #ifdef MPI
       ALLOCATABLE::FF(:)
@@ -17656,10 +17866,11 @@ C----------------------------------------------------------------------
 C FORMJK
       SUBROUTINE FORMJK(FM,PM,IERI,ERI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER,DIMENSION(NSTORE)::IERI
-      REAL,DIMENSION(NSTORE)::ERI
-      REAL,DIMENSION(NBF,NBF):: FM,PM
+      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
       ALLOCATABLE::P(:),F(:)
 #ifdef MPI
       ALLOCATABLE::FF(:)
@@ -17736,7 +17947,8 @@ C----------------------------------------------------------------------
 C DENMATHF05ro
       SUBROUTINE DENMATHF05ro(DMa,CHF)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::DMa,CHF
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::DMa,CHF
 C----------------------------------------------------------------------
       DO M=1,NBF
        DO N=M,NBF
@@ -17755,23 +17967,27 @@ C ELAGCOEF0
       SUBROUTINE ELAGCOEF0(ELAG,COEF,RO,CJ12,CK12,AHCORE,
      &                     ADIPx,ADIPy,ADIPz,IERI,ERI)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NIJKL) :: IERI
-      REAL,DIMENSION(NIJKL) :: ERI
-      REAL,DIMENSION(NBF5) :: RO
-      REAL,DIMENSION(NBF,NBF) :: ELAG,COEF,AHCORE,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF5,NBF5):: CJ12,CK12
-      REAL,ALLOCATABLE,DIMENSION(:,:,:) :: QD
-      REAL,ALLOCATABLE,DIMENSION(:,:) :: WJj,WKj,WF,G
+      DOUBLE PRECISION,DIMENSION(NIJKL) :: ERI
+      DOUBLE PRECISION,DIMENSION(NBF5) :: RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: ELAG,COEF,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5):: CJ12,CK12
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: WJj,WKj,WF,G,AUX1
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: AUX2
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-C     Calculate Dj: QD(j,miu,niu), Jj(miu,niu), Kj(miu,niu) (j=1,NBF5) 
+C     Calculate AUX1: QD(j,miu,niu), Jj(miu,niu), Kj(miu,niu) (j=1,NBF5) 
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE (QD(NBF,NBF,NBF),WJj(NSQ,NBF5),WKj(NSQ,NBF5))
+      ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5),AUX1(NBF,NBF),AUX2(NSQ))
       DO j=1,NBF5
-       CALL DENMATj(j,QD(j,1:NBF,1:NBF),COEF,NBF)
-       CALL HSTARJ(WJj(1,j),QD(j,1:NBF,1:NBF),IERI,ERI)
-       CALL HSTARK(WKj(1,j),QD(j,1:NBF,1:NBF),IERI,ERI)
+       CALL DENMATj(j,AUX1,COEF,NBF)
+       CALL HSTARJ(AUX2,AUX1,IERI,ERI)
+       WJj(1:NSQ,j) = AUX2(1:NSQ)
+       CALL HSTARK(AUX2,AUX1,IERI,ERI)
+       WKj(1:NSQ,j) = AUX2(1:NSQ)
       ENDDO
-      DEALLOCATE (QD)
+      DEALLOCATE (AUX1,AUX2)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Form F Matrix and keep it in WF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17821,7 +18037,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 C XtoX0
       SUBROUTINE XtoX0(X,X0,N)
-      REAL,DIMENSION(N)::X,X0
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N)::X,X0
 C-----------------------------------------------------------------------
       DO I=1,N
        X0(I) = X(I)
@@ -17832,6 +18049,7 @@ C-----------------------------------------------------------------------
 
 C IXtoIX0
       SUBROUTINE IXtoIX0(IX,IX0,N)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(N)::IX,IX0
 C-----------------------------------------------------------------------
       DO I=1,N
@@ -17843,7 +18061,8 @@ C-----------------------------------------------------------------------
       
 C TRACE
       FUNCTION TRACE(D,A,N)
-      REAL,DIMENSION(N,N)::D,A
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::D,A
 C-----------------------------------------------------------------------
 C     Calculate the trace of a symmetric matrix A(N,N)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17860,6 +18079,7 @@ C-----------------------------------------------------------------------
 
 C TRACEm
       SUBROUTINE TRACEm(E,D,AA,N)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION D(N,N),AA(N,N)
 C-----------------------------------------------------------------------
 C     Calculate the trace (E) of a symmetric matrix A(N,N)
@@ -17877,8 +18097,9 @@ C-----------------------------------------------------------------------
 
 C SQUARETRIAN
       SUBROUTINE SQUARETRIAN(FM,F,N,NT)
-      REAL,DIMENSION(N,N)::FM
-      REAL,DIMENSION(NT)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::FM
+      DOUBLE PRECISION,DIMENSION(NT)::F
 C-----------------------------------------------------------------------
 C     PUT SQUARE FM IN TRIANGULAR FORM F
 C-----------------------------------------------------------------------
@@ -17896,8 +18117,9 @@ C-----------------------------------------------------------------------
 
 C TRIANSQUARE
       SUBROUTINE TRIANSQUARE(FM,F,N,NT)
-      REAL,DIMENSION(N,N)::FM
-      REAL,DIMENSION(NT)::F
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::FM
+      DOUBLE PRECISION,DIMENSION(NT)::F
 C-----------------------------------------------------------------------
 C     PUT TRIANGULAR F IN SQUARE FORM FM
 C-----------------------------------------------------------------------
@@ -17915,9 +18137,10 @@ C-----------------------------------------------------------------------
 
 C CeqAtB
       SUBROUTINE CeqAtB(C,A,NA,MA,B,NB)
-      REAL,DIMENSION(NA,MA)::A
-      REAL,DIMENSION(NA,NB)::B
-      REAL,DIMENSION(NA,NB)::C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NA,MA)::A
+      DOUBLE PRECISION,DIMENSION(NA,NB)::B
+      DOUBLE PRECISION,DIMENSION(NA,NB)::C
 C-----------------------------------------------------------------------
 C     C = At * B
 C-----------------------------------------------------------------------
@@ -17935,8 +18158,9 @@ C-----------------------------------------------------------------------
 
 C COEFW
       SUBROUTINE COEFW(N,L,COEFN,COEF,W)
-      REAL,DIMENSION(N,L)::COEFN,W
-      REAL,DIMENSION(N,N)::COEF
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,L)::COEFN,W
+      DOUBLE PRECISION,DIMENSION(N,N)::COEF
 C-----------------------------------------------------------------------
 C     COEFN = COEF*W
 C-----------------------------------------------------------------------
@@ -17954,8 +18178,9 @@ C-----------------------------------------------------------------------
 
 C COEFW1
       SUBROUTINE COEFW1(L,N,COEFN,COEF,W)
-      REAL,DIMENSION(L,N)::COEFN,COEF
-      REAL,DIMENSION(N,N)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(L,N)::COEFN,COEF
+      DOUBLE PRECISION,DIMENSION(N,N)::W
 C-----------------------------------------------------------------------
 C     COEFN = COEF*W
 C-----------------------------------------------------------------------
@@ -17974,7 +18199,8 @@ C-----------------------------------------------------------------------
 C FC
       FUNCTION FC(i,IQ,F,C)
       USE PARCOM
-      REAL,DIMENSION(NBF,NBF)::F,C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::F,C
 C-----------------------------------------------------------------------
 C     FC(i,IQ) = Sum_j[F(i,j)*C(j,IQ)], F:Sym, C(nbf,nbf)
 C-----------------------------------------------------------------------
@@ -17988,14 +18214,15 @@ C-----------------------------------------------------------------------
 
 C DMATMAX
       SUBROUTINE DMATMAX(A,N,MAXI,MAXJ,DUM)
-      REAL,DIMENSION(N,N)::A
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(N,N)::A
 C-----------------------------------------------------------------------
 C     Determine the maximum off-diagonal element of symmetric matrix A 
 C-----------------------------------------------------------------------
       DUM=0.0d0
       DO IQ=1,N
        DO JQ=1,IQ-1
-        DMij=DABS(A(IQ,JQ))
+        DMij=ABS(A(IQ,JQ))
         IF(DMij>DUM)THEN
          DUM=DMij
          MAXI=IQ
@@ -18005,12 +18232,13 @@ C-----------------------------------------------------------------------
       ENDDO
 C      WRITE(6,1)MAXI,MAXJ,DUM
 C-----------------------------------------------------------------------
-    1 FORMAT(4X,'(',I3,',',I3,')',4X,F15.6)
+C    1 FORMAT(4X,'(',I3,',',I3,')',4X,F15.6)
       RETURN
       END
 
 C Heaviside
       FUNCTION HEAV(X)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
       IF(X>=0.0d0)THEN
        HEAV = 1.0d0
       ELSE
@@ -18021,6 +18249,7 @@ C Heaviside
 
 C Derivative of Heaviside
       FUNCTION DHEAV(X)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)               
       IF(X>=0.0d0)THEN
        DHEAV = 0.0d0
       ELSE
@@ -18044,8 +18273,9 @@ C Derivative of Heaviside
 C PRODCWQWj
       FUNCTION PRODCWQWj(J,CW12,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWj = CW12j*QWj. Note: Term with I=J is not included
 C-----------------------------------------------------------------------
@@ -18063,8 +18293,9 @@ C-----------------------------------------------------------------------
 C PRODCWQWj1
       FUNCTION PRODCWQWj1(J,CW12,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWj1 = CW12j*QWj, j<NB (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18086,8 +18317,9 @@ C-----------------------------------------------------------------------
 C PRODCWQWj2
       FUNCTION PRODCWQWj2(J,CW12,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWj2 = CW12j*QWj, j>NA (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18110,8 +18342,9 @@ C PRODCWQWjk
       FUNCTION PRODCWQWjk(NV,J,K,CW12,QW)
 *     Called from occopt.f for obtaining the gradients
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5,NV)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWjk = CW12jk*QWj. Note: Term with I=J is not included
 C-----------------------------------------------------------------------
@@ -18129,8 +18362,9 @@ C-----------------------------------------------------------------------
 C PRODCWQWjk1
       FUNCTION PRODCWQWjk1(NV,J,K,CW12,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5,NV)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWjk = CW12jk*QWj, j<NB (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18152,8 +18386,9 @@ C-----------------------------------------------------------------------
 C PRODCWQWjk2
       FUNCTION PRODCWQWjk2(NV,J,K,CW12,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5,NV)::CW12
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::CW12
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODCWQWjk = CW12jk*QWj, j>NA (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18175,8 +18410,9 @@ C-----------------------------------------------------------------------
 C PRODROQWj
       FUNCTION PRODROQWj(J,RO,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODROQWj = RO*QWj    Note: Term with I=J is not included
 C-----------------------------------------------------------------------
@@ -18194,8 +18430,9 @@ C-----------------------------------------------------------------------
 C PRODROQWj0
       FUNCTION PRODROQWj0(J,RO,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODROQWj0 = RO*QWj  (Sum only for NSOC)
 C     Note: Term with I=J is not included
@@ -18214,8 +18451,9 @@ C--------------------------------------------------------------------
 C PRODROQWj1
       FUNCTION PRODROQWj1(J,RO,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODROQWj = RO*QWj, j<NB<i (Sum only for NSOC)
 C-----------------------------------------------------------------------
@@ -18230,8 +18468,9 @@ C-----------------------------------------------------------------------
 C PRODROQWj2
       FUNCTION PRODROQWj2(J,RO,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODROQWj = RO*QWj, j>NA>i (Sum only for NSOC)
 C-----------------------------------------------------------------------
@@ -18246,8 +18485,9 @@ C-----------------------------------------------------------------------
 C PRODDRQWjk1
       FUNCTION PRODDRQWjk1(NV,J,K,DR,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODDRQWjk1 = DRjk*QWj, j<NB (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18263,8 +18503,9 @@ C-----------------------------------------------------------------------
 C PRODDRQWjk2
       FUNCTION PRODDRQWjk2(NV,J,K,DR,QW)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NV)::DR
-      REAL,DIMENSION(NBFT5)::QW
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NV)::DR
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QW
 C-----------------------------------------------------------------------
 C     PRODDRQWjk2 = DRjk*QWj, j>NA (NSOC is excluded from the Sum)
 C     Note: Term with I=J is not included
@@ -18280,8 +18521,9 @@ C-----------------------------------------------------------------------
 C PRODWCWij
       FUNCTION PRODWCWij(ij,W,CW12)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(1,*) by IQP
 C-----------------------------------------------------------------------
@@ -18296,8 +18538,9 @@ C-----------------------------------------------------------------------
 C PRODWCWij1
       FUNCTION PRODWCWij1(ij,W,CW12)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(1,*) by IQP. NSOC terms are excluded from the Sum.
 C-----------------------------------------------------------------------
@@ -18315,8 +18558,9 @@ C-----------------------------------------------------------------------
 C PRODWCWijq
       FUNCTION PRODWCWijq(ij,IQ,W,CW12)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(IQ,*) by IQP, IQ is not considered
 C-----------------------------------------------------------------------
@@ -18334,8 +18578,9 @@ C-----------------------------------------------------------------------
 C PRODWCWijq1
       FUNCTION PRODWCWijq1(ij,IQ,W,CW12)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(IQ,*) by IQP, IQ is not considered (IQ<NB)
 C     NSOC terms are excluded from the Sum.
@@ -18357,8 +18602,9 @@ C-----------------------------------------------------------------------
 C PRODWCWijq2
       FUNCTION PRODWCWijq2(ij,IQ,W,CW12)
       USE PARCOM
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(IQ,*) by IQP, IQ is not considered (IQ>NA)
 C     NSOC terms are excluded from the Sum.
@@ -18380,7 +18626,8 @@ C-----------------------------------------------------------------------
 C SUMWij
       FUNCTION SUMWij(ij,W)
       USE PARCOM
-      REAL,DIMENSION(NSQ,NBF5)::W      
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W      
 C-----------------------------------------------------------------------
 C     Sum Wij for NSOC terms
 C-----------------------------------------------------------------------
@@ -18395,7 +18642,8 @@ C-----------------------------------------------------------------------
 C SUMWijq
       FUNCTION SUMWijq(ij,IQ,W)
       USE PARCOM
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum Wij for NSOC terms, IQ is not considered
 C-----------------------------------------------------------------------
@@ -18413,8 +18661,9 @@ C-----------------------------------------------------------------------
 C PRODWROij
       FUNCTION PRODWROij(ij,W,RO)
       USE PARCOM
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NSQ,NBF5)::W
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*RO. NSOC terms are excluded from the Sum.
 C-----------------------------------------------------------------------
@@ -18453,11 +18702,12 @@ C DIAG
 *     EIG = RETURNED EIGENVALUES IN ALGEBRAIC DESCENDING ORDER         *
 *     VEC = RETURNED EIGENVECTORS IN COLUMNS                           *
 ************************************************************************
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       PARAMETER (NAN = 5000)
       INTEGER,DIMENSION(NAN)::IPOSV,IORD,IVPOS
-      REAL,DIMENSION(NAN)::GAMMA,BETA,P,Q,BETASQ
-      REAL,DIMENSION(NN)::EIG,W
-      REAL,DIMENSION(NN,NN)::A,VEC
+      DOUBLE PRECISION,DIMENSION(NAN)::GAMMA,BETA,P,Q,BETASQ
+      DOUBLE PRECISION,DIMENSION(NN)::EIG,W
+      DOUBLE PRECISION,DIMENSION(NN,NN)::A,VEC
       EQUIVALENCE (P,Q,IVPOS,BETA),(IPOSV,GAMMA),(IORD,BETASQ)
       DATA ZERO/0.0d0/,PT5/0.5d0/,ONE/1.0d0/,TWO/2.0d0/,RHOSQ/1.0D-30/
 C-----------------------------------------------------------------------
@@ -18650,729 +18900,656 @@ C**  THIS PROGRAM VALID ON FTN4 AND FTN5 **
 !                                                                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
+C DLAMCH
+      DOUBLE PRECISION FUNCTION dlamch( CMACH )
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*  -- LAPACK is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     April 2012
+*
+*     .. Scalar Arguments ..
+      CHARACTER          cmach
+*     ..
+*     .. Parameters ..
+      DOUBLE PRECISION   one, zero
+      parameter( one = 1.0d+0, zero = 0.0d+0 )
+*     ..
+*     .. Local Scalars ..
+      LOGICAL            first, lrnd
+      INTEGER            beta, imax, imin, it
+      DOUBLE PRECISION   base, emax, emin, eps, prec, rmach, rmax, rmin,
+     $                   rnd, sfmin, small, t
+*     ..
+*     .. External Functions ..
+      LOGICAL            lsame
+      EXTERNAL           lsame
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           dlamc2
+*     ..
+*     .. Save statement ..
+      SAVE               first, eps, sfmin, base, t, rnd, emin, rmin,
+     $                   emax, rmax, prec
+*     ..
+*     .. Data statements ..
+      DATA               first / .true. /
+*     ..
+*     .. Executable Statements ..
+*
+      IF( first ) THEN
+         CALL dlamc2( beta, it, lrnd, eps, imin, rmin, imax, rmax )
+         base = beta
+         t = it
+         IF( lrnd ) THEN
+            rnd = one
+            eps = ( base**( 1-it ) ) / 2
+         ELSE
+            rnd = zero
+            eps = base**( 1-it )
+         END IF
+         prec = eps*base
+         emin = imin
+         emax = imax
+         sfmin = rmin
+         small = one / rmax
+         IF( small.GE.sfmin ) THEN
+*
+*           Use SMALL plus a bit, to avoid the possibility of rounding
+*           causing overflow when computing  1/sfmin.
+*
+            sfmin = small*( one+eps )
+         END IF
+      END IF
+*
+      IF( lsame( cmach, 'E' ) ) THEN
+         rmach = eps
+      ELSE IF( lsame( cmach, 'S' ) ) THEN
+         rmach = sfmin
+      ELSE IF( lsame( cmach, 'B' ) ) THEN
+         rmach = base
+      ELSE IF( lsame( cmach, 'P' ) ) THEN
+         rmach = prec
+      ELSE IF( lsame( cmach, 'N' ) ) THEN
+         rmach = t
+      ELSE IF( lsame( cmach, 'R' ) ) THEN
+         rmach = rnd
+      ELSE IF( lsame( cmach, 'M' ) ) THEN
+         rmach = emin
+      ELSE IF( lsame( cmach, 'U' ) ) THEN
+         rmach = rmin
+      ELSE IF( lsame( cmach, 'L' ) ) THEN
+         rmach = emax
+      ELSE IF( lsame( cmach, 'O' ) ) THEN
+         rmach = rmax
+      END IF
+*
+      dlamch = rmach
+      first  = .false.
+      RETURN
+*
+*     End of DLAMCH
+*
+      END
+
 C DLAMC1
       SUBROUTINE DLAMC1( BETA, T, RND, IEEE1 )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*     Univ. of Tennessee, Univ. of California Berkeley and NAG Ltd..
+*     November 2010
+*
+*     .. Scalar Arguments ..
       LOGICAL            IEEE1, RND
       INTEGER            BETA, T
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMC1 DETERMINES THE MACHINE PARAMETERS GIVEN BY BETA, T, RND, AND
-C  IEEE1.
-C
-C  ARGUMENTS
-C  =========
-C
-C  BETA    (OUTPUT) INTEGER
-C          THE BASE OF THE MACHINE.
-C
-C  T       (OUTPUT) INTEGER
-C          THE NUMBER OF ( BETA ) DIGITS IN THE MANTISSA.
-C
-C  RND     (OUTPUT) LOGICAL
-C          SPECIFIES WHETHER PROPER ROUNDING  ( RND = .TRUE. )  OR
-C          CHOPPING  ( RND = .FALSE. )  OCCURS IN ADDITION. THIS MAY NOT
-C          BE A RELIABLE GUIDE TO THE WAY IN WHICH THE MACHINE PERFORMS
-C          ITS ARITHMETIC.
-C
-C  IEEE1   (OUTPUT) LOGICAL
-C          SPECIFIES WHETHER ROUNDING APPEARS TO BE DONE IN THE IEEE
-C          'ROUND TO NEAREST' STYLE.
-C
-C  FURTHER DETAILS
-C  ===============
-C
-C  THE ROUTINE IS BASED ON THE ROUTINE  ENVRON  BY MALCOLM AND
-C  INCORPORATES SUGGESTIONS BY GENTLEMAN AND MAROVICH. SEE
-C
-C     MALCOLM M. A. (1972) ALGORITHMS TO REVEAL PROPERTIES OF
-C        FLOATING-POINT ARITHMETIC. COMMS. OF THE ACM, 15, 949-951.
-C
-C     GENTLEMAN W. M. AND MAROVICH S. B. (1974) MORE ON ALGORITHMS
-C        THAT REVEAL PROPERTIES OF FLOATING POINT ARITHMETIC UNITS.
-C        COMMS. OF THE ACM, 17, 276-277.
-C
-C =====================================================================
-C
-C     .. LOCAL SCALARS ..
+*     ..
+* =====================================================================
+*
+*     .. Local Scalars ..
       LOGICAL            FIRST, LIEEE1, LRND
       INTEGER            LBETA, LT
       DOUBLE PRECISION   A, B, C, F, ONE, QTR, SAVEC, T1, T2
-C     ..
-C     .. EXTERNAL FUNCTIONS ..
+*     ..
+*     .. External Functions ..
       DOUBLE PRECISION   DLAMC3
-      EXTERNAL           DLAMC3
-C     ..
-C     .. SAVE STATEMENT ..
-      SAVE               FIRST, LIEEE1, LBETA, LRND, LT
-C     ..
-C     .. DATA STATEMENTS ..
-      DATA               FIRST / .TRUE. /
-C     ..
-C     .. EXECUTABLE STATEMENTS ..
-C
-      IF( FIRST ) THEN
-         FIRST = .FALSE.
-         ONE = 1
-C
-C        LBETA,  LIEEE1,  LT AND  LRND  ARE THE  LOCAL VALUES  OF  BETA,
-C        IEEE1, T AND RND.
-C
-C        THROUGHOUT THIS ROUTINE  WE USE THE FUNCTION  DLAMC3  TO ENSURE
-C        THAT RELEVANT VALUES ARE  STORED AND NOT HELD IN REGISTERS,  OR
-C        ARE NOT AFFECTED BY OPTIMIZERS.
-C
-C        COMPUTE  A = 2.0**M  WITH THE  SMALLEST POSITIVE INTEGER M SUCH
-C        THAT
-C
-C           FL( A + 1.0 ) = A.
-C
-         A = 1
-         C = 1
-C
-C+       WHILE( C==ONE )LOOP
+      EXTERNAL           dlamc3
+*     ..
+*     .. Save statement ..
+      SAVE               first, lieee1, lbeta, lrnd, lt
+*     ..
+*     .. Data statements ..
+      DATA               first / .true. /
+*     ..
+*     .. Executable Statements ..
+*
+      IF( first ) THEN
+         one = 1
+*
+*        LBETA,  LIEEE1,  LT and  LRND  are the  local values  of  BETA,
+*        IEEE1, T and RND.
+*
+*        Throughout this routine  we use the function  DLAMC3  to ensure
+*        that relevant values are  stored and not held in registers,  or
+*        are not affected by optimizers.
+*
+*        Compute  a = 2.0**m  with the  smallest positive integer m such
+*        that
+*
+*           fl( a + 1.0 ) = a.
+*
+         a = 1
+         c = 1
+*
+*+       WHILE( C.EQ.ONE )LOOP
    10    CONTINUE
-         IF( C==ONE ) THEN
-            A = 2*A
-            C = DLAMC3( A, ONE )
-            C = DLAMC3( C, -A )
+         IF( c.EQ.one ) THEN
+            a = 2*a
+            c = dlamc3( a, one )
+            c = dlamc3( c, -a )
             GO TO 10
          END IF
-C+       END WHILE
-C
-C        NOW COMPUTE  B = 2.0**M  WITH THE SMALLEST POSITIVE INTEGER M
-C        SUCH THAT
-C
-C           FL( A + B ) > A.
-C
-         B = 1
-         C = DLAMC3( A, B )
-C
-C+       WHILE( C==A )LOOP
+*+       END WHILE
+*
+*        Now compute  b = 2.0**m  with the smallest positive integer m
+*        such that
+*
+*           fl( a + b ) .gt. a.
+*
+         b = 1
+         c = dlamc3( a, b )
+*
+*+       WHILE( C.EQ.A )LOOP
    20    CONTINUE
-         IF( C==A ) THEN
-            B = 2*B
-            C = DLAMC3( A, B )
+         IF( c.EQ.a ) THEN
+            b = 2*b
+            c = dlamc3( a, b )
             GO TO 20
          END IF
-C+       END WHILE
-C
-C        NOW COMPUTE THE BASE.  A AND C  ARE NEIGHBOURING FLOATING POINT
-C        NUMBERS  IN THE  INTERVAL  ( BETA**T, BETA**( T + 1 ) )  AND SO
-C        THEIR DIFFERENCE IS BETA. ADDING 0.25 TO C IS TO ENSURE THAT IT
-C        IS TRUNCATED TO BETA AND NOT ( BETA - 1 ).
-C
-         QTR = ONE / 4
-         SAVEC = C
-         C = DLAMC3( C, -A )
-         LBETA = INT(C + QTR)
-C
-C        NOW DETERMINE WHETHER ROUNDING OR CHOPPING OCCURS,  BY ADDING A
-C        BIT  LESS  THAN  BETA/2  AND A  BIT  MORE  THAN  BETA/2  TO  A.
-C
-         B = LBETA
-         F = DLAMC3( B / 2, -B / 100 )
-         C = DLAMC3( F, A )
-         IF( C==A ) THEN
-            LRND = .TRUE.
+*+       END WHILE
+*
+*        Now compute the base.  a and c  are neighbouring floating point
+*        numbers  in the  interval  ( beta**t, beta**( t + 1 ) )  and so
+*        their difference is beta. Adding 0.25 to c is to ensure that it
+*        is truncated to beta and not ( beta - 1 ).
+*
+         qtr = one / 4
+         savec = c
+         c = dlamc3( c, -a )
+         lbeta = c + qtr
+*
+*        Now determine whether rounding or chopping occurs,  by adding a
+*        bit  less  than  beta/2  and a  bit  more  than  beta/2  to  a.
+*
+         b = lbeta
+         f = dlamc3( b / 2, -b / 100 )
+         c = dlamc3( f, a )
+         IF( c.EQ.a ) THEN
+            lrnd = .true.
          ELSE
-            LRND = .FALSE.
+            lrnd = .false.
          END IF
-         F = DLAMC3( B / 2, B / 100 )
-         C = DLAMC3( F, A )
-         IF(LRND  .AND. (C==A) )
-     $      LRND = .FALSE.
-C
-C        TRY AND DECIDE WHETHER ROUNDING IS DONE IN THE  IEEE  'ROUND TO
-C        NEAREST' STYLE. B/2 IS HALF A UNIT IN THE LAST PLACE OF THE TWO
-C        NUMBERS A AND SAVEC. FURTHERMORE, A IS EVEN, I.E. HAS LAST  BIT
-C        ZERO, AND SAVEC IS ODD. THUS ADDING B/2 TO A SHOULD NOT  CHANGE
-C        A, BUT ADDING B/2 TO SAVEC SHOULD CHANGE SAVEC.
-C
-         T1 = DLAMC3( B / 2, A )
-         T2 = DLAMC3( B / 2, SAVEC )
-         LIEEE1 = ( T1==A ) .AND. ( T2>SAVEC ) .AND. LRND
-C
-C        NOW FIND  THE  MANTISSA, T.  IT SHOULD  BE THE  INTEGER PART OF
-C        LOG TO THE BASE BETA OF A,  HOWEVER IT IS SAFER TO DETERMINE  T
-C        BY POWERING.  SO WE FIND T AS THE SMALLEST POSITIVE INTEGER FOR
-C        WHICH
-C
-C           FL( BETA**T + 1.0 ) = 1.0.
-C
-         LT = 0
-         A = 1
-         C = 1
-C
-C+       WHILE( C==ONE )LOOP
+         f = dlamc3( b / 2, b / 100 )
+         c = dlamc3( f, a )
+         IF( ( lrnd ) .AND. ( c.EQ.a ) )
+     $      lrnd = .false.
+*
+*        Try and decide whether rounding is done in the  IEEE  'round to
+*        nearest' style. B/2 is half a unit in the last place of the two
+*        numbers A and SAVEC. Furthermore, A is even, i.e. has last  bit
+*        zero, and SAVEC is odd. Thus adding B/2 to A should not  change
+*        A, but adding B/2 to SAVEC should change SAVEC.
+*
+         t1 = dlamc3( b / 2, a )
+         t2 = dlamc3( b / 2, savec )
+         lieee1 = ( t1.EQ.a ) .AND. ( t2.GT.savec ) .AND. lrnd
+*
+*        Now find  the  mantissa, t.  It should  be the  integer part of
+*        log to the base beta of a,  however it is safer to determine  t
+*        by powering.  So we find t as the smallest positive integer for
+*        which
+*
+*           fl( beta**t + 1.0 ) = 1.0.
+*
+         lt = 0
+         a = 1
+         c = 1
+*
+*+       WHILE( C.EQ.ONE )LOOP
    30    CONTINUE
-         IF( C==ONE ) THEN
-            LT = LT + 1
-            A = A*LBETA
-            C = DLAMC3( A, ONE )
-            C = DLAMC3( C, -A )
+         IF( c.EQ.one ) THEN
+            lt = lt + 1
+            a = a*lbeta
+            c = dlamc3( a, one )
+            c = dlamc3( c, -a )
             GO TO 30
          END IF
-C+       END WHILE
-C
+*+       END WHILE
+*
       END IF
-C
-      BETA = LBETA
-      T = LT
-      RND = LRND
-      IEEE1 = LIEEE1
+*
+      beta = lbeta
+      t = lt
+      rnd = lrnd
+      ieee1 = lieee1
+      first = .false.
       RETURN
-C
-C     END OF DLAMC1
-C
+*
+*     End of DLAMC1
+*
       END
 
-C DLAMC2
+C DLAMC2      
       SUBROUTINE DLAMC2( BETA, T, RND, EPS, EMIN, RMIN, EMAX, RMAX )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*     Univ. of Tennessee, Univ. of California Berkeley and NAG Ltd..
+*     November 2010
+*
+*     .. Scalar Arguments ..
       LOGICAL            RND
       INTEGER            BETA, EMAX, EMIN, T
       DOUBLE PRECISION   EPS, RMAX, RMIN
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMC2 DETERMINES THE MACHINE PARAMETERS SPECIFIED IN ITS ARGUMENT
-C  LIST.
-C
-C  ARGUMENTS
-C  =========
-C
-C  BETA    (OUTPUT) INTEGER
-C          THE BASE OF THE MACHINE.
-C
-C  T       (OUTPUT) INTEGER
-C          THE NUMBER OF ( BETA ) DIGITS IN THE MANTISSA.
-C
-C  RND     (OUTPUT) LOGICAL
-C          SPECIFIES WHETHER PROPER ROUNDING  ( RND = .TRUE. )  OR
-C          CHOPPING  ( RND = .FALSE. )  OCCURS IN ADDITION. THIS MAY NOT
-C          BE A RELIABLE GUIDE TO THE WAY IN WHICH THE MACHINE PERFORMS
-C          ITS ARITHMETIC.
-C
-C  EPS     (OUTPUT) DOUBLE PRECISION
-C          THE SMALLEST POSITIVE NUMBER SUCH THAT
-C
-C             FL( 1.0 - EPS ) < 1.0,
-C
-C          WHERE FL DENOTES THE COMPUTED VALUE.
-C
-C  EMIN    (OUTPUT) INTEGER
-C          THE MINIMUM EXPONENT BEFORE (GRADUAL) UNDERFLOW OCCURS.
-C
-C  RMIN    (OUTPUT) DOUBLE PRECISION
-C          THE SMALLEST NORMALIZED NUMBER FOR THE MACHINE, GIVEN BY
-C          BASE**( EMIN - 1 ), WHERE  BASE  IS THE FLOATING POINT VALUE
-C          OF BETA.
-C
-C  EMAX    (OUTPUT) INTEGER
-C          THE MAXIMUM EXPONENT BEFORE OVERFLOW OCCURS.
-C
-C  RMAX    (OUTPUT) DOUBLE PRECISION
-C          THE LARGEST POSITIVE NUMBER FOR THE MACHINE, GIVEN BY
-C          BASE**EMAX * ( 1 - EPS ), WHERE  BASE  IS THE FLOATING POINT
-C          VALUE OF BETA.
-C
-C  FURTHER DETAILS
-C  ===============
-C
-C  THE COMPUTATION OF  EPS  IS BASED ON A ROUTINE PARANOIA BY
-C  W. KAHAN OF THE UNIVERSITY OF CALIFORNIA AT BERKELEY.
-C
-C =====================================================================
-C
-C     .. LOCAL SCALARS ..
+*     ..
+* =====================================================================
+*
+*     .. Local Scalars ..
       LOGICAL            FIRST, IEEE, IWARN, LIEEE1, LRND
       INTEGER            GNMIN, GPMIN, I, LBETA, LEMAX, LEMIN, LT,
      $                   NGNMIN, NGPMIN
       DOUBLE PRECISION   A, B, C, HALF, LEPS, LRMAX, LRMIN, ONE, RBASE,
      $                   SIXTH, SMALL, THIRD, TWO, ZERO
-C     ..
-C     .. EXTERNAL FUNCTIONS ..
+*     ..
+*     .. External Functions ..
       DOUBLE PRECISION   DLAMC3
-      EXTERNAL           DLAMC3
-C     ..
-C     .. EXTERNAL SUBROUTINES ..
-      EXTERNAL           DLAMC1, DLAMC4, DLAMC5
-C     ..
-C     .. INTRINSIC FUNCTIONS ..
-      INTRINSIC          ABS, MAX, MIN
-C     ..
-C     .. SAVE STATEMENT ..
-      SAVE               FIRST, IWARN, LBETA, LEMAX, LEMIN, LEPS, LRMAX,
-     $                   LRMIN, LT
-C     ..
-C     .. DATA STATEMENTS ..
-      DATA               FIRST / .TRUE. / , IWARN / .FALSE. /
-C     ..
-C     .. EXECUTABLE STATEMENTS ..
-C
-      IF( FIRST ) THEN
-         FIRST = .FALSE.
-         ZERO = 0.0d0
-         ONE = 1.0d0
-         TWO = 2.0d0
-C
-C        LBETA, LT, LRND, LEPS, LEMIN AND LRMIN  ARE THE LOCAL VALUES OF
-C        BETA, T, RND, EPS, EMIN AND RMIN.
-C
-C        THROUGHOUT THIS ROUTINE  WE USE THE FUNCTION  DLAMC3  TO ENSURE
-C        THAT RELEVANT VALUES ARE STORED  AND NOT HELD IN REGISTERS,  OR
-C        ARE NOT AFFECTED BY OPTIMIZERS.
-C
-C        DLAMC1 RETURNS THE PARAMETERS  LBETA, LT, LRND AND LIEEE1.
-C
-         CALL DLAMC1( LBETA, LT, LRND, LIEEE1 )
-C
-C        START TO FIND EPS.
-C
-         B = LBETA
-         A = B**( -LT )
-         LEPS = A
-C
-C        TRY SOME TRICKS TO SEE WHETHER OR NOT THIS IS THE CORRECT  EPS.
-C
-         B = TWO / 3
-         HALF = ONE / 2
-         SIXTH = DLAMC3( B, -HALF )
-         THIRD = DLAMC3( SIXTH, SIXTH )
-         B = DLAMC3( THIRD, -HALF )
-         B = DLAMC3( B, SIXTH )
-         B = ABS( B )
-         IF( B<LEPS )
-     $      B = LEPS
-C
-         LEPS = 1
-C
-C+       WHILE( ( LEPS>B ).AND.( B>ZERO ) )LOOP
+      EXTERNAL           dlamc3
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           dlamc1, dlamc4, dlamc5
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          abs, max, min
+*     ..
+*     .. Save statement ..
+      SAVE               first, iwarn, lbeta, lemax, lemin, leps, lrmax,
+     $                   lrmin, lt
+*     ..
+*     .. Data statements ..
+      DATA               first / .true. / , iwarn / .false. /
+*     ..
+*     .. Executable Statements ..
+*
+      IF( first ) THEN
+         zero = 0
+         one = 1
+         two = 2
+*
+*        LBETA, LT, LRND, LEPS, LEMIN and LRMIN  are the local values of
+*        BETA, T, RND, EPS, EMIN and RMIN.
+*
+*        Throughout this routine  we use the function  DLAMC3  to ensure
+*        that relevant values are stored  and not held in registers,  or
+*        are not affected by optimizers.
+*
+*        DLAMC1 returns the parameters  LBETA, LT, LRND and LIEEE1.
+*
+         CALL dlamc1( lbeta, lt, lrnd, lieee1 )
+*
+*        Start to find EPS.
+*
+         b = lbeta
+         a = b**( -lt )
+         leps = a
+*
+*        Try some tricks to see whether or not this is the correct  EPS.
+*
+         b = two / 3
+         half = one / 2
+         sixth = dlamc3( b, -half )
+         third = dlamc3( sixth, sixth )
+         b = dlamc3( third, -half )
+         b = dlamc3( b, sixth )
+         b = abs( b )
+         IF( b.LT.leps )
+     $      b = leps
+*
+         leps = 1
+*
+*+       WHILE( ( LEPS.GT.B ).AND.( B.GT.ZERO ) )LOOP
    10    CONTINUE
-         IF( ( LEPS>B ) .AND. ( B>ZERO ) ) THEN
-            LEPS = B
-            C = DLAMC3( HALF*LEPS, ( TWO**5 )*( LEPS**2 ) )
-            C = DLAMC3( HALF, -C )
-            B = DLAMC3( HALF, C )
-            C = DLAMC3( HALF, -B )
-            B = DLAMC3( HALF, C )
+         IF( ( leps.GT.b ) .AND. ( b.GT.zero ) ) THEN
+            leps = b
+            c = dlamc3( half*leps, ( two**5 )*( leps**2 ) )
+            c = dlamc3( half, -c )
+            b = dlamc3( half, c )
+            c = dlamc3( half, -b )
+            b = dlamc3( half, c )
             GO TO 10
          END IF
-C+       END WHILE
-C
-         IF( A<LEPS )
-     $      LEPS = A
-C
-C        COMPUTATION OF EPS COMPLETE.
-C
-C        NOW FIND  EMIN.  LET A = + OR - 1, AND + OR - (1 + BASE**(-3)).
-C        KEEP DIVIDING  A BY BETA UNTIL (GRADUAL) UNDERFLOW OCCURS. THIS
-C        IS DETECTED WHEN WE CANNOT RECOVER THE PREVIOUS A.
-C
-         RBASE = ONE / LBETA
-         SMALL = ONE
-         DO 20 I = 1, 3
-            SMALL = DLAMC3( SMALL*RBASE, ZERO )
+*+       END WHILE
+*
+         IF( a.LT.leps )
+     $      leps = a
+*
+*        Computation of EPS complete.
+*
+*        Now find  EMIN.  Let A = + or - 1, and + or - (1 + BASE**(-3)).
+*        Keep dividing  A by BETA until (gradual) underflow occurs. This
+*        is detected when we cannot recover the previous A.
+*
+         rbase = one / lbeta
+         small = one
+         DO 20 i = 1, 3
+            small = dlamc3( small*rbase, zero )
    20    CONTINUE
-         A = DLAMC3( ONE, SMALL )
-         CALL DLAMC4( NGPMIN, ONE, LBETA )
-         CALL DLAMC4( NGNMIN, -ONE, LBETA )
-         CALL DLAMC4( GPMIN, A, LBETA )
-         CALL DLAMC4( GNMIN, -A, LBETA )
-         IEEE = .FALSE.
-C
-         IF( ( NGPMIN==NGNMIN ) .AND. ( GPMIN==GNMIN ) ) THEN
-            IF( NGPMIN==GPMIN ) THEN
-               LEMIN = NGPMIN
-C            ( NON TWOS-COMPLEMENT MACHINES, NO GRADUAL UNDERFLOW;
-C              E.G.,  VAX )
-            ELSE IF( ( GPMIN-NGPMIN )==3 ) THEN
-               LEMIN = NGPMIN - 1 + LT
-               IEEE = .TRUE.
-C            ( NON TWOS-COMPLEMENT MACHINES, WITH GRADUAL UNDERFLOW;
-C              E.G., IEEE STANDARD FOLLOWERS )
+         a = dlamc3( one, small )
+         CALL dlamc4( ngpmin, one, lbeta )
+         CALL dlamc4( ngnmin, -one, lbeta )
+         CALL dlamc4( gpmin, a, lbeta )
+         CALL dlamc4( gnmin, -a, lbeta )
+         ieee = .false.
+*
+         IF( ( ngpmin.EQ.ngnmin ) .AND. ( gpmin.EQ.gnmin ) ) THEN
+            IF( ngpmin.EQ.gpmin ) THEN
+               lemin = ngpmin
+*            ( Non twos-complement machines, no gradual underflow;
+*              e.g.,  VAX )
+            ELSE IF( ( gpmin-ngpmin ).EQ.3 ) THEN
+               lemin = ngpmin - 1 + lt
+               ieee = .true.
+*            ( Non twos-complement machines, with gradual underflow;
+*              e.g., IEEE standard followers )
             ELSE
-               LEMIN = MIN( NGPMIN, GPMIN )
-C            ( A GUESS; NO KNOWN MACHINE )
-               IWARN = .TRUE.
+               lemin = min( ngpmin, gpmin )
+*            ( A guess; no known machine )
+               iwarn = .true.
             END IF
-C
-         ELSE IF( ( NGPMIN==GPMIN ) .AND. ( NGNMIN==GNMIN ) ) THEN
-            IF( ABS( NGPMIN-NGNMIN )==1 ) THEN
-               LEMIN = MAX( NGPMIN, NGNMIN )
-C            ( TWOS-COMPLEMENT MACHINES, NO GRADUAL UNDERFLOW;
-C              E.G., CYBER 205 )
+*
+         ELSE IF( ( ngpmin.EQ.gpmin ) .AND. ( ngnmin.EQ.gnmin ) ) THEN
+            IF( abs( ngpmin-ngnmin ).EQ.1 ) THEN
+               lemin = max( ngpmin, ngnmin )
+*            ( Twos-complement machines, no gradual underflow;
+*              e.g., CYBER 205 )
             ELSE
-               LEMIN = MIN( NGPMIN, NGNMIN )
-C            ( A GUESS; NO KNOWN MACHINE )
-               IWARN = .TRUE.
+               lemin = min( ngpmin, ngnmin )
+*            ( A guess; no known machine )
+               iwarn = .true.
             END IF
-C
-         ELSE IF( ( ABS( NGPMIN-NGNMIN )==1 ) .AND.
-     $            ( GPMIN==GNMIN ) ) THEN
-            IF( ( GPMIN-MIN( NGPMIN, NGNMIN ) )==3 ) THEN
-               LEMIN = MAX( NGPMIN, NGNMIN ) - 1 + LT
-C            ( TWOS-COMPLEMENT MACHINES WITH GRADUAL UNDERFLOW;
-C              NO KNOWN MACHINE )
+*
+         ELSE IF( ( abs( ngpmin-ngnmin ).EQ.1 ) .AND.
+     $            ( gpmin.EQ.gnmin ) ) THEN
+            IF( ( gpmin-min( ngpmin, ngnmin ) ).EQ.3 ) THEN
+               lemin = max( ngpmin, ngnmin ) - 1 + lt
+*            ( Twos-complement machines with gradual underflow;
+*              no known machine )
             ELSE
-               LEMIN = MIN( NGPMIN, NGNMIN )
-C            ( A GUESS; NO KNOWN MACHINE )
-               IWARN = .TRUE.
+               lemin = min( ngpmin, ngnmin )
+*            ( A guess; no known machine )
+               iwarn = .true.
             END IF
-C
+*
          ELSE
-            LEMIN = MIN( NGPMIN, NGNMIN, GPMIN, GNMIN )
-C         ( A GUESS; NO KNOWN MACHINE )
-            IWARN = .TRUE.
+            lemin = min( ngpmin, ngnmin, gpmin, gnmin )
+*         ( A guess; no known machine )
+            iwarn = .true.
          END IF
-C**
-C COMMENT OUT THIS IF BLOCK IF EMIN IS OK
-         IF( IWARN ) THEN
-            FIRST = .TRUE.
-            WRITE( 6, FMT = 9999 )LEMIN
+         first = .false.
+***
+* Comment out this if block if EMIN is ok
+         IF( iwarn ) THEN
+            first = .true.
+            WRITE( 6, fmt = 9999 )lemin
          END IF
-C**
-C
-C        ASSUME IEEE ARITHMETIC IF WE FOUND DENORMALISED  NUMBERS ABOVE,
-C        OR IF ARITHMETIC SEEMS TO ROUND IN THE  IEEE STYLE,  DETERMINED
-C        IN ROUTINE DLAMC1. A TRUE IEEE MACHINE SHOULD HAVE BOTH  THINGS
-C        TRUE; HOWEVER, FAULTY MACHINES MAY HAVE ONE OR THE OTHER.
-C
-         IEEE = IEEE .OR. LIEEE1
-C
-C        COMPUTE  RMIN BY SUCCESSIVE DIVISION BY  BETA. WE COULD COMPUTE
-C        RMIN AS BASE**( EMIN - 1 ),  BUT SOME MACHINES UNDERFLOW DURING
-C        THIS COMPUTATION.
-C
-         LRMIN = 1
-         DO 30 I = 1, 1 - LEMIN
-            LRMIN = DLAMC3( LRMIN*RBASE, ZERO )
+***
+*
+*        Assume IEEE arithmetic if we found denormalised  numbers above,
+*        or if arithmetic seems to round in the  IEEE style,  determined
+*        in routine DLAMC1. A true IEEE machine should have both  things
+*        true; however, faulty machines may have one or the other.
+*
+         ieee = ieee .OR. lieee1
+*
+*        Compute  RMIN by successive division by  BETA. We could compute
+*        RMIN as BASE**( EMIN - 1 ),  but some machines underflow during
+*        this computation.
+*
+         lrmin = 1
+         DO 30 i = 1, 1 - lemin
+            lrmin = dlamc3( lrmin*rbase, zero )
    30    CONTINUE
-C
-C        FINALLY, CALL DLAMC5 TO COMPUTE EMAX AND RMAX.
-C
-         CALL DLAMC5( LBETA, LT, LEMIN, IEEE, LEMAX, LRMAX )
+*
+*        Finally, call DLAMC5 to compute EMAX and RMAX.
+*
+         CALL dlamc5( lbeta, lt, lemin, ieee, lemax, lrmax )
       END IF
-C
-      BETA = LBETA
-      T = LT
-      RND = LRND
-      EPS = LEPS
-      EMIN = LEMIN
-      RMIN = LRMIN
-      EMAX = LEMAX
-      RMAX = LRMAX
-C
+*
+      beta = lbeta
+      t = lt
+      rnd = lrnd
+      eps = leps
+      emin = lemin
+      rmin = lrmin
+      emax = lemax
+      rmax = lrmax
+*
       RETURN
-C
- 9999 FORMAT( / / ' WARNING. THE VALUE EMIN MAY BE INCORRECT:-',
-     $      '  EMIN = ', I8, /
-     $      ' IF, AFTER INSPECTION, THE VALUE EMIN LOOKS',
-     $      ' ACCEPTABLE PLEASE COMMENT OUT ',
-     $      / ' THE IF BLOCK AS MARKED WITHIN THE CODE OF ROUTINE',
-     $      ' DLAMC2,', / ' OTHERWISE SUPPLY EMIN EXPLICITLY.', / )
-C
-C     END OF DLAMC2
-C
+*
+ 9999 FORMAT( / / ' WARNING. The value EMIN may be incorrect:-',
+     $      '  EMIN = ', i8, /
+     $      ' If, after inspection, the value EMIN looks',
+     $      ' acceptable please comment out ',
+     $      / ' the IF block as marked within the code of routine',
+     $      ' DLAMC2,', / ' otherwise supply EMIN explicitly.', / )
+*
+*     End of DLAMC2
+*
       END
 
 C DLAMC3
-      DOUBLE PRECISION FUNCTION DLAMC3( A, B )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
-      DOUBLE PRECISION   A, B
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMC3  IS INTENDED TO FORCE  A  AND  B  TO BE STORED PRIOR TO DOING
-C  THE ADDITION OF  A  AND  B ,  FOR USE IN SITUATIONS WHERE OPTIMIZERS
-C  MIGHT HOLD ONE OF THESE IN A REGISTER.
-C
-C  ARGUMENTS
-C  =========
-C
-C  A, B    (INPUT) DOUBLE PRECISION
-C          THE VALUES A AND B.
-C
-C =====================================================================
-C
-C     .. EXECUTABLE STATEMENTS ..
-C
-      DLAMC3 = A + B
-C
+      DOUBLE PRECISION FUNCTION dlamc3( A, B )
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*     Univ. of Tennessee, Univ. of California Berkeley and NAG Ltd..
+*     November 2010
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION   a, b
+*     ..
+* =====================================================================
+*
+*     .. Executable Statements ..
+*
+      dlamc3 = a + b
+*
       RETURN
-C
-C     END OF DLAMC3
-C
+*
+*     End of DLAMC3
+*
       END
 
 C DLAMC4
       SUBROUTINE DLAMC4( EMIN, START, BASE )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*     Univ. of Tennessee, Univ. of California Berkeley and NAG Ltd..
+*     November 2010
+*
+*     .. Scalar Arguments ..
       INTEGER            BASE, EMIN
       DOUBLE PRECISION   START
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMC4 IS A SERVICE ROUTINE FOR DLAMC2.
-C
-C  ARGUMENTS
-C  =========
-C
-C  EMIN    (OUTPUT) EMIN
-C          THE MINIMUM EXPONENT BEFORE (GRADUAL) UNDERFLOW, COMPUTED BY
-C          SETTING A = START AND DIVIDING BY BASE UNTIL THE PREVIOUS A
-C          CAN NOT BE RECOVERED.
-C
-C  START   (INPUT) DOUBLE PRECISION
-C          THE STARTING POINT FOR DETERMINING EMIN.
-C
-C  BASE    (INPUT) INTEGER
-C          THE BASE OF THE MACHINE.
-C
-C =====================================================================
-C
-C     .. LOCAL SCALARS ..
+*     ..
+* =====================================================================
+*
+*     .. Local Scalars ..
       INTEGER            I
       DOUBLE PRECISION   A, B1, B2, C1, C2, D1, D2, ONE, RBASE, ZERO
-C     ..
-C     .. EXTERNAL FUNCTIONS ..
+*     ..
+*     .. External Functions ..
       DOUBLE PRECISION   DLAMC3
-      EXTERNAL           DLAMC3
-C     ..
-C     .. EXECUTABLE STATEMENTS ..
-C
-      A = START
-      ONE = 1
-      RBASE = ONE / BASE
-      ZERO = 0
-      EMIN = 1
-      B1 = DLAMC3( A*RBASE, ZERO )
-      C1 = A
-      C2 = A
-      D1 = A
-      D2 = A
-C+    WHILE( ( C1==A ).AND.( C2==A ).AND.
-C    $       ( D1==A ).AND.( D2==A )      )LOOP
+      EXTERNAL           dlamc3
+*     ..
+*     .. Executable Statements ..
+*
+      a = start
+      one = 1
+      rbase = one / base
+      zero = 0
+      emin = 1
+      b1 = dlamc3( a*rbase, zero )
+      c1 = a
+      c2 = a
+      d1 = a
+      d2 = a
+*+    WHILE( ( C1.EQ.A ).AND.( C2.EQ.A ).AND.
+*    $       ( D1.EQ.A ).AND.( D2.EQ.A )      )LOOP
    10 CONTINUE
-      IF( ( C1==A ) .AND. ( C2==A ) .AND. ( D1==A ) .AND.
-     $    ( D2==A ) ) THEN
-         EMIN = EMIN - 1
-         A = B1
-         B1 = DLAMC3( A / BASE, ZERO )
-         C1 = DLAMC3( B1*BASE, ZERO )
-         D1 = ZERO
-         DO 20 I = 1, BASE
-            D1 = D1 + B1
+      IF( ( c1.EQ.a ) .AND. ( c2.EQ.a ) .AND. ( d1.EQ.a ) .AND.
+     $    ( d2.EQ.a ) ) THEN
+         emin = emin - 1
+         a = b1
+         b1 = dlamc3( a / base, zero )
+         c1 = dlamc3( b1*base, zero )
+         d1 = zero
+         DO 20 i = 1, base
+            d1 = d1 + b1
    20    CONTINUE
-         B2 = DLAMC3( A*RBASE, ZERO )
-         C2 = DLAMC3( B2 / RBASE, ZERO )
-         D2 = ZERO
-         DO 30 I = 1, BASE
-            D2 = D2 + B2
+         b2 = dlamc3( a*rbase, zero )
+         c2 = dlamc3( b2 / rbase, zero )
+         d2 = zero
+         DO 30 i = 1, base
+            d2 = d2 + b2
    30    CONTINUE
          GO TO 10
       END IF
-C+    END WHILE
-C
+*+    END WHILE
+*
       RETURN
-C
-C     END OF DLAMC4
-C
+*
+*     End of DLAMC4
+*
       END
 
 C DLAMC5
       SUBROUTINE DLAMC5( BETA, P, EMIN, IEEE, EMAX, RMAX )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
+*
+*  -- LAPACK auxiliary routine (version 3.7.0) --
+*     Univ. of Tennessee, Univ. of California Berkeley and NAG Ltd..
+*     November 2010
+*
+*     .. Scalar Arguments ..
       LOGICAL            IEEE
       INTEGER            BETA, EMAX, EMIN, P
       DOUBLE PRECISION   RMAX
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMC5 ATTEMPTS TO COMPUTE RMAX, THE LARGEST MACHINE FLOATING-POINT
-C  NUMBER, WITHOUT OVERFLOW.  IT ASSUMES THAT EMAX + ABS(EMIN) SUM
-C  APPROXIMATELY TO A POWER OF 2.  IT WILL FAIL ON MACHINES WHERE THIS
-C  ASSUMPTION DOES NOT HOLD, FOR EXAMPLE, THE CYBER 205 (EMIN = -28625,
-C  EMAX = 28718).  IT WILL ALSO FAIL IF THE VALUE SUPPLIED FOR EMIN IS
-C  TOO LARGE (I.E. TOO CLOSE TO ZERO), PROBABLY WITH OVERFLOW.
-C
-C  ARGUMENTS
-C  =========
-C
-C  BETA    (INPUT) INTEGER
-C          THE BASE OF FLOATING-POINT ARITHMETIC.
-C
-C  P       (INPUT) INTEGER
-C          THE NUMBER OF BASE BETA DIGITS IN THE MANTISSA OF A
-C          FLOATING-POINT VALUE.
-C
-C  EMIN    (INPUT) INTEGER
-C          THE MINIMUM EXPONENT BEFORE (GRADUAL) UNDERFLOW.
-C
-C  IEEE    (INPUT) LOGICAL
-C          A LOGICAL FLAG SPECIFYING WHETHER OR NOT THE ARITHMETIC
-C          SYSTEM IS THOUGHT TO COMPLY WITH THE IEEE STANDARD.
-C
-C  EMAX    (OUTPUT) INTEGER
-C          THE LARGEST EXPONENT BEFORE OVERFLOW
-C
-C  RMAX    (OUTPUT) DOUBLE PRECISION
-C          THE LARGEST MACHINE FLOATING-POINT NUMBER.
-C
-C =====================================================================
-C
-C     .. PARAMETERS ..
+*     ..
+* =====================================================================
+*
+*     .. Parameters ..
       DOUBLE PRECISION   ZERO, ONE
-      PARAMETER          ( ZERO = 0.0D+0, ONE = 1.0D+0 )
-C     ..
-C     .. LOCAL SCALARS ..
+      parameter( zero = 0.0d0, one = 1.0d0 )
+*     ..
+*     .. Local Scalars ..
       INTEGER            EXBITS, EXPSUM, I, LEXP, NBITS, TRY, UEXP
       DOUBLE PRECISION   OLDY, RECBAS, Y, Z
-C     ..
-C     .. EXTERNAL FUNCTIONS ..
+*     ..
+*     .. External Functions ..
       DOUBLE PRECISION   DLAMC3
-      EXTERNAL           DLAMC3
-C     ..
-C     .. INTRINSIC FUNCTIONS ..
-      INTRINSIC          MOD
-C     ..
-C     .. EXECUTABLE STATEMENTS ..
-C
-C     FIRST COMPUTE LEXP AND UEXP, TWO POWERS OF 2 THAT BOUND
-C     ABS(EMIN). WE THEN ASSUME THAT EMAX + ABS(EMIN) WILL SUM
-C     APPROXIMATELY TO THE BOUND THAT IS CLOSEST TO ABS(EMIN).
-C     (EMAX IS THE EXPONENT OF THE REQUIRED NUMBER RMAX).
-C
-      LEXP = 1
-      EXBITS = 1
+      EXTERNAL           dlamc3
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          mod
+*     ..
+*     .. Executable Statements ..
+*
+*     First compute LEXP and UEXP, two powers of 2 that bound
+*     abs(EMIN). We then assume that EMAX + abs(EMIN) will sum
+*     approximately to the bound that is closest to abs(EMIN).
+*     (EMAX is the exponent of the required number RMAX).
+*
+      lexp = 1
+      exbits = 1
    10 CONTINUE
-      TRY = LEXP*2
-      IF( TRY<=( -EMIN ) ) THEN
-         LEXP = TRY
-         EXBITS = EXBITS + 1
+      try = lexp*2
+      IF( try.LE.( -emin ) ) THEN
+         lexp = try
+         exbits = exbits + 1
          GO TO 10
       END IF
-      IF( LEXP==-EMIN ) THEN
-         UEXP = LEXP
+      IF( lexp.EQ.-emin ) THEN
+         uexp = lexp
       ELSE
-         UEXP = TRY
-         EXBITS = EXBITS + 1
+         uexp = try
+         exbits = exbits + 1
       END IF
-C
-C     NOW -LEXP IS LESS THAN OR EQUAL TO EMIN, AND -UEXP IS GREATER
-C     THAN OR EQUAL TO EMIN. EXBITS IS THE NUMBER OF BITS NEEDED TO
-C     STORE THE EXPONENT.
-C
-      IF( ( UEXP+EMIN )>( -LEXP-EMIN ) ) THEN
-         EXPSUM = 2*LEXP
+*
+*     Now -LEXP is less than or equal to EMIN, and -UEXP is greater
+*     than or equal to EMIN. EXBITS is the number of bits needed to
+*     store the exponent.
+*
+      IF( ( uexp+emin ).GT.( -lexp-emin ) ) THEN
+         expsum = 2*lexp
       ELSE
-         EXPSUM = 2*UEXP
+         expsum = 2*uexp
       END IF
-C
-C     EXPSUM IS THE EXPONENT RANGE, APPROXIMATELY EQUAL TO
-C     EMAX - EMIN + 1 .
-C
-      EMAX = EXPSUM + EMIN - 1
-      NBITS = 1 + EXBITS + P
-C
-C     NBITS IS THE TOTAL NUMBER OF BITS NEEDED TO STORE A
-C     FLOATING-POINT NUMBER.
-C
-      IF( ( MOD( NBITS, 2 )==1 ) .AND. ( BETA==2 ) ) THEN
-C
-C        EITHER THERE ARE AN ODD NUMBER OF BITS USED TO STORE A
-C        FLOATING-POINT NUMBER, WHICH IS UNLIKELY, OR SOME BITS ARE
-C        NOT USED IN THE REPRESENTATION OF NUMBERS, WHICH IS POSSIBLE,
-C        (E.G. CRAY MACHINES) OR THE MANTISSA HAS AN IMPLICIT BIT,
-C        (E.G. IEEE MACHINES, DEC VAX MACHINES), WHICH IS PERHAPS THE
-C        MOST LIKELY. WE HAVE TO ASSUME THE LAST ALTERNATIVE.
-C        IF THIS IS TRUE, THEN WE NEED TO REDUCE EMAX BY ONE BECAUSE
-C        THERE MUST BE SOME WAY OF REPRESENTING ZERO IN AN IMPLICIT-BIT
-C        SYSTEM. ON MACHINES LIKE CRAY, WE ARE REDUCING EMAX BY ONE
-C        UNNECESSARILY.
-C
-         EMAX = EMAX - 1
+*
+*     EXPSUM is the exponent range, approximately equal to
+*     EMAX - EMIN + 1 .
+*
+      emax = expsum + emin - 1
+      nbits = 1 + exbits + p
+*
+*     NBITS is the total number of bits needed to store a
+*     floating-point number.
+*
+      IF( ( mod( nbits, 2 ).EQ.1 ) .AND. ( beta.EQ.2 ) ) THEN
+*
+*        Either there are an odd number of bits used to store a
+*        floating-point number, which is unlikely, or some bits are
+*        not used in the representation of numbers, which is possible,
+*        (e.g. Cray machines) or the mantissa has an implicit bit,
+*        (e.g. IEEE machines, Dec Vax machines), which is perhaps the
+*        most likely. We have to assume the last alternative.
+*        If this is true, then we need to reduce EMAX by one because
+*        there must be some way of representing zero in an implicit-bit
+*        system. On machines like Cray, we are reducing EMAX by one
+*        unnecessarily.
+*
+         emax = emax - 1
       END IF
-C
-      IF( IEEE ) THEN
-C
-C        ASSUME WE ARE ON AN IEEE MACHINE WHICH RESERVES ONE EXPONENT
-C        FOR INFINITY AND NAN.
-C
-         EMAX = EMAX - 1
+*
+      IF( ieee ) THEN
+*
+*        Assume we are on an IEEE machine which reserves one exponent
+*        for infinity and NaN.
+*
+         emax = emax - 1
       END IF
-C
-C     NOW CREATE RMAX, THE LARGEST MACHINE NUMBER, WHICH SHOULD
-C     BE EQUAL TO (1.0 - BETA**(-P)) * BETA**EMAX .
-C
-C     FIRST COMPUTE 1.0 - BETA**(-P), BEING CAREFUL THAT THE
-C     RESULT IS LESS THAN 1.0 .
-C
-      RECBAS = ONE / BETA
-      Z = BETA - ONE
-      Y = ZERO
-      DO 20 I = 1, P
-         Z = Z*RECBAS
-         IF( Y<ONE )
-     $      OLDY = Y
-         Y = DLAMC3( Y, Z )
+*
+*     Now create RMAX, the largest machine number, which should
+*     be equal to (1.0 - BETA**(-P)) * BETA**EMAX .
+*
+*     First compute 1.0 - BETA**(-P), being careful that the
+*     result is less than 1.0 .
+*
+      recbas = one / beta
+      z = beta - one
+      y = zero
+      DO 20 i = 1, p
+         z = z*recbas
+         IF( y.LT.one )oldy = y
+         y = dlamc3( y, z )
    20 CONTINUE
-      IF( Y.GE.ONE )
-     $   Y = OLDY
-C
-C     NOW MULTIPLY BY BETA**EMAX TO GET RMAX.
-C
-      DO 30 I = 1, EMAX
-         Y = DLAMC3( Y*BETA, ZERO )
+      IF( y.GE.one )y = oldy
+*
+*     Now multiply by BETA**EMAX to get RMAX.
+*
+      DO 30 i = 1, emax
+         y = dlamc3( y*beta, zero )
    30 CONTINUE
-C
-      RMAX = Y
+*
+      rmax = y
       RETURN
-C
-C     END OF DLAMC5
-C
+*
+*     End of DLAMC5
+*
       END
 
 C DLAPY2
@@ -21598,83 +21775,115 @@ C
 
 C DASUM
       DOUBLE PRECISION FUNCTION DASUM(N,DX,INCX)
-C
-C     TAKES THE SUM OF THE ABSOLUTE VALUES.
-C     JACK DONGARRA, LINPACK, 3/11/78.
-C
-      DOUBLE PRECISION DX(1),DTEMP
-      INTEGER I,INCX,M,MP1,N,NINCX
-C
-      DASUM = 0.0D+00
-      DTEMP = 0.0D+00
-      IF(N<=0) RETURN
-      IF(INCX==1)GO TO 20
-C
-C        CODE FOR INCREMENT NOT EQUAL TO 1
-C
-      NINCX = N*INCX
-      DO 10 I = 1,NINCX,INCX
-        DTEMP = DTEMP + ABS(DX(I))
-   10 CONTINUE
-      DASUM = DTEMP
-      RETURN
-C
-C        CODE FOR INCREMENT EQUAL TO 1
-C
-C
-C        CLEAN-UP LOOP
-C
-   20 M = MOD(N,6)
-      IF( M == 0 ) GO TO 40
-      DO 30 I = 1,M
-        DTEMP = DTEMP + ABS(DX(I))
-   30 CONTINUE
-      IF( N < 6 ) GO TO 60
-   40 MP1 = M + 1
-      DO 50 I = MP1,N,6
-        DTEMP = DTEMP + ABS(DX(I)) + ABS(DX(I + 1)) + ABS(DX(I + 2))
-     *  + ABS(DX(I + 3)) + ABS(DX(I + 4)) + ABS(DX(I + 5))
-   50 CONTINUE
-   60 DASUM = DTEMP
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      INTEGER incx,n
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION dx(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      DOUBLE PRECISION dtemp
+      INTEGER i,m,mp1,nincx
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC dabs,mod
+*     ..
+      dasum = 0.0d0
+      dtemp = 0.0d0
+      IF (n.LE.0 .OR. incx.LE.0) RETURN
+      IF (incx.EQ.1) THEN
+*        code for increment equal to 1
+*
+*
+*        clean-up loop
+*
+         m = mod(n,6)
+         IF (m.NE.0) THEN
+            DO i = 1,m
+               dtemp = dtemp + dabs(dx(i))
+            END DO
+            IF (n.LT.6) THEN
+               dasum = dtemp
+               RETURN
+            END IF
+         END IF
+         mp1 = m + 1
+         DO i = mp1,n,6
+            dtemp = dtemp + dabs(dx(i)) + dabs(dx(i+1)) +
+     $              dabs(dx(i+2)) + dabs(dx(i+3)) +
+     $              dabs(dx(i+4)) + dabs(dx(i+5))
+         END DO
+      ELSE
+*
+*        code for increment not equal to 1
+*
+         nincx = n*incx
+         DO i = 1,nincx,incx
+            dtemp = dtemp + dabs(dx(i))
+         END DO
+      END IF
+      dasum = dtemp
       RETURN
       END
 
 C DROT
-      SUBROUTINE DROT (N,DX,INCX,DY,INCY,C,S)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION DX(1),DY(1)
-C
-C     APPLIES A PLANE ROTATION.
-C           DX(I) =  C*DX(I) + S*DY(I)
-C           DY(I) = -S*DX(I) + C*DY(I)
-C     JACK DONGARRA, LINPACK, 3/11/78.
-C
-      IF(N<=0) RETURN
-      IF(INCX==1.AND.INCY==1)GO TO 20
-C
-C       CODE FOR UNEQUAL INCREMENTS OR EQUAL INCREMENTS NOT EQUAL
-C         TO 1
-C
-      IX = 1
-      IY = 1
-      IF(INCX<0)IX = (-N+1)*INCX + 1
-      IF(INCY<0)IY = (-N+1)*INCY + 1
-      DO 10 I = 1,N
-        DTEMP = C*DX(IX) + S*DY(IY)
-        DY(IY) = C*DY(IY) - S*DX(IX)
-        DX(IX) = DTEMP
-        IX = IX + INCX
-        IY = IY + INCY
-   10 CONTINUE
-      RETURN
-C
-C       CODE FOR BOTH INCREMENTS EQUAL TO 1
-C
-   20 DO 30 I = 1,N
-        DTEMP = C*DX(I) + S*DY(I)
-        DY(I) = C*DY(I) - S*DX(I)
-        DX(I) = DTEMP
-   30 CONTINUE
+      SUBROUTINE DROT(N,DX,INCX,DY,INCY,C,S)
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION C,S
+      INTEGER INCX,INCY,N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION DX(*),DY(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      DOUBLE PRECISION DTEMP
+      INTEGER I,IX,IY
+*     ..
+      IF (n.LE.0) RETURN
+      IF (incx.EQ.1 .AND. incy.EQ.1) THEN
+*
+*       code for both increments equal to 1
+*
+         DO i = 1,n
+            dtemp = c*dx(i) + s*dy(i)
+            dy(i) = c*dy(i) - s*dx(i)
+            dx(i) = dtemp
+         END DO
+      ELSE
+*
+*       code for unequal increments or equal increments not equal
+*         to 1
+*
+         ix = 1
+         iy = 1
+         IF (incx.LT.0) ix = (-n+1)*incx + 1
+         IF (incy.LT.0) iy = (-n+1)*incy + 1
+         DO i = 1,n
+            dtemp = c*dx(ix) + s*dy(iy)
+            dy(iy) = c*dy(iy) - s*dx(ix)
+            dx(ix) = dtemp
+            ix = ix + incx
+            iy = iy + incy
+         END DO
+      END IF
       RETURN
       END
 
@@ -22072,6 +22281,7 @@ C
 
 C ABRT
       SUBROUTINE ABRT  
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       CHARACTER*24 STAMP                                                
       DOUBLE PRECISION TIMSTR(3)  
 C-----------------------------------------------------------------------
@@ -22126,224 +22336,195 @@ C
 
 C DAXPY
       SUBROUTINE DAXPY(N,DA,DX,INCX,DY,INCY)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION DX(1),DY(1)
-C
-C     CONSTANT TIMES A VECTOR PLUS A VECTOR.
-C           DY(I) = DY(I) + DA * DX(I)
-C     USES UNROLLED LOOPS FOR INCREMENTS EQUAL TO ONE.
-C     JACK DONGARRA, LINPACK, 3/11/78.
-C
-      IF(N<=0) RETURN
-      IF (DA == 0.0D+00) RETURN
-      IF(INCX==1.AND.INCY==1)GO TO 20
-C
-C        CODE FOR UNEQUAL INCREMENTS OR EQUAL INCREMENTS
-C          NOT EQUAL TO 1
-C
-      IX = 1
-      IY = 1
-      IF(INCX<0)IX = (-N+1)*INCX + 1
-      IF(INCY<0)IY = (-N+1)*INCY + 1
-      DO 10 I = 1,N
-        DY(IY) = DY(IY) + DA*DX(IX)
-        IX = IX + INCX
-        IY = IY + INCY
-   10 CONTINUE
-      RETURN
-C
-C        CODE FOR BOTH INCREMENTS EQUAL TO 1
-C        CLEAN-UP LOOP
-C
-   20 M = MOD(N,4)
-      IF( M == 0 ) GO TO 40
-      DO 30 I = 1,M
-        DY(I) = DY(I) + DA*DX(I)
-   30 CONTINUE
-      IF( N < 4 ) RETURN
-   40 MP1 = M + 1
-      DO 50 I = MP1,N,4
-        DY(I) = DY(I) + DA*DX(I)
-        DY(I + 1) = DY(I + 1) + DA*DX(I + 1)
-        DY(I + 2) = DY(I + 2) + DA*DX(I + 2)
-        DY(I + 3) = DY(I + 3) + DA*DX(I + 3)
-   50 CONTINUE
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION DA
+      INTEGER INCX,INCY,N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION DX(*),DY(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      INTEGER I,IX,IY,M,MP1
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC mod
+*     ..
+      IF (n.LE.0) RETURN
+      IF (da.EQ.0.0d0) RETURN
+      IF (incx.EQ.1 .AND. incy.EQ.1) THEN
+*
+*        code for both increments equal to 1
+*
+*
+*        clean-up loop
+*
+         m = mod(n,4)
+         IF (m.NE.0) THEN
+            DO i = 1,m
+               dy(i) = dy(i) + da*dx(i)
+            END DO
+         END IF
+         IF (n.LT.4) RETURN
+         mp1 = m + 1
+         DO i = mp1,n,4
+            dy(i) = dy(i) + da*dx(i)
+            dy(i+1) = dy(i+1) + da*dx(i+1)
+            dy(i+2) = dy(i+2) + da*dx(i+2)
+            dy(i+3) = dy(i+3) + da*dx(i+3)
+         END DO
+      ELSE
+*
+*        code for unequal increments or equal increments
+*          not equal to 1
+*
+         ix = 1
+         iy = 1
+         IF (incx.LT.0) ix = (-n+1)*incx + 1
+         IF (incy.LT.0) iy = (-n+1)*incy + 1
+         DO i = 1,n
+          dy(iy) = dy(iy) + da*dx(ix)
+          ix = ix + incx
+          iy = iy + incy
+         END DO
+      END IF
       RETURN
       END
-
+       
 C DDOT
-      DOUBLE PRECISION FUNCTION DDOT(N,DX,INCX,DY,INCY)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION DX(1),DY(1)
-C
-C     FORMS THE DOT PRODUCT OF TWO VECTORS.
-C           DOT = DX(I) * DY(I)
-C     USES UNROLLED LOOPS FOR INCREMENTS EQUAL TO ONE.
-C     JACK DONGARRA, LINPACK, 3/11/78.
-C
-      DDOT = 0.0D+00
-      DTEMP = 0.0D+00
-      IF(N<=0) RETURN
-      IF(INCX==1.AND.INCY==1)GO TO 20
-C
-C        CODE FOR UNEQUAL INCREMENTS OR EQUAL INCREMENTS
-C          NOT EQUAL TO 1
-C
-      IX = 1
-      IY = 1
-      IF(INCX<0)IX = (-N+1)*INCX + 1
-      IF(INCY<0)IY = (-N+1)*INCY + 1
-      DO 10 I = 1,N
-        DTEMP = DTEMP + DX(IX)*DY(IY)
-        IX = IX + INCX
-        IY = IY + INCY
-   10 CONTINUE
-      DDOT = DTEMP
-      RETURN
-C
-C        CODE FOR BOTH INCREMENTS EQUAL TO 1
-C
-C
-C        CLEAN-UP LOOP
-C
-   20 M = MOD(N,5)
-      IF( M == 0 ) GO TO 40
-      DO 30 I = 1,M
-        DTEMP = DTEMP + DX(I)*DY(I)
-   30 CONTINUE
-      IF( N < 5 ) GO TO 60
-   40 MP1 = M + 1
-      DO 50 I = MP1,N,5
-        DTEMP = DTEMP + DX(I)*DY(I) + DX(I + 1)*DY(I + 1) +
-     *  DX(I + 2)*DY(I + 2) + DX(I + 3)*DY(I + 3) + DX(I + 4)*DY(I + 4)
-   50 CONTINUE
-   60 DDOT = DTEMP
+       DOUBLE PRECISION FUNCTION DDOT(N,DX,INCX,DY,INCY)
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      INTEGER incx,incy,n
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION dx(*),dy(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      DOUBLE PRECISION dtemp
+      INTEGER i,ix,iy,m,mp1
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC mod
+*     ..
+      ddot = 0.0d0
+      dtemp = 0.0d0
+      IF (n.LE.0) RETURN
+      IF (incx.EQ.1 .AND. incy.EQ.1) THEN
+*
+*        code for both increments equal to 1
+*
+*
+*        clean-up loop
+*
+         m = mod(n,5)
+         IF (m.NE.0) THEN
+            DO i = 1,m
+               dtemp = dtemp + dx(i)*dy(i)
+            END DO
+            IF (n.LT.5) THEN
+               ddot=dtemp
+            RETURN
+            END IF
+         END IF
+         mp1 = m + 1
+         DO i = mp1,n,5
+          dtemp = dtemp + dx(i)*dy(i) + dx(i+1)*dy(i+1) +
+     $            dx(i+2)*dy(i+2) + dx(i+3)*dy(i+3) + dx(i+4)*dy(i+4)
+         END DO
+      ELSE
+*
+*        code for unequal increments or equal increments
+*          not equal to 1
+*
+         ix = 1
+         iy = 1
+         IF (incx.LT.0) ix = (-n+1)*incx + 1
+         IF (incy.LT.0) iy = (-n+1)*incy + 1
+         DO i = 1,n
+            dtemp = dtemp + dx(ix)*dy(iy)
+            ix = ix + incx
+            iy = iy + incy
+         END DO
+      END IF
+      ddot = dtemp
       RETURN
       END
-
+       
 C DNRM2
-      DOUBLE PRECISION FUNCTION DNRM2 ( N, DX, INCX)
-      INTEGER          NEXT
-      DOUBLE PRECISION   DX(1), CUTLO, CUTHI, HITEST, SUM, XMAX,ZERO,ONE
-      DATA   ZERO, ONE /0.0D+00, 1.0D+00/
-C
-C     EUCLIDEAN NORM OF THE N-VECTOR STORED IN DX() WITH STORAGE
-C     INCREMENT INCX .
-C     IF    N <= 0 RETURN WITH RESULT = 0.
-C     IF N .GE. 1 THEN INCX MUST BE .GE. 1
-C
-C           C.L.LAWSON, 1978 JAN 08
-C
-C     FOUR PHASE METHOD     USING TWO BUILT-IN CONSTANTS THAT ARE
-C     HOPEFULLY APPLICABLE TO ALL MACHINES.
-C         CUTLO = MAXIMUM OF  SQRT(U/EPS)  OVER ALL KNOWN MACHINES.
-C         CUTHI = MINIMUM OF  SQRT(V)      OVER ALL KNOWN MACHINES.
-C     WHERE
-C         EPS = SMALLEST NO. SUCH THAT EPS + 1. > 1.
-C         U   = SMALLEST POSITIVE NO.   (UNDERFLOW LIMIT)
-C         V   = LARGEST  NO.            (OVERFLOW  LIMIT)
-C
-C     BRIEF OUTLINE OF ALGORITHM..
-C
-C     PHASE 1    SCANS ZERO COMPONENTS.
-C     MOVE TO PHASE 2 WHEN A COMPONENT IS NONZERO AND <= CUTLO
-C     MOVE TO PHASE 3 WHEN A COMPONENT IS > CUTLO
-C     MOVE TO PHASE 4 WHEN A COMPONENT IS .GE. CUTHI/M
-C     WHERE M = N FOR X() REAL AND M = 2*N FOR COMPLEX.
-C
-C     VALUES FOR CUTLO AND CUTHI..
-C     FROM THE ENVIRONMENTAL PARAMETERS LISTED IN THE IMSL CONVERTER
-C     DOCUMENT THE LIMITING VALUES ARE AS FOLLOWS..
-C     CUTLO, S.P.   U/EPS = 2**(-102) FOR  HONEYWELL.  CLOSE SECONDS ARE
-C                   UNIVAC AND DEC AT 2**(-103)
-C                   THUS CUTLO = 2**(-51) = 4.44089E-16
-C     CUTHI, S.P.   V = 2**127 FOR UNIVAC, HONEYWELL, AND DEC.
-C                   THUS CUTHI = 2**(63.5) = 1.30438E+19
-C     CUTLO, D.P.   U/EPS = 2**(-67) FOR HONEYWELL AND DEC.
-C                   THUS CUTLO = 2**(-33.5) = 8.23181D-11
-C     CUTHI, D.P.   SAME AS S.P.  CUTHI = 1.30438D+19
-C     DATA CUTLO, CUTHI / 8.232D-11,  1.304D+19 /
-C     DATA CUTLO, CUTHI / 4.441E-16,  1.304E+19 /
-      DATA CUTLO, CUTHI / 8.232D-11,  1.304D+19 /
-C
-      J=0
-      IF(N > 0) GO TO 10
-         DNRM2  = ZERO
-         GO TO 300
-C
-   10 ASSIGN 30 TO NEXT
-      SUM = ZERO
-      NN = N * INCX
-C                                                 BEGIN MAIN LOOP
-      I = 1
-   20    GO TO NEXT,(30, 50, 70, 110)
-   30 IF( ABS(DX(I)) > CUTLO) GO TO 85
-      ASSIGN 50 TO NEXT
-      XMAX = ZERO
-C
-C                        PHASE 1.  SUM IS ZERO
-C
-   50 IF( DX(I) == ZERO) GO TO 200
-      IF( ABS(DX(I)) > CUTLO) GO TO 85
-C
-C                                PREPARE FOR PHASE 2.
-      ASSIGN 70 TO NEXT
-      GO TO 105
-C
-C                                PREPARE FOR PHASE 4.
-C
-  100 I = J
-      ASSIGN 110 TO NEXT
-      SUM = (SUM / DX(I)) / DX(I)
-  105 XMAX = ABS(DX(I))
-      GO TO 115
-C
-C                   PHASE 2.  SUM IS SMALL.
-C                             SCALE TO AVOID DESTRUCTIVE UNDERFLOW.
-C
-   70 IF( ABS(DX(I)) > CUTLO ) GO TO 75
-C
-C                     COMMON CODE FOR PHASES 2 AND 4.
-C                     IN PHASE 4 SUM IS LARGE.  SCALE TO AVOID OVERFLOW.
-C
-  110 IF( ABS(DX(I)) <= XMAX ) GO TO 115
-         SUM = ONE + SUM * (XMAX / DX(I))**2
-         XMAX = ABS(DX(I))
-         GO TO 200
-C
-  115 SUM = SUM + (DX(I)/XMAX)**2
-      GO TO 200
-C
-C
-C                  PREPARE FOR PHASE 3.
-C
-   75 SUM = (SUM * XMAX) * XMAX
-C
-C
-C     FOR REAL OR D.P. SET HITEST = CUTHI/N
-C     FOR COMPLEX      SET HITEST = CUTHI/(2*N)
-C
-   85 HITEST = CUTHI/N
-C
-C                   PHASE 3.  SUM IS MID-RANGE.  NO SCALING.
-C
-      DO 95 J =I,NN,INCX
-      IF(ABS(DX(J)) .GE. HITEST) GO TO 100
-   95    SUM = SUM + DX(J)**2
-      DNRM2 = SQRT( SUM )
-      GO TO 300
-C
-  200 CONTINUE
-      I = I + INCX
-      IF ( I <= NN ) GO TO 20
-C
-C              END OF MAIN LOOP.
-C
-C              COMPUTE SQUARE ROOT AND ADJUST FOR SCALING.
-C
-      DNRM2 = XMAX * SQRT(SUM)
-  300 CONTINUE
+       DOUBLE PRECISION FUNCTION dnrm2(N,X,INCX)
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      INTEGER incx,n
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION x(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION one,zero
+      parameter(one=1.0d+0,zero=0.0d+0)
+*     ..
+*     .. Local Scalars ..
+      DOUBLE PRECISION absxi,norm,scale,ssq
+      INTEGER ix
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC abs,sqrt
+*     ..
+      IF (n.LT.1 .OR. incx.LT.1) THEN
+          norm = zero
+      ELSE IF (n.EQ.1) THEN
+          norm = abs(x(1))
+      ELSE
+          scale = zero
+          ssq = one
+*        The following loop is equivalent to this call to the LAPACK
+*        auxiliary routine:
+*        CALL DLASSQ( N, X, INCX, SCALE, SSQ )
+*
+          DO 10 ix = 1,1 + (n-1)*incx,incx
+              IF (x(ix).NE.zero) THEN
+                  absxi = abs(x(ix))
+                  IF (scale.LT.absxi) THEN
+                      ssq = one + ssq* (scale/absxi)**2
+                      scale = absxi
+                  ELSE
+                      ssq = ssq + (absxi/scale)**2
+                  END IF
+              END IF
+   10     CONTINUE
+          norm = scale*sqrt(ssq)
+      END IF
+*
+      dnrm2 = norm
       RETURN
+*
+*     End of DNRM2.
+*
       END
 
 C DGEMV
@@ -22681,135 +22862,6 @@ C     END OF DTRMV .
 C
       END
 
-C DLAMCH
-      DOUBLE PRECISION FUNCTION DLAMCH( CMACH )
-C
-C  -- LAPACK AUXILIARY ROUTINE (VERSION 1.1) --
-C     UNIV. OF TENNESSEE, UNIV. OF CALIFORNIA BERKELEY, NAG LTD.,
-C     COURANT INSTITUTE, ARGONNE NATIONAL LAB, AND RICE UNIVERSITY
-C     OCTOBER 31, 1992
-C
-C     .. SCALAR ARGUMENTS ..
-      CHARACTER          CMACH
-C     ..
-C
-C  PURPOSE
-C  =======
-C
-C  DLAMCH DETERMINES DOUBLE PRECISION MACHINE PARAMETERS.
-C
-C  ARGUMENTS
-C  =========
-C
-C  CMACH   (INPUT) CHARACTER*1
-C          SPECIFIES THE VALUE TO BE RETURNED BY DLAMCH:
-C          = 'E' OR 'E',   DLAMCH := EPS
-C          = 'S' OR 'S ,   DLAMCH := SFMIN
-C          = 'B' OR 'B',   DLAMCH := BASE
-C          = 'P' OR 'P',   DLAMCH := EPS*BASE
-C          = 'N' OR 'N',   DLAMCH := T
-C          = 'R' OR 'R',   DLAMCH := RND
-C          = 'M' OR 'M',   DLAMCH := EMIN
-C          = 'U' OR 'U',   DLAMCH := RMIN
-C          = 'L' OR 'L',   DLAMCH := EMAX
-C          = 'O' OR 'O',   DLAMCH := RMAX
-C
-C          WHERE
-C
-C          EPS   = RELATIVE MACHINE PRECISION
-C          SFMIN = SAFE MINIMUM, SUCH THAT 1/SFMIN DOES NOT OVERFLOW
-C          BASE  = BASE OF THE MACHINE
-C          PREC  = EPS*BASE
-C          T     = NUMBER OF (BASE) DIGITS IN THE MANTISSA
-C          RND   = 1.0 WHEN ROUNDING OCCURS IN ADDITION, 0.0 OTHERWISE
-C          EMIN  = MINIMUM EXPONENT BEFORE (GRADUAL) UNDERFLOW
-C          RMIN  = UNDERFLOW THRESHOLD - BASE**(EMIN-1)
-C          EMAX  = LARGEST EXPONENT BEFORE OVERFLOW
-C          RMAX  = OVERFLOW THRESHOLD  - (BASE**EMAX)*(1-EPS)
-C
-C =====================================================================
-C
-C     .. PARAMETERS ..
-      DOUBLE PRECISION   ONE, ZERO
-      PARAMETER          ( ONE = 1.0D+0, ZERO = 0.0D+0 )
-C     ..
-C     .. LOCAL SCALARS ..
-      LOGICAL            FIRST, LRND
-      INTEGER            BETA, IMAX, IMIN, IT
-      DOUBLE PRECISION   BASE, EMAX, EMIN, EPS, PREC, RMACH, RMAX, RMIN,
-     $                   RND, SFMIN, SMALL, T
-C     ..
-C     .. EXTERNAL FUNCTIONS ..
-      LOGICAL            LSAME
-      EXTERNAL           LSAME
-C     ..
-C     .. EXTERNAL SUBROUTINES ..
-      EXTERNAL           DLAMC2
-C     ..
-C     .. SAVE STATEMENT ..
-      SAVE               FIRST, EPS, SFMIN, BASE, T, RND, EMIN, RMIN,
-     $                   EMAX, RMAX, PREC
-C     ..
-C     .. DATA STATEMENTS ..
-      DATA               FIRST / .TRUE. /
-C     ..
-C     .. EXECUTABLE STATEMENTS ..
-C
-      IF( FIRST ) THEN
-         FIRST = .FALSE.
-         CALL DLAMC2( BETA, IT, LRND, EPS, IMIN, RMIN, IMAX, RMAX )
-         BASE = BETA
-         T = IT
-         IF( LRND ) THEN
-            RND = ONE
-            EPS = ( BASE**( 1-IT ) ) / 2
-         ELSE
-            RND = ZERO
-            EPS = BASE**( 1-IT )
-         END IF
-         PREC = EPS*BASE
-         EMIN = IMIN
-         EMAX = IMAX
-         SFMIN = RMIN
-         SMALL = ONE / RMAX
-         IF( SMALL.GE.SFMIN ) THEN
-C
-C           USE SMALL PLUS A BIT, TO AVOID THE POSSIBILITY OF ROUNDING
-C           CAUSING OVERFLOW WHEN COMPUTING  1/SFMIN.
-C
-            SFMIN = SMALL*( ONE+EPS )
-         END IF
-      END IF
-C
-      IF( LSAME( CMACH, 'E' ) ) THEN
-         RMACH = EPS
-      ELSE IF( LSAME( CMACH, 'S' ) ) THEN
-         RMACH = SFMIN
-      ELSE IF( LSAME( CMACH, 'B' ) ) THEN
-         RMACH = BASE
-      ELSE IF( LSAME( CMACH, 'P' ) ) THEN
-         RMACH = PREC
-      ELSE IF( LSAME( CMACH, 'N' ) ) THEN
-         RMACH = T
-      ELSE IF( LSAME( CMACH, 'R' ) ) THEN
-         RMACH = RND
-      ELSE IF( LSAME( CMACH, 'M' ) ) THEN
-         RMACH = EMIN
-      ELSE IF( LSAME( CMACH, 'U' ) ) THEN
-         RMACH = RMIN
-      ELSE IF( LSAME( CMACH, 'L' ) ) THEN
-         RMACH = EMAX
-      ELSE IF( LSAME( CMACH, 'O' ) ) THEN
-         RMACH = RMAX
-      END IF
-C
-      DLAMCH = RMACH
-      RETURN
-C
-C     END OF DLAMCH
-C
-      END
-
 C DGEMM
       SUBROUTINE DGEMM(FORMA,FORMB,L,N,M,ALPHA,A,LDA,B,LDB,BETA,C,LDC)
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
@@ -23134,91 +23186,133 @@ C
 
 C DSCAL
       SUBROUTINE DSCAL(N,DA,DX,INCX)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION DX(1)
-C-----------------------------------------------------------------------                                                                       
-C     DX(I) = DA * DX(I)
-C-----------------------------------------------------------------------                                                                       
-      IF(N<=0)RETURN
-      IF(INCX==1)THEN
-       M = MOD(N,5)
-       IF(M==0)GO TO 1
-       DO I = 1,M
-        DX(I) = DA*DX(I)
-       END DO
-       IF(N<5)RETURN
-    1  MP1 = M + 1
-       DO I = MP1,N,5
-        DX(I) = DA*DX(I)
-        DX(I + 1) = DA*DX(I + 1)
-        DX(I + 2) = DA*DX(I + 2)
-        DX(I + 3) = DA*DX(I + 3)
-        DX(I + 4) = DA*DX(I + 4)
-       END DO
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION DA
+      INTEGER INCX,N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION DX(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      INTEGER I,M,MP1,NINCX
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC mod
+*     ..
+      IF (n.LE.0 .OR. incx.LE.0) RETURN
+      IF (incx.EQ.1) THEN
+*
+*        code for increment equal to 1
+*
+*
+*        clean-up loop
+*
+         m = mod(n,5)
+         IF (m.NE.0) THEN
+            DO i = 1,m
+               dx(i) = da*dx(i)
+            END DO
+            IF (n.LT.5) RETURN
+         END IF
+         mp1 = m + 1
+         DO i = mp1,n,5
+            dx(i) = da*dx(i)
+            dx(i+1) = da*dx(i+1)
+            dx(i+2) = da*dx(i+2)
+            dx(i+3) = da*dx(i+3)
+            dx(i+4) = da*dx(i+4)
+         END DO
       ELSE
-       NINCX = N*INCX
-       DO I = 1,NINCX,INCX
-        DX(I) = DA*DX(I)
-       END DO
+*
+*        code for increment not equal to 1
+*
+         nincx = n*incx
+         DO i = 1,nincx,incx
+            dx(i) = da*dx(i)
+         END DO
       END IF
-C-----------------------------------------------------------------------                                                                       
       RETURN
       END
 
 C DSWAP
-      SUBROUTINE DSWAP (N,DX,INCX,DY,INCY)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION DX(1),DY(1)
-C
-C     INTERCHANGES TWO VECTORS.
-C           DX(I) <==> DY(I)
-C     USES UNROLLED LOOPS FOR INCREMENTS EQUAL ONE.
-C     JACK DONGARRA, LINPACK, 3/11/78.
-C
-      IF(N<=0) RETURN
-      IF(INCX==1.AND.INCY==1)GO TO 20
-C
-C       CODE FOR UNEQUAL INCREMENTS OR EQUAL INCREMENTS NOT EQUAL
-C         TO 1
-C
-      IX = 1
-      IY = 1
-      IF(INCX<0)IX = (-N+1)*INCX + 1
-      IF(INCY<0)IY = (-N+1)*INCY + 1
-      DO 10 I = 1,N
-        DTEMP = DX(IX)
-        DX(IX) = DY(IY)
-        DY(IY) = DTEMP
-        IX = IX + INCX
-        IY = IY + INCY
-   10 CONTINUE
-      RETURN
-C
-C       CODE FOR BOTH INCREMENTS EQUAL TO 1
-C
-C
-C       CLEAN-UP LOOP
-C
-   20 M = MOD(N,3)
-      IF( M == 0 ) GO TO 40
-      DO 30 I = 1,M
-        DTEMP = DX(I)
-        DX(I) = DY(I)
-        DY(I) = DTEMP
-   30 CONTINUE
-      IF( N < 3 ) RETURN
-   40 MP1 = M + 1
-      DO 50 I = MP1,N,3
-        DTEMP = DX(I)
-        DX(I) = DY(I)
-        DY(I) = DTEMP
-        DTEMP = DX(I + 1)
-        DX(I + 1) = DY(I + 1)
-        DY(I + 1) = DTEMP
-        DTEMP = DX(I + 2)
-        DX(I + 2) = DY(I + 2)
-        DY(I + 2) = DTEMP
-   50 CONTINUE
+      SUBROUTINE DSWAP(N,DX,INCX,DY,INCY)
+*
+*  -- Reference BLAS level1 routine (version 3.8.0) --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*     November 2017
+*
+*     .. Scalar Arguments ..
+      INTEGER INCX,INCY,N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION DX(*),DY(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Local Scalars ..
+      DOUBLE PRECISION DTEMP
+      INTEGER I,IX,IY,M,MP1
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC mod
+*     ..
+      IF (n.LE.0) RETURN
+      IF (incx.EQ.1 .AND. incy.EQ.1) THEN
+*
+*       code for both increments equal to 1
+*
+*
+*       clean-up loop
+*
+         m = mod(n,3)
+         IF (m.NE.0) THEN
+            DO i = 1,m
+               dtemp = dx(i)
+               dx(i) = dy(i)
+               dy(i) = dtemp
+            END DO
+            IF (n.LT.3) RETURN
+         END IF
+         mp1 = m + 1
+         DO i = mp1,n,3
+            dtemp = dx(i)
+            dx(i) = dy(i)
+            dy(i) = dtemp
+            dtemp = dx(i+1)
+            dx(i+1) = dy(i+1)
+            dy(i+1) = dtemp
+            dtemp = dx(i+2)
+            dx(i+2) = dy(i+2)
+            dy(i+2) = dtemp
+         END DO
+      ELSE
+*
+*       code for unequal increments or equal increments not equal
+*         to 1
+*
+         ix = 1
+         iy = 1
+         IF (incx.LT.0) ix = (-n+1)*incx + 1
+         IF (incy.LT.0) iy = (-n+1)*incy + 1
+         DO i = 1,n
+            dtemp = dx(ix)
+            dx(ix) = dy(iy)
+            dy(iy) = dtemp
+            ix = ix + incx
+            iy = iy + incy
+         END DO
+      END IF
       RETURN
       END
 
@@ -23230,6 +23324,7 @@ C
 
       SUBROUTINE LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
 C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER N,M,IPRINT(2),IFLAG
       DOUBLE PRECISION X(N),G(N),DIAG(N),W(N*(2*M+1)+2*M)
       DOUBLE PRECISION F,EPS,XTOL
@@ -23637,10 +23732,10 @@ C     FORMATS
 C     -------
 C
  200  FORMAT(/' IFLAG= -1 ',/' LINE SEARCH FAILED. SEE'
-     .          ' DOCUMENTATION OF ROUTINE MCSRCH',/' ERROR RETURN'
-     .          ' OF LINE SEARCH: INFO= ',I2,/
-     .          ' POSSIBLE CAUSES: FUNCTION OR GRADIENT ARE INCORRECT',/,
-     .          ' OR INCORRECT TOLERANCES')
+     .        ' DOCUMENTATION OF ROUTINE MCSRCH',/' ERROR RETURN'
+     .        ' OF LINE SEARCH: INFO= ',I2,/
+     .        ' POSSIBLE CAUSES: FUNCTION OR GRADIENT ARE INCORRECT',/,
+     .        ' OR INCORRECT TOLERANCES')
  235  FORMAT(/' IFLAG= -2',/' THE',I5,'-TH DIAGONAL ELEMENT OF THE',/,
      .       ' INVERSE HESSIAN APPROXIMATION IS NOT POSITIVE')
  240  FORMAT(/' IFLAG= -3',/' IMPROPER INPUT PARAMETERS (N OR M',
@@ -23658,6 +23753,7 @@ C     THIS ROUTINE PRINTS MONITORING INFORMATION. THE FREQUENCY AND
 C     AMOUNT OF OUTPUT ARE CONTROLLED BY IPRINT.
 C     -------------------------------------------------------------
 C
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER IPRINT(2),ITER,NFUN,LP,MP,N,M
       DOUBLE PRECISION X(N),G(N),F,GNORM,STP,GTOL,STPMIN,STPMAX
       LOGICAL FINISH
@@ -23734,6 +23830,7 @@ C SET UNIT=100 AS THE FILE WHERE WRITE DOWN OPTIMIZATION INFORMATION
       END
 
       SUBROUTINE MCSRCH(N,X,F,G,S,STP,FTOL,XTOL,MAXFEV,INFO,NFEV,WA)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)         
       INTEGER N,MAXFEV,INFO,NFEV
       DOUBLE PRECISION F,STP,FTOL,GTOL,XTOL,STPMIN,STPMAX
       DOUBLE PRECISION X(N),G(N),S(N),WA(N)
@@ -24041,6 +24138,7 @@ C
       
       SUBROUTINE MCSTEP(STX,FX,DX,STY,FY,DY,STP,FP,DP,BRACKT,
      *                 STPMIN,STPMAX,INFO)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER INFO
       DOUBLE PRECISION STX,FX,DX,STY,FY,DY,STP,FP,DP,STPMIN,STPMAX
       LOGICAL BRACKT,BOUND
@@ -24294,22 +24392,23 @@ C ORBOPTFrc
      &                     CJ12,CK12,ELAG,FMIUG0,
      &                     DIPN,ADIPx,ADIPy,ADIPz,ILOOP)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NBF)::FMIUG0
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 c
-      REAL,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
-      REAL,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W,COEFNEW,BFM
-      REAL,ALLOCATABLE,DIMENSION(:,:,:)::FK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W,COEFNEW,BFM
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::FK
 c
       INTEGER,ALLOCATABLE,DIMENSION(:)::INO1,INDOC,INCWO,INAC,INO0,INDf
-      REAL,ALLOCATABLE,DIMENSION(:,:)::WFr
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::WFr
 C-----------------------------------------------------------------------
 C     Read fragment information on the FILE 10 (FRAG)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -24514,10 +24613,11 @@ C-----------------------------------------------------------------------
 
 C COEFW_F
       SUBROUTINE COEFW_F(INDf,N,Nf,COEFN,COEF,W)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(Nf)::INDf
-      REAL,DIMENSION(N,Nf)::COEFN
-      REAL,DIMENSION(N,N)::COEF
-      REAL,DIMENSION(Nf,Nf)::W
+      DOUBLE PRECISION,DIMENSION(N,Nf)::COEFN
+      DOUBLE PRECISION,DIMENSION(N,N)::COEF
+      DOUBLE PRECISION,DIMENSION(Nf,Nf)::W
 C-----------------------------------------------------------------------
 C     COEFN = COEF*W
 C-----------------------------------------------------------------------
@@ -24541,25 +24641,32 @@ C-----------------------------------------------------------------------
 C     Calculate the electronic energy and Lagrange Multipliers
 C-----------------------------------------------------------------------
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
       INTEGER,DIMENSION(NSTORE)::IJKL
-      REAL,DIMENSION(NSTORE)::XIJKL
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(3)::DIPN
-      REAL,DIMENSION(NBF,NBF,NBF)::QD
-      REAL,DIMENSION(NSQ,NBF5f)::WFr
-      REAL,ALLOCATABLE,DIMENSION(:,:)::WJj,WKj,WF,G
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5f)::WFr
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::WJj,WKj,WF,G,AUX1
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::AUX2
 C-----------------------------------------------------------------------
 C     Calculate Dj: QD(j,miu,niu), Jj(miu,niu), Kj(miu,niu) (j=1,NBF5) 
 C-----------------------------------------------------------------------
-      ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5))
+      ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5),AUX1(NBF,NBF),AUX2(NSQ))
       DO j=1,NBF5
-       CALL DENMATj(j,QD(j,1:NBF,1:NBF),COEF,NBF)
-       CALL HSTARJ(WJj(1,j),QD(j,1:NBF,1:NBF),IJKL,XIJKL)
-       CALL HSTARK(WKj(1,j),QD(j,1:NBF,1:NBF),IJKL,XIJKL)
+       CALL DENMATj(j,AUX1,COEF,NBF)
+       QD(j,1:NBF,1:NBF) = AUX1(1:NBF,1:NBF)
+       CALL HSTARJ(AUX2,AUX1,IJKL,XIJKL)
+       WJj(1:NSQ,j) = AUX2(1:NSQ)
+       CALL HSTARK(AUX2,AUX1,IJKL,XIJKL)
+       WKj(1:NSQ,j) = AUX2(1:NSQ)
       ENDDO
+      DEALLOCATE (AUX1,AUX2)
 C-----------------------------------------------------------------------
 C     Form F Matrix and keep it in WF
 C     WFr: Constant part of F related to the interactions with fragments
@@ -24602,12 +24709,13 @@ C FFJMNFrc
       SUBROUTINE FFJMNFrc(INDf,RO,CJ12,CK12,H,DJ,DK,F,Fr,
      &                    ADIPx,ADIPy,ADIPz,IE)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NSQ,NBF5)::DJ,DK
-      REAL,DIMENSION(NSQ,NBF5f)::F,Fr
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5f)::F,Fr
 C-----------------------------------------------------------------------
 C                            Calculate Fj(m,n)
 C-----------------------------------------------------------------------
@@ -24700,9 +24808,10 @@ C-----------------------------------------------------------------------
 C PRODWCWFik
       FUNCTION PRODWCWFik(ik,INDf,W,CW12)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(1,*) por IQP
 C-----------------------------------------------------------------------
@@ -24719,9 +24828,10 @@ C-----------------------------------------------------------------------
 C PRODWCWFikq
       FUNCTION PRODWCWFikq(ik,jf,INDf,W,CW12)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF5,NBF5)::CW12
-      REAL,DIMENSION(NSQ,NBF5)::W
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
 C-----------------------------------------------------------------------
 C     Sum W*CW12(IQ,*) por IQP, IQ is not considered
 C-----------------------------------------------------------------------
@@ -24742,9 +24852,10 @@ C-----------------------------------------------------------------------
 C ELGF
       SUBROUTINE ELGF(INDf,ELAG,C,G)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF,NBF)::ELAG,C
-      REAL,DIMENSION(NBF,NBF5f)::G
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,C
+      DOUBLE PRECISION,DIMENSION(NBF,NBF5f)::G
 C-----------------------------------------------------------------------
 C     Calculate the Lagrangian Multipliers
 C-----------------------------------------------------------------------
@@ -24769,8 +24880,9 @@ C-----------------------------------------------------------------------
 C PCONVE_F
       SUBROUTINE PCONVE_F(INDf,ELAG,DUM,MAXI,MAXJ,SUMDIFF)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF,NBF)::ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG
 C-----------------------------------------------------------------------
 C     MAXIMUM LAGRANGE MULTYPLIER DIFFERENCE [ELAG(IQ,JQ)-ELAG(JQ,IQ)]
 C-----------------------------------------------------------------------
@@ -24796,10 +24908,11 @@ C-----------------------------------------------------------------------
 C FFMIUG_SCALING_F
       SUBROUTINE FFMIUG_SCALING_F(INDf,FMIUG,ELAG,FMIUG0,ITCALL)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(NBFf)::INDf
-      REAL,DIMENSION(NBF)::FMIUG0
-      REAL,DIMENSION(NBFf,NBFf)::FMIUG
-      REAL,DIMENSION(NBF,NBF)::ELAG
+      DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
+      DOUBLE PRECISION,DIMENSION(NBFf,NBFf)::FMIUG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG
 C-----------------------------------------------------------------------
 C     Generalized Fock Matrix (FMIUG)
 C-----------------------------------------------------------------------
@@ -24912,7 +25025,7 @@ C SlaveDvr
       Subroutine SlaveDvr()
       Implicit None
 #include "mpip.h"
-      Integer*8 NINTCR
+      INTEGER NINTCR
    10 CALL MPI_BCAST(NINTCR,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
       Call SlvInt(NINTCR)
       GOTO 10
@@ -24922,7 +25035,7 @@ C SlvInt
       Subroutine SlvInt(NINTCR)
       Implicit None
 #include "mpip.h"
-      Integer*8 NINTCR,N,K,JJ,IERI,ID,NOPT,IER,NOPTCG
+      INTEGER NINTCR,N,K,JJ,IERI,ID,NOPT,IER,NOPTCG
       Double Precision ERI
       ALLOCATABLE::ERI(:),IERI(:)
       ALLOCATE(IERI(NINTCR),ERI(NINTCR),STAT=IER)
@@ -24971,6 +25084,7 @@ C
 C SLVHSTJ
       SUBROUTINE SLVHSTJ(N,NN,IERI,ERI)
 C     HSTARJ adapted for Slaves 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER NBF
       DIMENSION IERI(NN),ERI(NN)
@@ -25007,10 +25121,11 @@ C-----------------------------------------------------------------------
 C SLVHSTK
       SUBROUTINE SLVHSTK(N,NN,IERI,ERI)
 C     HSTARK adapted for Slaves
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER NBF
       INTEGER,DIMENSION(NN)::IERI
-      REAL,DIMENSION(NN)::ERI
+      DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -25058,10 +25173,11 @@ C-----------------------------------------------------------------------
 C SLVFORM2JK
       SUBROUTINE SLVFORM2JK(N,NN,IERI,ERI)
 C     FORM2JK adapted for Slaves
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER NBF
       INTEGER,DIMENSION(NN)::IERI
-      REAL,DIMENSION(NN)::ERI
+      DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -25116,10 +25232,11 @@ C-----------------------------------------------------------------------
 C SLVFORMJK
       SUBROUTINE SLVFORMJK(N,NN,IERI,ERI)
 C     FORMJK adapted for Slaves
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER NBF
       INTEGER,DIMENSION(NN)::IERI
-      REAL,DIMENSION(NN)::ERI
+      DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -25175,8 +25292,9 @@ C-----------------------------------------------------------------------
 
 C ERRORMEM
       SUBROUTINE ERRORMEM(NMEMORY)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER :: NMEMORY
-      REAL :: GBNUMBER
+      DOUBLE PRECISION :: GBNUMBER
       GBNUMBER = DFLOAT(NMEMORY*8)/(1024.0d0**3)
       WRITE(6,1)NMEMORY,GBNUMBER
     1 FORMAT(//10X,'Sorry, You need more Memory!, NMEMORY =',I20,2X,
@@ -25187,6 +25305,7 @@ C ERRORMEM
 C DISTRIBUTION
       SUBROUTINE DISTRIBUTION(IPRINTOPT)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER:: IPRINTOPT      
 #include "mpip.h"
 C-.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.-
@@ -25232,13 +25351,14 @@ C-----------------------------------------------------------------------
 C READERIs
       SUBROUTINE READERIs(IERI,ERI,IX2,BUFP2,NINTEGt,IDONTW,NREC)
       USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"
       INTEGER,DIMENSION(NINTEGt) :: IX2
-      REAL,DIMENSION(NINTEGt) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NINTEGt) :: BUFP2
       INTEGER,DIMENSION(NSTORE) :: IERI
-      REAL,DIMENSION(NSTORE) :: ERI
+      DOUBLE PRECISION,DIMENSION(NSTORE) :: ERI
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IX
-      REAL,ALLOCATABLE,DIMENSION(:) :: XX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: XX
 #ifdef MPI
       LOGICAL TROUBLE
 #endif
@@ -25361,6 +25481,7 @@ C-----------------------------------------------------------------------
 
 C OTTOINTEGR
       SUBROUTINE OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     TRANSFORM INTO INTSCF INTEGRALS
 C-----------------------------------------------------------------------
@@ -25383,10 +25504,11 @@ C GRADSPURIFY
       SUBROUTINE GRADSPURIFY(GRADS,NV)
       IMPLICIT NONE
       INTEGER,INTENT(IN)::NV
-      REAL,DIMENSION(NV),INTENT(INOUT)::GRADS
-      REAL::GOLD
+      DOUBLE PRECISION,DIMENSION(NV),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION::GOLD
       INTEGER::I,J
-      REAL,PARAMETER::THR=0.000001D+00,THR2=0.0000001D+00,ZERO=0.0D+00
+      DOUBLE PRECISION,PARAMETER::THR=0.000001D+00,THR2=0.0000001D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
 C-----------------------------------------------------------------------
       DO I=1,NV
         IF(DABS(GRADS(I))<=THR) THEN
@@ -25424,27 +25546,28 @@ C     THIS ROUTINE COMPUTES HESSIAN MATRIX NUMERICALLY
 C     BY USING ANALYTIC GRADIENTS
 C
       USE PARCOM
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C     ARGUMENTS
       INTEGER,INTENT(IN) :: NC1,NINTEG,IDONTW
-      REAL,DIMENSION(NC1,NC1),INTENT(OUT) :: FCM
-      REAL,DIMENSION(NC1),INTENT(IN) :: CXYZ
-      REAL,DIMENSION(NC1),INTENT(INOUT) :: EG
-      REAL,DIMENSION(3),INTENT(INOUT) :: DIP
-      REAL,DIMENSION(9,NC1/3),INTENT(OUT)::DDM
-      REAL,DIMENSION(NC1/3),INTENT(IN) :: ZAN
+      DOUBLE PRECISION,DIMENSION(NC1,NC1),INTENT(OUT) :: FCM
+      DOUBLE PRECISION,DIMENSION(NC1),INTENT(IN) :: CXYZ
+      DOUBLE PRECISION,DIMENSION(NC1),INTENT(INOUT) :: EG
+      DOUBLE PRECISION,DIMENSION(3),INTENT(INOUT) :: DIP
+      DOUBLE PRECISION,DIMENSION(9,NC1/3),INTENT(OUT)::DDM
+      DOUBLE PRECISION,DIMENSION(NC1/3),INTENT(IN) :: ZAN
       INTEGER,DIMENSION(NC1/3),INTENT(IN):: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
-      REAL,DIMENSION(NPRIMI),INTENT(IN)::C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::C1,C2,EX1,CS,CP
+      DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::CD,CF,CG,CH,CI
 C     VARIABLES      
-      REAL,DIMENSION(NC1) :: CDISP,EGDISP
-      REAL,DIMENSION(2) :: D
-      REAL,DIMENSION(3) :: DEQ
+      DOUBLE PRECISION,DIMENSION(NC1) :: CDISP,EGDISP
+      DOUBLE PRECISION,DIMENSION(2) :: D
+      DOUBLE PRECISION,DIMENSION(3) :: DEQ
       LOGICAL,DIMENSION(NATOMS)::SKIP
-      REAL,PARAMETER :: UNIT=0.52917724924D+00
-      REAL,PARAMETER :: ZERO=0.0D+00
+      DOUBLE PRECISION,PARAMETER :: UNIT=0.52917724924D+00
+      DOUBLE PRECISION,PARAMETER :: ZERO=0.0D+00
 C-----------------------------------------------------------------------
 C NVIB   =    The number of displacements in each Cartesian
 C             direction for force field computation.C
@@ -25491,7 +25614,7 @@ C     IDENTIFY FROZEN ATOMS
 C
       NMAXSKIP = NATOMS
       DO I = NATOMS,1,-1
-        IF(SKIP(I)==.FALSE.)THEN
+        IF(SKIP(I) .eqv. .FALSE.)THEN
          NMAXSKIP = I
          EXIT
         ENDIF
@@ -25578,7 +25701,7 @@ C-----------------------------------------------------------------------
  1    FORMAT(//1X,'Hessian computed from analytic Gradients',                    
      &        /1X,'----------------------------------------',
      &      //25X,'X',13X,'Y',13X,'Z',/)
- 2    FORMAT( /,2X,F10.7,5X,F10.7,5X,F10.7)
+C 2    FORMAT( /,2X,F10.7,5X,F10.7,5X,F10.7)
  3    FORMAT(/1X,'WARNING,ALL GRADIENTS RELATED TO A FROZEN ATOM ARE'
      &            ' SET TO ZERO')
       END
@@ -25587,8 +25710,8 @@ C SETFCMd
       SUBROUTINE SETFCMd(FCM,M,NV,EG,IVIB)
       IMPLICIT NONE
       INTEGER,INTENT(IN)::IVIB,M,NV
-      REAL,DIMENSION(M,M),INTENT(OUT)::FCM
-      REAL,DIMENSION(M),INTENT(IN)::EG
+      DOUBLE PRECISION,DIMENSION(M,M),INTENT(OUT)::FCM
+      DOUBLE PRECISION,DIMENSION(M),INTENT(IN)::EG
       INTEGER:: I
 C-----------------------------------------------------------------------      
 C     SET ELEMENTS OF THE FORCE CONSTANT MATRIX
@@ -25618,12 +25741,12 @@ C SYMFCMd
       SUBROUTINE SYMFCMd(FCM,NCOORD,VIBSIZ)
       IMPLICIT NONE
       INTEGER,INTENT(IN)::NCOORD
-      REAL,INTENT(IN)::VIBSIZ
-      REAL,DIMENSION(NCOORD,NCOORD),INTENT(INOUT)::FCM
+      DOUBLE PRECISION,INTENT(IN)::VIBSIZ
+      DOUBLE PRECISION,DIMENSION(NCOORD,NCOORD),INTENT(INOUT)::FCM
       INTEGER:: I,J
-      REAL:: DUM,AVE
-      REAL,PARAMETER::HALF=0.5D+00
-      REAL,PARAMETER::ONE=1.0D+00,TWO=2.0D+00
+      DOUBLE PRECISION:: DUM,AVE
+      DOUBLE PRECISION,PARAMETER::HALF=0.5D+00
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D+00,TWO=2.0D+00
 C-----------------------------------------------------------------------      
 C      COMPLETE COMPUTATION OF THE FORCE CONSTANT MATRIX
 C      MATRIX IS SYMMETRIZED.COMPLETE THE FINITE DIFFERENCING
@@ -25659,37 +25782,44 @@ C-----------------------------------------------------------------------
 C FGMTRXd
       SUBROUTINE FGMTRXd(CXYZ,VEC,GRAD,NC1,ZNUC,ZMASS,DDM)
       USE PARCOM
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 C-----------------------------------------------------------------------
 C     THE FOLLOWING ARE HOLLERITH (1-4 CHARACTER) VARIABLES
-      REAL :: IBLANK,LETI,CLAB(3),LAB(9)
+      CHARACTER*2 LETI,IBLANK
+      CHARACTER*4 CLAB(3)
+      DOUBLE PRECISION :: LAB(9)
 C     ARGUMENTS      
 C     NC1 = NCOORD = 3*NATOMS, NC2 = (NC1**2+NC1)/2
-      REAL,DIMENSION(NC1,NC1),INTENT(INOUT) :: VEC
-      REAL,DIMENSION(NC1),INTENT(IN) :: CXYZ
-      REAL,DIMENSION(3,NATOMS),INTENT(IN) :: GRAD
-      REAL,DIMENSION(3,NC1) :: SVTZR,SVTZT
-      REAL,DIMENSION(NC1) :: SVTZTT,SVTZRT
-      REAL,DIMENSION(NATOMS),INTENT(IN) :: ZNUC
-      REAL,DIMENSION(NATOMS),INTENT(IN) :: ZMASS
-      REAL,DIMENSION(3,NC1),INTENT(INOUT)::DDM
+      DOUBLE PRECISION,DIMENSION(NC1,NC1),INTENT(INOUT) :: VEC
+      DOUBLE PRECISION,DIMENSION(NC1),INTENT(IN) :: CXYZ
+      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(IN) :: GRAD
+      DOUBLE PRECISION,DIMENSION(3,NC1) :: SVTZR,SVTZT
+      DOUBLE PRECISION,DIMENSION(NC1) :: SVTZTT,SVTZRT
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN) :: ZNUC
+      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN) :: ZMASS
+      DOUBLE PRECISION,DIMENSION(3,NC1),INTENT(INOUT)::DDM
+C     FUNCTIONS
+      DOUBLE PRECISION :: DDOT
 C     VARIABLES
-      REAL :: ZMASST
-      REAL,DIMENSION(3) :: CMASS
-      REAL,DIMENSION(NC1) :: FREQ,RM,E
+      DOUBLE PRECISION :: ZMASST
+      DOUBLE PRECISION,DIMENSION(3) :: CMASS
+      DOUBLE PRECISION,DIMENSION(NC1) :: FREQ,RM,E
       INTEGER,DIMENSION(NC1) :: IA
-      REAL,DIMENSION(3,NATOMS) :: COM
-      REAL,DIMENSION(NC1,8) :: SCR
+      DOUBLE PRECISION,DIMENSION(3,NATOMS) :: COM
+      DOUBLE PRECISION,DIMENSION(NC1,8) :: SCR
       INTEGER :: NIMAG,NLAST,NSKIP                                      
-      REAL,PARAMETER :: ZERO=0.0D+00, ONE=1.0D+00, TWO=2.0D+00
-      REAL,PARAMETER :: THREE=3.0D+00, FOUR=4.0D+00, SIX=6.0D+00
-      REAL,PARAMETER :: SEVEN=7.0D+00, TFACT=2.642461D+07
-      REAL,PARAMETER :: PLANCK=6.626176D-34,BOHR = 5.29177249D-11
-      REAL,PARAMETER :: AVOGAD=6.022045D+23, TOANGS=0.52917724924D+00
-      REAL,PARAMETER :: CATOM = 12.011D+00
+      DOUBLE PRECISION,PARAMETER :: ZERO=0.0D+00, ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER :: TWO=2.0D+00, THREE=3.0D+00
+      DOUBLE PRECISION,PARAMETER :: FOUR=4.0D+00, SIX=6.0D+00
+      DOUBLE PRECISION,PARAMETER :: SEVEN=7.0D+00, TFACT=2.642461D+07
+      DOUBLE PRECISION,PARAMETER :: PLANCK=6.626176D-34
+      DOUBLE PRECISION,PARAMETER :: BOHR = 5.29177249D-11
+      DOUBLE PRECISION,PARAMETER :: AVOGAD=6.022045D+23
+      DOUBLE PRECISION,PARAMETER :: TOANGS=0.52917724924D+00
+      DOUBLE PRECISION,PARAMETER :: CATOM = 12.011D+00
 C-----------------------------------------------------------------------
-      DATA CLAB /4H   X,4H   Y,4H   Z/
-      DATA LETI,IBLANK/2H I,2H  /
+      DATA CLAB /'   X','   Y','   Z'/
+      DATA LETI,IBLANK/' I','  '/
 C-----------------------------------------------------------------------
 C     WILSON -FG- MATRIX VIBRATIONAL ANALYSIS
 C     W.D.GWINN   J.CHEM.PHYS.  55, 477-481 (1971)
@@ -25863,8 +25993,8 @@ C     PRINT THE FREQUENCY AND INTENSITY
        WRITE (11,9100) (J,J = MINCOL,MAXCOL)
        DO J=MINCOL,MAXCOL
           JJ = J + 1 - MINCOL
-          LAB(JJ) = LETI
-          IF(J>NIMAG) LAB(JJ)=IBLANK
+          LAB(JJ) = transfer (LETI,LAB(JJ))            ! LAB(JJ) = LETI
+          IF(J>NIMAG)LAB(JJ)=transfer(IBLANK,LAB(JJ))  ! LAB(JJ)=IBLANK
        ENDDO
        WRITE(11,9110) (FREQ(J),LAB(J+1-MINCOL),J = MINCOL,MAXCOL)
        WRITE(11,9120) (SCR(J,1),J=MINCOL,MAXCOL)
@@ -25875,7 +26005,7 @@ C      PRINT AB INITIO NORMAL MODE COMPONENTS
        DO IAT = 1,NATOMS
           I0 = 3*(IAT-1)
           WRITE(11,9150) IAT,
-     &                     CLAB(1),(VEC(I0+1,J),J=MINCOL,MAXCOL)
+     &                   CLAB(1),(VEC(I0+1,J),J=MINCOL,MAXCOL)
           WRITE(11,9160) CLAB(2),(VEC(I0+2,J),J=MINCOL,MAXCOL)
           WRITE(11,9160) CLAB(3),(VEC(I0+3,J),J=MINCOL,MAXCOL)
        ENDDO
@@ -25908,11 +26038,11 @@ C                            PRINT FORMATS
      *  56(1H-))
  9030 FORMAT(/10X,'ATOMIC WEIGHTS (AMU)'/)
  9040 FORMAT(I5,5X,F15.5)
- 9045 FORMAT(8X,'THE FORCE CONSTANT MATRIX WILL BE PROJECTED TO',
-     *       /,8X,'ELIMINATE ROTATIONAL AND VIBRATIONAL CONTAMINANTS,',
-     *       /,8X,'THOUGH THIS CHANGES THE HESSIAN SIGNIFICANTLY, SO',
-     *       /,8X,'PREVIOUS NON-PROJECTED (PROJECT=F) CALCULATION',
-     *       /,8X,'SHOULD BE DONE TO ANALIZE SAYVETZ CONDITIONS')
+C 9045 FORMAT(8X,'THE FORCE CONSTANT MATRIX WILL BE PROJECTED TO',
+C     *       /,8X,'ELIMINATE ROTATIONAL AND VIBRATIONAL CONTAMINANTS,',
+C     *       /,8X,'THOUGH THIS CHANGES THE HESSIAN SIGNIFICANTLY, SO',
+C     *       /,8X,'PREVIOUS NON-PROJECTED (PROJECT=F) CALCULATION',
+C     *       /,8X,'SHOULD BE DONE TO ANALIZE SAYVETZ CONDITIONS')
  9050 FORMAT(/1X,'* * * WARNING, MODE',I2,' HAS BEEN CHOSEN AS A ',
      *          'VIBRATION'/10X,'WHILE MODE',I2,
      *          ' IS ASSUMED TO BE A TRANSLATION/ROTATION.'/
@@ -25949,7 +26079,7 @@ C                            PRINT FORMATS
  9120 FORMAT(1X,'   IR INTENSITY:',3X,9(F10.5,2X))
  9150 FORMAT(I3,13X,A4,9F12.8)
  9160 FORMAT(16X,A4,9F12.8)
- 9170 FORMAT(I3,I3,2X,A8,A4,9F12.8)
+C 9170 FORMAT(I3,I3,2X,A8,A4,9F12.8)
  9180 FORMAT(16H TRANS. SAYVETZ ,A4,9F12.8)
  9190 FORMAT(16H   ROT. SAYVETZ ,A4,9F12.8)
  9200 FORMAT(15X,5HTOTAL,9F12.8)
@@ -25965,12 +26095,12 @@ C HESMASd
       SUBROUTINE HESMASd(NCOORD,HESS,RTRMS)
       IMPLICIT NONE
       INTEGER,INTENT(IN)::NCOORD
-      REAL,DIMENSION(NCOORD,NCOORD),INTENT(INOUT)::HESS
-      REAL,DIMENSION(NCOORD),INTENT(IN)::RTRMS
-      REAL,DIMENSION((NCOORD**2+NCOORD)/2):: A
-      REAL:: RTRMSI
+      DOUBLE PRECISION,DIMENSION(NCOORD,NCOORD),INTENT(INOUT)::HESS
+      DOUBLE PRECISION,DIMENSION(NCOORD),INTENT(IN)::RTRMS
+      DOUBLE PRECISION,DIMENSION((NCOORD**2+NCOORD)/2):: A
+      DOUBLE PRECISION:: RTRMSI
       INTEGER:: I,J,IJ
-      REAL,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
 C-----------------------------------------------------------------------      
 C     LET A=AB INITIO ATOMS
       IJ = 0
@@ -25998,14 +26128,14 @@ C CENMASd
       SUBROUTINE CENMASd(NAT,C,COM,ZMASST,CMASS,ZMASS)
       IMPLICIT NONE
       INTEGER,INTENT(IN):: NAT
-      REAL,INTENT(OUT):: ZMASST
-      REAL,DIMENSION(3,NAT),INTENT(IN)::C
-      REAL,DIMENSION(3,NAT),INTENT(OUT)::COM
-      REAL,DIMENSION(3),INTENT(OUT)::CMASS
-      REAL,DIMENSION(NAT),INTENT(IN)::ZMASS
-      REAL:: AMASS
+      DOUBLE PRECISION,INTENT(OUT):: ZMASST
+      DOUBLE PRECISION,DIMENSION(3,NAT),INTENT(IN)::C
+      DOUBLE PRECISION,DIMENSION(3,NAT),INTENT(OUT)::COM
+      DOUBLE PRECISION,DIMENSION(3),INTENT(OUT)::CMASS
+      DOUBLE PRECISION,DIMENSION(NAT),INTENT(IN)::ZMASS
+      DOUBLE PRECISION:: AMASS
       INTEGER:: I,J
-      REAL,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
 C-----------------------------------------------------------------------      
 C     CALCULATE TOTAL MASS AND CENTER OF MASS
 C-----------------------------------------------------------------------
@@ -26050,9 +26180,9 @@ C SYMDDMd
       SUBROUTINE SYMDDMd(DDM,NAT)
       IMPLICIT NONE
       INTEGER,INTENT(IN):: NAT
-      REAL,DIMENSION(9,NAT),INTENT(INOUT):: DDM
+      DOUBLE PRECISION,DIMENSION(9,NAT),INTENT(INOUT):: DDM
       INTEGER:: I,J
-      REAL,PARAMETER ::ZERO=0.0D+00, TM7=1.0D-07
+      DOUBLE PRECISION,PARAMETER ::ZERO=0.0D+00, TM7=1.0D-07
 C     HOUSEHOLDER PURIFY DIPOLE DERIVATIVE TENSOR
       DO I=1,NAT
          DO J=1,9
@@ -26067,14 +26197,14 @@ C SETDDMd
       IMPLICIT NONE
 C     ARGUMENTS      
       INTEGER,INTENT(IN):: NP,IVIB,NCOORD,NVIB
-      REAL,DIMENSION(3,NCOORD),INTENT(INOUT):: DDM
-      REAL,DIMENSION(3),INTENT(INOUT):: DEQ
-      REAL,DIMENSION(3),INTENT(IN):: DIP
-      REAL,INTENT(IN):: DEL
+      DOUBLE PRECISION,DIMENSION(3,NCOORD),INTENT(INOUT):: DDM
+      DOUBLE PRECISION,DIMENSION(3),INTENT(INOUT):: DEQ
+      DOUBLE PRECISION,DIMENSION(3),INTENT(IN):: DIP
+      DOUBLE PRECISION,INTENT(IN):: DEL
 C     VARIABLES      
-      REAL:: DELI
+      DOUBLE PRECISION:: DELI
       INTEGER:: I
-      REAL,PARAMETER ::ONE=1.0D+00,ZERO=0.0D+00
+      DOUBLE PRECISION,PARAMETER ::ONE=1.0D+00,ZERO=0.0D+00
 C      
       DELI = ONE/DEL
       IF(NP <= 0) THEN
