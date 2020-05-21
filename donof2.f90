@@ -995,7 +995,7 @@ subroutine deflt ( alg, iv, liv, lv, v )
   iv(lastiv) = miv
   iv(lastv) = mv
   iv(lmat) = mv + 1
-  iv(mxfcal) = 200
+  iv(mxfcal) = 1000
   iv(mxiter) = 150
   iv(outlev) = 1
   iv(parprt) = 1
