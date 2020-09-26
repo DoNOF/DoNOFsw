@@ -5237,7 +5237,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Q-matrix and NQMT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       H0 = S
-      CALL QMTSYM(H0,VEC,Q,EIG,SCR,NBF,NBFT,NSQ) 
+      CALL QMTSYM(H0,VEC,Q,EIG,SCR,NBF,NQMT,NBFT,NSQ) 
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     HH = Q*H0*Q (H0=HCORE)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5373,7 +5373,7 @@ C-----------------------------------------------------------------------
       END                                                               
      
 C QMTSYM
-      SUBROUTINE QMTSYM(S,WRK,Q,EE,SCR,NBF,NBFT,NSQ)
+      SUBROUTINE QMTSYM(S,WRK,Q,EE,SCR,NBF,NQMT,NBFT,NSQ)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DOUBLE PRECISION,DIMENSION(NBF) :: EE
       DOUBLE PRECISION,DIMENSION(NBFT) :: S
