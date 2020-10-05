@@ -221,8 +221,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        call DTRSM('L','L','T','N',Nab,Nab,ONE,ApB,Nab,XpY,Nab)
       endif
       forall(i=1:Nab)
-       XpY(:,i)=XpY(:,i)*DSQRT(BIGOMEGA(i))
-       XmY(:,i)=XmY(:,i)/DSQRT(BIGOMEGA(i))
+       XpY(:,i)=XpY(:,i)*SQRT(BIGOMEGA(i))
+       XmY(:,i)=XmY(:,i)/SQRT(BIGOMEGA(i))
       endforall
       DEALLOCATE(AmB,ApB,TEMPM,TEMPV)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
