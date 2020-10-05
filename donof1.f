@@ -263,6 +263,8 @@ C-----------------------------------------------------------------------
        COMMON/INPNOF_SC2MCPT/SC2MCPT
        LOGICAL OIMP2
        COMMON/INPNOF_OIMP2/OIMP2
+       LOGICAL MBPT,TUNEMBPT,TDHF,MBPTMEM
+       COMMON/INPNOF_MBPT/MBPT,TUNEMBPT,TDHF,MBPTMEM
        COMMON/INPNOF_CGM/ICGMETHOD
        LOGICAL CHKORTHO,ORTHO
        COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
@@ -993,15 +995,22 @@ C     END SINGLE-POINT CALCULATION (ICOEF=0)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ICOEF==0)THEN
 C      Orbital-Invariant MP2 Perturbative Corrections
-       IF(OIMP2)CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),
+       IF(OIMP2) THEN
+        CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),
      &          AHCORE,IJKL,XIJKL,USER(N12),USER(N13),USER(N14))
+       ENDIF
+C      MBPT Perturbative Corrections
+       IF(MBPT) THEN
+        CALL MBPTCALC(ELAG,COEF,USER(N1),USER(N2),USER(N3),
+     &           AHCORE,USER(N12),USER(N13),USER(N14),IJKL,XIJKL)
+       ENDIF
 C      SC2-MCPT (Hartree-Fock Partition)
        IF(SC2MCPT.and.NSOC==0)CALL SC2MCPThf(USER(N1),COEF,
      &                        AHCORE,IJKL,XIJKL,USER(N10))
 C      Analytical Gradient Calculation for PNOF
        IF(IRUNTYP==2.or.IRUNTYP==3)THEN
         IF(.not.HighSpin)THEN
-         CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,  
+         CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,
      &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,
      &                 YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,
      &                 USER(N2),USER(N3),XINTS,IPRINTOPT) 
@@ -1048,14 +1057,21 @@ C      END SINGLE-POINT CALCULATION (CONVG=TRUE)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(CONVG)THEN
 C       Orbital-Invariant MP2 Perturbative Corrections
-        IF(OIMP2)CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),
+        IF(OIMP2) THEN
+         CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),
      &           AHCORE,IJKL,XIJKL,USER(N12),USER(N13),USER(N14))
+        END IF
+C       MBPT Perturbative Corrections
+        IF(MBPT) THEN
+        CALL MBPTCALC(ELAG,COEF,USER(N1),USER(N2),USER(N3),
+     &           AHCORE,USER(N12),USER(N13),USER(N14),IJKL,XIJKL)
+        END IF
 C       SC2-MCPT (Hartree-Fock Partition)
         IF(SC2MCPT.and.NSOC==0)CALL SC2MCPThf(USER(N1),COEF,
      &                          AHCORE,IJKL,XIJKL,USER(N10))
 C       Analytical Gradient Calculation for PNOF
         IF((IRUNTYP==2.or.IRUNTYP==3).and.(.not.HighSpin))THEN
-         CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,  
+         CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM,
      &                 KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,
      &                 YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,
      &                 USER(N2),USER(N3),XINTS,IPRINTOPT)
@@ -4207,6 +4223,18 @@ C
 C.......... OIMP2               NOF - Orbital Invariant MP2
 C                     = F       (DEFAULT)
 C
+C.......... MBPT                NOF - X (X=RPA, GW, SOSEX, etc.) MBPT 
+C                     = F       (DEFAULT)
+C
+C.......... TUNEMBPT            NOF - X (X=RPA, GW, SOSEX, etc.) use tune Cinter and Cintra
+C                     = F       (DEFAULT)
+C
+C.......... TDHF                True will use TD-HF instead of TD-H
+C                     = F       (DEFAULT)
+C
+C.......... MBPTMEM             Use MBPT with large memory allocation for ERIs
+C                     = T       (DEFAULT)
+C
 C.......... NO1PT2              Frozen MOs in perturbative calculations
 C                               Maximum index of NOs with Occupation = 1
 C                      = -1     = NO1 (DEFAULT)
@@ -4367,7 +4395,8 @@ C-----------------------------------------------------------------------
      &                NPRINT,IWRITEC,IMULPOP,APSG,NTHAPSG,PRINTLAG,
      &                DIAGLAG,IAIMPAC,IEKT,NOUTRDM,NTHRESHDM,NSQT,
      &                NOUTCJK,NTHRESHCJK,NOUTTijab,NTHRESHTijab,
-     &                ORTHO,CHKORTHO,FROZEN,IFROZEN,ICGMETHOD
+     &                ORTHO,CHKORTHO,FROZEN,IFROZEN,ICGMETHOD,
+     &                MBPT,TUNEMBPT,TDHF,MBPTMEM
 C-----------------------------------------------------------------------
 C     Preset values to namelist variables
 C-----------------------------------------------------------------------
@@ -4414,6 +4443,10 @@ C     Options for pertubative calculations
       NEX=0
       NO1PT2=-1            
       OIMP2=.FALSE.
+      MBPT=.FALSE.
+      TUNEMBPT=.FALSE.
+      MBPTMEM=.TRUE.
+      TDHF=.FALSE.
 
 C     Input Options for Gamma (Occ), C and Diagonal F
       RESTART=.FALSE.
@@ -4495,10 +4528,11 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         HFID = .FALSE.
         WRITE(6,'(/,1X,37A,/)')'!OPTGEO: HFID has been set equal FALSE'
        end if
-       if(OIMP2)then      
+       if(OIMP2.OR.MBPT)then      
         OIMP2 = .FALSE.
         NOUTTijab = 0
-        WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 has been set equal FALSE'
+        WRITE(6,'(/,1X,50A,/)')'!OPTGEO: OIMP2 or MBPT 
+     &  has been set equal FALSE'
        end if
       ENDIF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -12279,9 +12313,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C-----------------------------------------------------------------------       
       END IF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-C     Non-Dynamic Correction if OIMP2
+C     Non-Dynamic Correction if OIMP2 or MBPT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
+      IF(OIMP2.OR.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
 C----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'
      *      ,/1X,'========================================')
@@ -12557,9 +12591,9 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C-----------------------------------------------------------------------       
       END IF 
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-C     Non-Dynamic Correction if OIMP2
+C     Non-Dynamic Correction if OIMP2 or MBPT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
+      if(OIMP2.OR.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
 C-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'
      *      ,/1X,'========================================')
