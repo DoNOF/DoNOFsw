@@ -104,7 +104,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C  Print orb. energies and occ numbers.
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       write(*,*) '          '
-      write(*,*) 'List of qp-orbital energies (a.u.) and occ numbers
+      write(*,*) ' List of qp-orbital energies (a.u.) and occ numbers 
      & used'
       write(*,*) '          '
       mu=(EIG(NA+1)+EIG(NA))/TWO
@@ -113,8 +113,8 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        write(6,2) EIG(i),OCC(i)
       ENDDO
       write(*,*) '          '
-      write(*,'(a,f10.5)') 'Chemical potential used for qp-orbital 
-     &  energies',mu
+      write(*,'(a,f10.5)') ' Chemical potential used for qp-orbital 
+     & energies',mu
       write(*,*) '          '
       DEALLOCATE(OCC) ! We do not need the OCCs anymore
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
