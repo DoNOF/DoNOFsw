@@ -269,13 +269,13 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       EcMP2=ZERO
       call mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,TUNEMBPT,EcMP2)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-C  Integrated Ec RPA, SOSEX, RPA+SOSEX, GW+SOSEX, etc. 
+C  Integrated Ec RPA, AC-SOSEX, and RPA+AC-SOSEX, etc. 
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(TUNEMBPT) then
-       write(*,*) 'Computing integrated RPA+SOSEX correction for NOF-RPA
-     & and NOF-GW+SOSEX'
+       write(*,*) 'Computing integrated RPA+AC-SOSEX correction 
+     & for NOF-RPA and NOF-RPA+AC-SOSEX'
       else
-       write(*,*) 'Computing integrated RPA+SOSEX standard correction'
+       write(*,*)'Computing integrated RPA+AC-SOSEX standard correction'
       endif
       iEcRPA=0.0d0
       iEcSOSEX=0.0d0
@@ -332,7 +332,7 @@ C-----------------------------------------------------------------------
      * 1X,'Ec(AC-SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(RPA+AC-SOSEX)   ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(GW)             ',5X,F20.10,' a.u.',/,
-     * 1X,'Ec(GM-SOSEX)       ',5X,F20.10,' a.u.',/,
+     * 1X,'Ec(GW.SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(GW+SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(MP2)            ',5X,F20.10,' a.u.',/,
      * ' ',/,
@@ -357,13 +357,13 @@ C-----------------------------------------------------------------------
      * 1X,'Ec(AC-SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(RPA+AC-SOSEX)   ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(GW)             ',5X,F20.10,' a.u.',/,
-     * 1X,'Ec(GM-SOSEX)       ',5X,F20.10,' a.u.',/,
+     * 1X,'Ec(GM.SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(GW+SOSEX)       ',5X,F20.10,' a.u.',/,
      * 1X,'Ec(MP2)            ',5X,F20.10,' a.u.',/,
      * ' ',/,
      * 1X,'E(RPA-FURCHE)      ',5X,F20.10,' a.u.',/,
      * 1X,'E(RPA)             ',5X,F20.10,' a.u.',/,
-     * 1X,'E(RPA+SOSEX)       ',5X,F20.10,' a.u.',/,
+     * 1X,'E(RPA+AC-SOSEX)    ',5X,F20.10,' a.u.',/,
      * 1X,'E(GW)              ',5X,F20.10,' a.u.',/,
      * 1X,'E(GW+SOSEX)        ',5X,F20.10,' a.u.',/,
      * 1X,'E(MP2)             ',5X,F20.10,' a.u.')
