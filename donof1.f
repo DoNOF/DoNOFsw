@@ -10569,6 +10569,14 @@ C       Determine the 1-energies if fragment calculation in in progress
         ENDDO
        endif
       ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Dipole Moment if IPRINTOPT=0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IPRINTOPT==0)THEN
+       CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),USER(N15),
+     &              USER(N16),USER(N17),USER(N7),USER(N1),
+     &              DMXe,DMYe,DMZe,DIPS(1),DIPS(2),DIPS(3),DM)  
+      ENDIF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Initial Output (IFIRSTCALL==0), Intermediate Output (NPRINT=2)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
