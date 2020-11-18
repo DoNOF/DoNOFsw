@@ -224,13 +224,12 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        XpY(:,i)=XpY(:,i)*SQRT(BIGOMEGA(i))
        XmY(:,i)=XmY(:,i)/SQRT(BIGOMEGA(i))
       endforall
-      DEALLOCATE(AmB,ApB,TEMPM,TEMPV)
-C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-C  Compute omegas, oscillator strenghts and static polarizability       
-C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,XmY,BIGOMEGA,
+      DEALLOCATE(AmB,ApB,TEMPM,TEMPV,XmY) ! We do not need X-Y anymore 
+C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+C  Compute omegas, oscillator strenghts and static polarizability (omega->0)       
+C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,
      & ADIPx,ADIPy,ADIPz,EcRPA,TDHF,AUtoEV)
-      DEALLOCATE(XmY) ! We do not need X-Y anymore
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C  GoWo Ec energy using Galitskii-Migdal EQN
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -606,7 +605,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       enddo
       end subroutine tuneerimol      
 
-      subroutine td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,XmY,
+      subroutine td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,
      & BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA,TDHF,AUtoEV)
       implicit none
       LOGICAL,intent(in)::TDHF
@@ -615,7 +614,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       REAL,intent(in)::AUtoEV
       REAL,DIMENSION(NBF,NBF),intent(in)::ADIPx,ADIPy,ADIPz,COEF
       REAL,DIMENSION(Nab),intent(in)::BIGOMEGA
-      REAL,DIMENSION(Nab,Nab),intent(in)::XmY,XpY
+      REAL,DIMENSION(Nab,Nab),intent(in)::XpY
       INTEGER::i,j,k,l,a
       REAL::tol10,tol6
       REAL,ALLOCATABLE,DIMENSION(:,:) ::MDIPx,MDIPy,MDIPz
