@@ -5,7 +5,7 @@
 !                                                                      !
 !======================================================================!
 ! ==================================================================== !
-!                           Date: 31/03/2020                           !
+!                           Date: 10/01/2021                           !
 !                                                                      !
 ! mbpt.f contains the subroutines related to the RPA+GW+SOSEX          ! 
 ! calculations. RPA is used for OMEGAs and Sigma_c for Ec              !
