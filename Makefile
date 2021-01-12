@@ -1,7 +1,8 @@
 ###############################################################################################
 #                      Makefile for DoNOF program (Date: January 2021)                        #
 ###############################################################################################
-SFLAGS  = -i8 -r8 -fpp -O2
+SFLAGS  = -i8 -r8 -fpp -O2 
+# You can use -O3 with recent versions of the Intel Fortran compiler
 F90     = ifort          $(SFLAGS)
 MPIF90  = mpiifort -DMPI $(SFLAGS)
 #
