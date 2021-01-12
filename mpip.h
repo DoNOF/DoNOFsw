@@ -10,7 +10,7 @@
 !            University of the Basque Country (UPV/EHU)                !
 !            Basque Foundation for Science (IKERBASQUE)                !
 !                                                                      !
-!               GNU General Public License version 2                   !
+!               GNU General Public License version 3                   !
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
@@ -21,16 +21,16 @@
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
-!                           Date: March 2020                           !
+!                        Date: December 2020                           !
 !                                                                      !
-!   04/26/13 MPI module developed by Eduard Matito (ematito@gmail.com) !
+!            04/26/13 MPI module developed by Eduard Matito            !
 !                                                                      !
 !======================================================================*
 
 #ifdef MPI
-C
-C     MPI MODULE
-C
+!
+!     MPI MODULE
+!
       INCLUDE 'mpif.h'
       INTEGER STATUS(MPI_STATUS_SIZE)
       INTEGER MY_ID, NPROCS, IERR, MASTER
@@ -38,9 +38,9 @@ C
       PARAMETER (MASTER=0)
       COMMON /MPIP/ STATUS,MY_ID,NPROCS,IERR,LMASTR
 #else
-C
-C     SERIAL MODULE
-C
+!
+!     SERIAL MODULE
+!
       LOGICAL LMASTR
       INTEGER NPROCS,MASTER,MY_ID
       COMMON /SERIAL/ MY_ID,NPROCS,LMASTR
