@@ -1,0 +1,12 @@
+ &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP='MIX' /
+ $DATA
+ Water (H2O) / HF Optimized Geometry
+ cc-pVDZ
+O  8.0  0.0000     0.0000    0.1173
+H  1.0  0.0000     0.7572   -0.4692
+H  1.0  0.0000    -0.7572   -0.4692
+ $END
+ &NOFINP IPNOF=7 Ista=1 RHF=F HFID=T OIMP2=T /
+
+
+
