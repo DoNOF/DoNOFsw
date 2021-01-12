@@ -5237,7 +5237,7 @@ C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Q-matrix and NQMT
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       H0 = S
-      CALL QMTSYM(H0,VEC,Q,EIG,SCR,NBF,NBFT,NSQ) 
+      CALL QMTSYM(H0,VEC,Q,EIG,SCR,NBF,NQMT,NBFT,NSQ) 
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     HH = Q*H0*Q (H0=HCORE)
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5373,7 +5373,7 @@ C-----------------------------------------------------------------------
       END                                                               
      
 C QMTSYM
-      SUBROUTINE QMTSYM(S,WRK,Q,EE,SCR,NBF,NBFT,NSQ)
+      SUBROUTINE QMTSYM(S,WRK,Q,EE,SCR,NBF,NQMT,NBFT,NSQ)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DOUBLE PRECISION,DIMENSION(NBF) :: EE
       DOUBLE PRECISION,DIMENSION(NBFT) :: S
@@ -10568,6 +10568,14 @@ C       Determine the 1-energies if fragment calculation in in progress
          ELAG(I,I) = E(I)
         ENDDO
        endif
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Dipole Moment if IPRINTOPT=0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IPRINTOPT==0)THEN
+       CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),USER(N15),
+     &              USER(N16),USER(N17),USER(N7),USER(N1),
+     &              DMXe,DMYe,DMZe,DIPS(1),DIPS(2),DIPS(3),DM)  
       ENDIF
 C- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 C     Initial Output (IFIRSTCALL==0), Intermediate Output (NPRINT=2)
