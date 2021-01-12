@@ -917,6 +917,7 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL HFDAMP,HFEXTRAP,HFDIIS,DIIS,PERDIIS,RESTART,FROZEN
       LOGICAL PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO,OIMP2,SC2MCPT,HFID
+      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
       LOGICAL HighSpin,SCALING,RHF
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF
@@ -931,6 +932,7 @@
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
       COMMON/INPNOF_OIMP2/OIMP2
+      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM 
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS       
       COMMON/INPNOF_EINI/IEINI
@@ -1129,6 +1131,14 @@
 !
 !.......... OIMP2               NOF - Orbital Invariant MP2
 !                     = F       (Default)
+!.......... MBPT                NOF - RPA, NOF - GW, etc. 
+!                     = F       (Default)
+!.......... TDHF                TDHF, do TDHF instead of TDH 
+!                     = F       (Default)
+!.......... MBPTMEM             Allocate three times ERIs?
+!                     = T       (Default)
+!.......... TUNEMBPT            Tune ERIs before solving Casida Eq?
+!                     = F       (Default)
 !
 !.......... NO1PT2              Frozen MOs in perturbative calculations
 !                               Maximum index of NOs with Occupation = 1
@@ -1297,6 +1307,7 @@
                       NTHRESHE,NTHRESHEC,NTHRESHEN,MAXLOOP,SCALING,     &
                       AUTOZEROS,NZEROS,NZEROSm,NZEROSr,ITZITER,DIIS,    &
                       NTHDIIS,NDIIS,PERDIIS,SC2MCPT,NO1PT2,NEX,OIMP2,   &
+                      MBPT,TUNEMBPT,MBPTMEM,TDHF,                       & 
                       RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ,   &
                       NPRINT,IWRITEC,IMULPOP,APSG,NTHAPSG,PRINTLAG,     &
                       DIAGLAG,IAIMPAC,IFCHK,MOLDEN,IEKT,NOUTRDM,        &
@@ -1352,6 +1363,10 @@
 
 !     Options for pertubative calculations
       OIMP2=.FALSE.
+      MBPT=.FALSE.
+      TDHF=.FALSE.
+      TUNEMBPT=.TRUE.
+      MBPTMEM=.TRUE.
       NO1PT2=-1                  
       SC2MCPT=.FALSE.
       NEX=0      
@@ -1471,6 +1486,11 @@
         OIMP2 = .FALSE.
         NOUTTijab = 0
         WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 has been set equal FALSE'
+       end if
+       if(MBPT)then      
+        MBPT = .FALSE.
+        NOUTTijab = 0
+        WRITE(6,'(/,1X,38A,/)')'!OPTGEO: MBPT has been set equal FALSE'
        end if
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -18980,9 +19000,11 @@
                          CD,CF,CG,XINTS,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL OIMP2,SC2MCPT,HighSpin
+      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_OIMP2/OIMP2
+      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
@@ -19018,6 +19040,27 @@
        if(IERITYP==1 .or. IERITYP==3)then
         CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
                        XIJKL,USER(N12),USER(N13),USER(N14))
+       else if(IERITYP==2)then
+        WRITE(6,5)
+        CALL ABRT  
+       end if       
+#endif                                             
+      END IF
+!-----------------------------------------------------------------------      
+!     MBPT Perturbative Corrections
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(MBPT)THEN
+#ifdef MPI
+       WRITE(6,1)
+       CALL ABRT       
+!      avoiding warnings    
+       AHCORE(1,1) = AHCORE(1,1)
+       IJKL(1) = IJKL(1)
+       XIJKL(1) = XIJKL(1)
+#else
+       if(IERITYP==1 .or. IERITYP==3)then
+        CALL MBPTCALC(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
+                       XIJKL,USER(N12),USER(N13),USER(N14),TUNEMBPT,TDHF,MBPTMEM)
        else if(IERITYP==2)then
         WRITE(6,5)
         CALL ABRT  
@@ -23571,6 +23614,7 @@
                           IFIRSTCALL,DIPS,IRUNTYP)                          
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
       LOGICAL EFIELDL,RESTART,APSG,OIMP2,HighSpin
+      LOGICAL MBPT
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
@@ -23578,6 +23622,7 @@
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
       COMMON/INPNOF_OIMP2/OIMP2
+      COMMON/INPNOF_MBPT/MBPT
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK
@@ -23753,9 +23798,9 @@
 !-----------------------------------------------------------------------       
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Non-Dynamic Correction if OIMP2
+!     Non-Dynamic Correction if OIMP2 or MBPT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
+      IF(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
 !----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'              &
             ,/1X,'========================================')             
@@ -23861,6 +23906,7 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL EFIELDL,CONVGDELAG,PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO
       LOGICAL OIMP2,HighSpin
+      LOGICAL MBPT
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
@@ -23870,6 +23916,7 @@
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG 
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
       COMMON/INPNOF_OIMP2/OIMP2
+      COMMON/INPNOF_MBPT/MBPT
       COMMON/INPNOF_EKT/IEKT
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
@@ -24081,9 +24128,9 @@
 !-----------------------------------------------------------------------       
       END IF 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Non-Dynamic Correction if OIMP2
+!     Non-Dynamic Correction if OIMP2 or MBPT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
+      if(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
 !-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'              &
             ,/1X,'========================================')
@@ -29527,7 +29574,7 @@
       RETURN
       END
 
-! ORBINVMP2 (oiMP2)
+! ORBINVMP2 (OIMP2)
       SUBROUTINE ORBINVMP2(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,      &
                            ADIPx,ADIPy,ADIPz)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)

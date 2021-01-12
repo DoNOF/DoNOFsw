@@ -16,7 +16,21 @@
 !                                                                      !
 ! ==================================================================== !
       SUBROUTINE MBPTCALC(ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
-      USE PARCOM
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL HighSpin,TUNEMBPT,MBPTMEM,TDHF
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPFILE_NO1PT2/NO1PT2,NEX
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/CorrNonDynamic/ECnd,ECndl,ECndHF
+      COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
+      COMMON/NumLinIndOrb/NQMT
+      COMMON/INPNOF_MBPT/TUNEMBPT,MBPTMEM,TDHF
+!
       PARAMETER (tol10=1.0D-10)
       PARAMETER (ZERO=0.0D0)
       PARAMETER (FOURTH=0.25D0)
@@ -133,7 +147,7 @@
        call tuneerimol(CINTER,CINTRA,NBF,NCO,NVIR,NCWO,NO1PT2,ERImol,TDHF,NA)
        DEALLOCATE(CINTER,CINTRA)
        if(diagFOCK.eqv..false.) then
-        if(mbptmem) then
+        if(MBPTMEM) then
          call transform2mem(NBF,TEMPM2,ERImol)
          call transform2mem(NBF,TEMPM2,ERImol2)
         else
