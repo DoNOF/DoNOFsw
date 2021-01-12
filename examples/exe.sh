@@ -7,6 +7,8 @@
 ../run_donof h2o-pnof7-MP2-Mix-RI
 ../run_donof h2o-pnof7-MP2-Mix-SMCD
 ../run_donofmpi h2o-pnof7-OPTGEO-Full
+../run_donofmpi h2o-pnof7-OPTGEO-RI
+../run_donofmpi h2o-pnof7-OPTGEO-SMCD
 ../run_donofmpi h2o-pnof7-OPTGEO-Mix-RI
 ../run_donofmpi h2o-pnof7-OPTGEO-Mix-SMCD
 
