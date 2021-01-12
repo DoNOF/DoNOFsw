@@ -12,25 +12,25 @@ F90g = gfortran $(SFLAGS)
 
 ########################################################################
 
-all: serial #mpi serialg mpi
+all: serial #serialg  mpi
 
 ########################################################################
 
 serial:
 
-	$(F90) -o donof.x donof1.f mbpt.f donof2.f90 gauss_legendre.f90 
+	$(F90) -o donof.x donof.f90 mbpt.f90 gauss_legendre.f90 
 
 ########################################################################
 
 mpi:
 
-	$(MPIF90) -o donofmpi.x donof1.f mbpt.f donof2.f90 gauss_legendre.f90
+	$(MPIF90) -o donofmpi.x donof.f90 mbpt.f90 gauss_legendre.f90
 
 ########################################################################
 
 serialg:
 
-	$(F90g) -o donofgnu.x donof1.f mbpt.f donof2.f90 gauss_legendre.f90
+	$(F90g) -o donofgnu.x donof.f90 mbpt.f90 gauss_legendre.f90
 
 ########################################################################
 
