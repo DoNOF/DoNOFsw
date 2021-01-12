@@ -1,36 +1,34 @@
-########################################################################
-# Makefile for DoNOF program (Date: April 2020)
-########################################################################
+###############################################################################################
+#                      Makefile for DoNOF program (Date: January 2021)                        #
+###############################################################################################
+SFLAGS  = -i8 -r8 -fpp -O2
+F90     = ifort          $(SFLAGS)
+MPIF90  = mpiifort -DMPI $(SFLAGS)
+#
+SFLAGSg = -fdefault-integer-8 -fdefault-real-8 -fdefault-double-8 -cpp -ffpe-summary=none -O3
+F90g    = gfortran     $(SFLAGSg) 
+MPIF90g = mpif90 -DMPI $(SFLAGSg)
+#
+###############################################################################################
 
-# Intel Fortran
-F90 = ifort -i8 -r8 -fpp -static -Ofast
-MPIF90 = mpiifort -DMPI -r8 -i8 -fpp -Ofast
+all: serial mpi serialg mpig
 
-# GNU Fortran
-SFLAGS = -fdefault-integer-8 -fdefault-real-8 -cpp -O3 -ffpe-summary=none
-F90g = gfortran $(SFLAGS)
-
-########################################################################
-
-all: serial mpi serialg 
-
-########################################################################
+#########################################################################
 
 serial:
-
-	$(F90) -o donof.x donof1.f donof2.f90 
-
-########################################################################
+	$(F90) -o DoNOF.x donof.f90 lapack.f
 
 mpi:
-
-	$(MPIF90) -o donofmpi.x donof1.f donof2.f90
-
-########################################################################
-
+	$(MPIF90) -o DoNOFmpi.x donof.f90 lapack.f
+	
 serialg:
+	$(F90g) -o DoNOFg.x donof.f90 lapack.f
+	
+mpig:
+	$(MPIF90g) -o DoNOFmpig.x donof.f90 lapack.f
+	
 
-	$(F90g) -o donofgnu.x donof1.f donof2.f90 
+#########################################################################
 
-########################################################################
+
 
