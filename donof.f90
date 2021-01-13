@@ -29678,10 +29678,13 @@
 !     FORM (ai/bj) for all b
       CALL ERIC4(ERImol,VEC(1,NOC+1),NOC,NVI,NORB)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     If it is NOF-X (X=RPA, GW, etc) is MBPT=TRUE
+!     If it is NOF-X (X=RPA, GW, etc),  MBPT=TRUE
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(MBPT) then
-       write(*,*) 'hello my baby'
+       if(NORB/=NBF .and. NO1PT2/=1) then
+        write(*,*) 'MBPT corrections only available with NO1PT2=1 and NORB=NBF'
+        CALL ABRT       
+       end if
        ALLOCATE(ERImolMBPT(NBF,NBF,NBF,NBF))
        ERImolMBPT=0.0D0
        iai = 0
@@ -29690,62 +29693,59 @@
          iai = iai+1
          do ib=1,nvi
           do j=1,noc
-           ERImolMBPT(j,i,a,b) = ERImol(j,iai,ib)
-           ERImolMBPT(j,a,i,b) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(b,a,i,j) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(b,i,a,j) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(i,j,b,a) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(i,b,j,a) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(a,b,j,i) = ERImolMBPT(j,i,a,b)
-           ERImolMBPT(a,j,b,i) = ERImolMBPT(j,i,a,b)
+           ERImolMBPT(j,i,ia+noc,ib+noc) = ERImol(j,iai,ib)
+           ERImolMBPT(j,ia+noc,i,ib+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(ib+noc,ia+noc,i,j) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(ib+noc,i,ia+noc,j) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(i,j,ib+noc,ia+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(i,ib+noc,j,ia+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(ia+noc,ib+noc,j,i) = ERImolMBPT(j,i,ia+noc,ib+noc)
+           ERImolMBPT(ia+noc,j,ib+noc,i) = ERImolMBPT(j,i,ia+noc,ib+noc)
           end do
          end do
         end do
        end do
        DEALLOCATE(ERImol)
-       call MBPTCALC(NBF,NCO,NA,NCWO,NO1PT2,EHFL,EN,ECndHF,ECndl,EELEC,COEF,OCC,FOCKm,EIG,&
+       call MBPTCALC(NBF,NCO,NA,NCWO,NO1PT2,EHFL,EN,ECndHF,ECndl,EELEC,COEF,OCC,EIG,FOCKm,&
        ERImolMBPT,ADIPx,ADIPy,ADIPz,TUNEMBPT,MBPTMEM,TDHF)
        DEALLOCATE(EIG,FOCKm,ERImolMBPT,OCC,VEC)
-       goto 312
-      end if
+      else
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Calculate second-order Dynamic Correlation E(2)
 !         Calculate excitation amplitudes to determine Psi(1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NN1 = NOC*NOC*NVI*NVI
-      NN2 = NOC*NVI
-      ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
+       NN1 = NOC*NOC*NVI*NVI
+       NN2 = NOC*NVI
+       ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !                              FI1 and FI2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     like in PRL (NOF-MP2) (best result with PNOF7s)
 !     Note: Ci=DSQRT[4*(1-OCCi)*OCCi],FI2i=1-Ci*Ci -> (1-2*OCCi)**2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      FI1 = 1.0d0
-      DO i=1,NOCNC             ! best for H2
-       Ci = 1.0d0 - DABS(1.0d0-2.0d0*OCC(i))
-       FI1(i) = 1.0d0 - Ci*Ci
-      ENDDO
+       FI1 = 1.0d0
+       DO i=1,NOCNC             ! best for H2
+        Ci = 1.0d0 - DABS(1.0d0-2.0d0*OCC(i))
+        FI1(i) = 1.0d0 - Ci*Ci
+       ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - -      
-      FI2 = 1.0d0    
-      DO i=NOC+1,NOCNC
-       Ci = DABS(1.0d0-2.0d0*OCC(i))
-       FI2(i) = Ci*Ci
-      ENDDO
+       FI2 = 1.0d0    
+       DO i=NOC+1,NOCNC
+        Ci = DABS(1.0d0-2.0d0*OCC(i))
+        FI2(i) = Ci*Ci
+       ENDDO
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     Calculate Tijab amplitude solving Sparse Sym. Linear System
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,   &
-                        FI1,FI2)                                         
-      if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
-      CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,           &
-                            Tijab,ECd)
-      WRITE(6,2)EHFL+EN+ECndHF
-      WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
+       CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,FI1,FI2)                                         
+       if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
+       CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,Tijab,ECd)
+       WRITE(6,2)EHFL+EN+ECndHF
+       WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
-312   CONTINUE
+       DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
+      endif
       RETURN
 !-----------------------------------------------------------------------
     1 FORMAT(//,2X,'NOF-MP2',/1X,9('='),//,                             &
