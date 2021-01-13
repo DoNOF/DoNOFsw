@@ -15,45 +15,32 @@
 !  Integrated_omega: See RPA paper, X. PRB 88, 035120 (2013)           !
 !                                                                      !
 ! ==================================================================== !
-      SUBROUTINE MBPTCALC(ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HighSpin,TUNEMBPT,MBPTMEM,TDHF
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPFILE_NO1PT2/NO1PT2,NEX
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/CorrNonDynamic/ECnd,ECndl,ECndHF
-      COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
-      COMMON/NumLinIndOrb/NQMT
-      COMMON/INPNOF_MBPT/TUNEMBPT,MBPTMEM,TDHF
-!
-      PARAMETER (tol10=1.0D-10)
-      PARAMETER (ZERO=0.0D0)
-      PARAMETER (FOURTH=0.25D0)
-      PARAMETER (ONE=1.0D0)
-      PARAMETER (TWO=2.0D0)
-      PARAMETER (FOUR=4.0D0)
-      LOGICAL::diagFOCK
-      INTEGER::i,j,k,l,a,b,info,last_coup
-      INTEGER::order
-      INTEGER,DIMENSION(NIJKL)::IERI
-      REAL::AUtoEV,EPNOF,ESDc,EcRPA,EcMP2,EcGoWo,EcGMSOS,EcGoWoSOS 
-      REAL::iEcRPA,iEcSOSEX,iEcRPASOS,mu
-      REAL,DIMENSION(NIJKL)::ERI
-      REAL,DIMENSION(NBF5)::RO
-      REAL,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      REAL,DIMENSION(NBF,NBF)::AHCORE,ADIPx,ADIPy,ADIPz
-      REAL,DIMENSION(NBF,NBF)::ELAG,COEF
-      REAL,ALLOCATABLE,DIMENSION(:)::OCC,EIG,BIGOMEGA,TEMPV
-      REAL,ALLOCATABLE,DIMENSION(:)::CINTER,CINTRA 
-      REAL,ALLOCATABLE,DIMENSION(:,:)::TEMPM,TEMPM2,FOCKm,ApB,AmB
-      REAL,ALLOCATABLE,DIMENSION(:,:)::XmY,XpY 
-      REAL,ALLOCATABLE,DIMENSION(:,:,:,:)::ERImol,ERImol2
-      REAL,ALLOCATABLE,DIMENSION(:,:,:)::wmn,wmn2
+      SUBROUTINE MBPTCALC(NBF,NCO,NA,NCWO,NO1PT2,ESD,EN,ECndHF,ECndl,EELEC,COEF,OCCin,EIG,FOCKm,&
+      ERImol,ADIPx,ADIPy,ADIPz,TUNEMBPT,MBPTMEM,TDHF)
+      IMPLICIT NONE
+      DOUBLE PRECISION,PARAMETER::tol10=1.0D-10
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D0
+      DOUBLE PRECISION,PARAMETER::FOURTH=0.25D0
+      DOUBLE PRECISION,PARAMETER::ONE=1.0D0
+      DOUBLE PRECISION,PARAMETER::TWO=2.0D0
+      DOUBLE PRECISION,PARAMETER::FOUR=4.0D0
+      DOUBLE PRECISION,PARAMETER::AUtoEV=27.211399
+      LOGICAL::diagFOCK,TUNEMBPT,MBPTMEM,TDHF
+      INTEGER,INTENT(IN)::NBF,NCO,NA,NCWO,NO1PT2
+      INTEGER::i,j,k,l,a,b,info,last_coup,order,NVIR,Nab
+      REAl::ESD,EN,ECndHF,ECndl,EELEC
+      DOUBLE PRECISION::EPNOF,ESDc,EcRPA,EcMP2,EcGoWo,EcGMSOS,EcGoWoSOS 
+      DOUBLE PRECISION::iEcRPA,iEcSOSEX,iEcRPASOS,mu
+      DOUBLE PRECISION,DIMENSION(NBF)::OCCin,EIG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,FOCKm
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF,NBF)::ERImol
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::OCC,BIGOMEGA,TEMPV
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::CINTER,CINTRA 
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::TEMPM,TEMPM2,ApB,AmB
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::XmY,XpY 
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:)::ERImol2
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::wmn,wmn2
 !-----------------------------------------------------------------------
 !     NCO:  Number of HF occupied MOs (OCC=1 in SD)
 !     NVIR: Number of HF virtual  MOs (OCC=0 in SD)
@@ -70,25 +57,16 @@
 !
 !           NCO + NSOC     |       NVIR          = NBF
 !-----------------------------------------------------------------------
-      IF(ICOEF==0)CALL ELAGCOEF0(ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Initial allocation and def. of number of pairs (occ,virtual) i <-> a  
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      AUtoEV=27.211399
       NVIR=NBF-NA
-      Nab=NVIR*NA !NVIR*NCO
+      Nab=NVIR*NA 
       last_coup=NA+NCWO*(NCO-NO1PT2)
       WRITE(6,1)NBF,NO1PT2,NA,NVIR,last_coup,Nab
-      ALLOCATE(OCC(NBF),TEMPM(NBF,NBF))
+      ALLOCATE(OCC(NBF))
       OCC=ZERO
-      DO i=1,NBF5
-       OCC(i) = RO(i)
-      ENDDO
-      DO j=1,NBF
-       do i=1,NBF
-        TEMPM(i,j) = COEF(i,j)
-       enddo
-      ENDDO
+      OCC(:) = OCCin(:)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Prepare coef. factors CINTRA and CINTER.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -97,19 +75,13 @@
        call tune_coefs(CINTER,CINTRA,OCC,NBF,NA)
       endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!  One orbital energies (EIG) and FOCK matrix (FOCKm) with COEF/=CHF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(EIG(NBF),FOCKm(NBF,NBF))
-      CALL FOCKMOL(NBF,COEF,TEMPM,ELAG,EIG,FOCKm,AHCORE,IERI,ERI,ESD)
-      diagFOCK=.true.
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Tune Fock(i,a) elements and calc. 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      diagFOCK=.true.
       if(TUNEMBPT) then
        ALLOCATE(TEMPM2(NBF,NBF))
        call tunefock(CINTRA,CINTER,FOCKm,NBF,NCO,NVIR,NCWO,NO1PT2,EIG,TEMPM2,diagFOCK,NA)
       endif
-      DEALLOCATE(FOCKm)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Print orb. energies and occ numbers.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -125,16 +97,6 @@
       write(*,'(a,f10.5)') ' Chemical potential used for qp-orbital energies',mu
       write(*,*) '          '
       DEALLOCATE(OCC) ! We do not need the OCCs anymore
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!  Allocate 2e_integrals array(s) and form ERI in MO basis (see mp2.f)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ERImol(NBF,NBF,NBF,NBF))
-      IF(TUNEMBPT) ALLOCATE(ERImol2(NBF,NBF,NBF,NBF))
-      CALL ERIC1c(ERImol,IERI,ERI,TEMPM,NBF)
-      CALL ERIC23c(ERImol,TEMPM,NBF)
-      CALL ERIC4c(ERImol,TEMPM,NBF)
-      IF(TUNEMBPT) ERImol2=ERImol
-      DEALLOCATE(TEMPM)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Print 2e- integrals in MO basis
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -144,6 +106,8 @@
 !  Also transform ERIs from NO basis to "DIAG(FOCK)" basis (TEMPM2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(TUNEMBPT) then   
+       ALLOCATE(ERImol2(NBF,NBF,NBF,NBF))
+       ERImol2=ERImol
        call tuneerimol(CINTER,CINTRA,NBF,NCO,NVIR,NCWO,NO1PT2,ERImol,TDHF,NA)
        DEALLOCATE(CINTER,CINTRA)
        if(diagFOCK.eqv..false.) then
@@ -293,13 +257,12 @@
        ESDc=ESD
       endif
       EPNOF=EELEC+EN
-      IF(TUNEMBPT) THEN ! SD + DYN + ND (can be used with CANONICAL orbs with ICOEF=0)
-      write(6,3)ESD,ESDc,EPNOF,ECndl,EcRPA,iEcRPA,iEcSOSEX,iEcRPASOS,EcGoWo,EcGMSOS,EcGoWoSOS,EcMP2,&
+      IF(TUNEMBPT) THEN 
+       write(6,3)ESD,ESDc,EPNOF,ECndl,EcRPA,iEcRPA,iEcSOSEX,iEcRPASOS,EcGoWo,EcGMSOS,EcGoWoSOS,EcMP2,&
      & ESD+EcRPA,ESD+iEcRPA,ESD+iEcRPASOS,ESD+EcGoWo,ESD+EcGoWoSOS,ESD+EcMP2,ESDc+EcRPA,ESDc+iEcRPA,ESDc+iEcRPASOS,&
      & ESDc+EcGoWo,ESDc+EcGoWoSOS,ESDc+EcMP2
-      ENDIF
-      IF(TUNEMBPT.eqv..false.) then ! HF(NOF orbs) + DYN (NOF orbs = CANONICAL orbs for ICOEF=0)
-      write(6,4)ESD,EPNOF,EcRPA,iEcRPA,iEcSOSEX,iEcRPASOS,EcGoWo,EcGMSOS,EcGoWoSOS,EcMP2,ESD+EcRPA,ESD+iEcRPA,&
+      ELSE 
+       write(6,4)ESD,EPNOF,EcRPA,iEcRPA,iEcSOSEX,iEcRPASOS,EcGoWo,EcGMSOS,EcGoWoSOS,EcMP2,ESD+EcRPA,ESD+iEcRPA,&
      & ESD+iEcRPASOS,ESD+EcGoWo,ESD+EcGoWoSOS,ESD+EcMP2
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -307,7 +270,6 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE(wmn,BIGOMEGA)
       IF(TUNEMBPT) DEALLOCATE(ERImol2,wmn2)
-      DEALLOCATE(EIG,ERImol)
       RETURN
 !-----------------------------------------------------------------------
     1 FORMAT(2X,//,3X,'MBPT ENERGIES',/&
@@ -596,16 +558,16 @@
       implicit none
       LOGICAL,intent(in)::TDHF
       INTEGER,intent(in)::Nbf,Nab,NCO,NA
-      REAL,intent(inout)::EcRPA
-      REAL,intent(in)::AUtoEV
-      REAL,DIMENSION(NBF,NBF),intent(in)::ADIPx,ADIPy,ADIPz,COEF
-      REAL,DIMENSION(Nab),intent(in)::BIGOMEGA
-      REAL,DIMENSION(Nab,Nab),intent(in)::XpY
+      DOUBLE PRECISION,intent(inout)::EcRPA
+      DOUBLE PRECISION,intent(in)::AUtoEV
+      DOUBLE PRECISION,DIMENSION(NBF,NBF),intent(in)::ADIPx,ADIPy,ADIPz,COEF
+      DOUBLE PRECISION,DIMENSION(Nab),intent(in)::BIGOMEGA
+      DOUBLE PRECISION,DIMENSION(Nab,Nab),intent(in)::XpY
       INTEGER::i,j,k,l,a
-      REAL::tol10,tol6
-      REAL,ALLOCATABLE,DIMENSION(:,:) ::MDIPx,MDIPy,MDIPz
-      REAL,ALLOCATABLE,DIMENSION(:,:) ::COEFT,TEMPM,STATICPOL
-      REAL,ALLOCATABLE,DIMENSION(:) ::OSCSTR,DIPSUM
+      DOUBLE PRECISION::tol10,tol6
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) ::MDIPx,MDIPy,MDIPz
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) ::COEFT,TEMPM,STATICPOL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) ::OSCSTR,DIPSUM
       tol6=1.0D-6
       tol10=1.0D-10
 !  Prepare dipole moment from AO to MO
