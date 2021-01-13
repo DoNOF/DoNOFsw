@@ -21,7 +21,7 @@ subroutine gauss_legendre(a,b,order)
 !
 !  Modified:
 !
-!    10 August 2015
+!    10 August 2015.
 !
 !  Author:
 !
