@@ -1,0 +1,188 @@
+
+************************************************************************
+
+ Initial Coordinates (Angs) for Geometry Optimization
+
+    1         0.0000         0.0000         0.0000
+    2         0.0000         0.0000         0.9168
+
+************************************************************************
+
+
+************************************************************************
+
+ New Coordinates after Conjugate Gradient Opt (Angs)
+
+    1        -0.0001        -0.0002        -0.0005
+    2         0.0001         0.0002         0.9173
+
+ Internuclear distances (Angs)
+
+             1           2
+
+   1      0.0000      0.9179
+   2      0.9179      0.0000
+
+************************************************************************
+
+
+    - START NUMERICAL HESSIAN CALCULATION -
+
+ 1E-06 is used for Gradient Cutoff
+
+ Energy:     -100.089255 ( 8.E-05 )
+
+ Energy Gradient
+
+   1        -0.0002        -0.0001         0.0000
+   2         0.0002         0.0001        -0.0000
+
+ Energy at displaced Geometry
+
+   1     -100.0892663835
+   2     -100.0892645581
+   3     -100.0892371834
+   4     -100.0892654125
+   5     -100.0892704108
+   6     -100.0892311709
+   7     -100.0892654125
+   8     -100.0892678881
+   9     -100.0892311709
+  10     -100.0892663725
+  11     -100.0892802499
+  12     -100.0892420461
+
+
+ Hessian computed from analytic Gradients
+ ----------------------------------------
+
+                         X             Y             Z
+
+   X     1   1        0.0074        0.0014       -0.0027
+   Y     1   1        0.0014        0.0091        0.0155
+   Z     1   1       -0.0027        0.0155        0.6319
+   X     2   1       -0.0068       -0.0077        0.0045
+   Y     2   1       -0.0025       -0.0063       -0.0143
+   Z     2   1        0.0051        0.0013       -0.6276
+   X     2   2        0.0062        0.0089       -0.0069
+   Y     2   2        0.0089        0.0035       -0.0025
+   Z     2   2       -0.0069       -0.0025        0.6233
+
+    - END OF NUMERICAL HESSIAN CALCULATION -
+
+ Normal Coordinate Analysis in the Harmonic Approximation
+ --------------------------------------------------------
+
+          ATOMIC WEIGHTS (AMU)
+
+    1             1.00782
+    2            18.99840
+
+ The Force Constant Matrix is projected to eliminate
+ rotational and vibrational contaminants
+
+ MODES 1 TO 5 ARE TAKEN AS ROTATIONS AND TRANSLATIONS.
+
+ FREQUENCIES IN CM**-1
+ IR INTENSITIES IN DEBYE**2/AMU-ANGSTROM**2
+ REDUCED MASSES IN AMU.
+
+                          1           2           3           4           5
+       FREQUENCY:         0.52        0.17        0.00       46.68      263.25  
+    IR INTENSITY:      0.29755     0.08637     0.00000     4.13649     4.28961
+    REDUCED MASS:     18.53565     8.20687    10.00312     1.07409     1.01737
+
+  1                X -0.01413564  0.13316206  0.00002822 -0.12867318  0.97864546
+                   Y -0.03446494 -0.23528341  0.00001988  0.95447830  0.15701313
+                   Z  0.00019531  0.00007449  0.22357194 -0.00278421 -0.00009531
+  2                X  0.10850515  0.19383219 -0.00002517  0.05459807 -0.01762841
+                   Y  0.20196293 -0.10577240 -0.00008317 -0.02117010  0.01452590
+                   Z  0.00007725 -0.00002126  0.22357199  0.00014233  0.00000118
+
+ TRANS. SAYVETZ    X  2.04717803  3.81670553 -0.00044977  0.90759587  0.65139183
+                   Y  3.80223783 -2.24663087 -0.00156010  0.55974902  0.43421054
+                   Z  0.00166438 -0.00032883  4.47283155 -0.00010201 -0.00007359
+               TOTAL  4.31832759  4.42883635  4.47283185  1.06632511  0.78284744
+
+   ROT. SAYVETZ    X -0.39247707 -0.21499202  0.00017107  1.61960609  0.23653294
+                   Y  0.20358723  0.10071417 -0.00008862  0.30423479 -1.65384300
+                   Z -0.00002613 -0.00000993  0.00000001 -0.00035694  0.00063762
+               TOTAL  0.44213800  0.23741296  0.00019266  1.64793289  1.67067199
+
+                          6
+       FREQUENCY:      4175.47  
+    IR INTENSITY:      2.24170
+    REDUCED MASS:      1.05831
+
+  1                X -0.00028685
+                   Y  0.00277353
+                   Z  0.97069230
+  2                X  0.00012396
+                   Y -0.00007266
+                   Z -0.05149319
+
+ TRANS. SAYVETZ    X  0.00206600
+                   Y  0.00141483
+                   Z -0.00000022
+               TOTAL  0.00250402
+
+   ROT. SAYVETZ    X  0.00403558
+                   Y  0.00092646
+                   Z -0.00000096
+               TOTAL  0.00414056
+
+ NOTE - THE MODES J,K ARE ORTHONORMALIZED ACCORDING TO
+ SUM ON I   M(I) * (X(I,J)*X(I,K) + Y(I,J)*Y(I,K) + Z(I,J)*Z(I,K)) = DELTA(J,K)
+
+     END OF NORMAL MODES
+
+ THE MOMENTS OF INERTIA ARE (IN AMU*BOHR**2)
+      0.00000     2.87935     2.87935
+ THE ROTATIONAL SYMMETRY NUMBER IS  1.0
+ THE ROTATIONAL CONSTANTS ARE (IN GHZ)
+      0.00000   626.21409   626.21409
+ THE ROTATIONAL CONSTANTS ARE (IN GHZ)
+      0.00000   626.21400   626.21400
+  TROT(K):       0.000000     30.053542     30.053542
+
+
+ ####################################
+ #     THERMOCHEMISTRY ANALYSIS     #
+ ####################################
+
+ TEMPERATURE   298.0000    SCALE FACTOR     1.0000
+
+
+   Q   
+ ELEC.     1.00000E+00
+ TRANS.    3.51281E+06
+ ROT.      9.91564E+00    with sigma   1.00E+00
+ VIB.      4.16255E-05
+ TOT.      1.44989E+03
+
+                    E            H            G            S
+                 KCAL/MOL      KCAL/MOL      KCAL/MOL     CAL/MOL-K
+ TRANS.          0.888280      1.480467     -8.925395     0.349190E+02
+ ROT.            0.592187      0.592187     -1.358543     0.654607E+01
+ VIB(Total)      5.973267      5.973267      5.973267     0.729047E-07
+
+        #       Freq(cm-1)   EVIB(KCAL/MOL)  SVIB(CAL/MOL-K)
+        6       4175.47        5.973267       0.729047E-07
+
+
+
+-----------------------------------------------------------------------
+
+ Zero-point correction                         0.009519 (a.u.) 
+ Thermal correction to Energy                  0.011878 (a.u.) 
+ Thermal correction to Enthalpy                0.012822 (a.u.) 
+ Thermal correction to Gibbs Free Energy      -0.006869 (a.u.) 
+
+
+      Ee + EN + ZPVE                   =    -100.079723 (a.u.) 
+      Ee + EN + thermal Energies       =    -100.077364 (a.u.) 
+      Ee + EN + thermal Enthalpies     =    -100.076420 (a.u.) 
+      Ee + EN + thermal Free Energies  =    -100.096112 (a.u.) 
+
+-----------------------------------------------------------------------
+
