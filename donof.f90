@@ -18505,7 +18505,7 @@
       COMMON/PRPINT/XINT0,XINT1,XINT2,XINT3,YINT0,YINT1,YINT2,YINT3,    &
                     ZINT0,ZINT1,ZINT2,ZINT3                              
       COMMON/XYZORB/TXYZ,X00,Y00,Z00,XI,YI,ZI,XJ,YJ,ZJ,NI,NJ             
-      COMMON/XYZPRP/Xcm,Ycm,Zcm                           
+      COMMON/CMCoord/Xcm,Ycm,Zcm                           
       DIMENSION H(36),WW(36),MINARRAY(8),MAXARRAY(8)                               
       DATA MINARRAY /1,2,4, 7,11,16,22,29/                                   
       DATA MAXARRAY /1,3,6,10,15,21,28,36/
