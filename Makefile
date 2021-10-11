@@ -1,41 +1,36 @@
-########################################################################
-# Makefile for DoNOF program (Date: April 2020)
-########################################################################
+###############################################################################################
+#                      Makefile for DoNOF program (Date: January 2021)                        #
+###############################################################################################
+SFLAGS  = -i8 -r8 -fpp -O2 -static 
+# You can use -O3 with recent versions of the Intel Fortran compiler
+F90     = ifort          $(SFLAGS)
+MPIF90  = mpiifort -DMPI $(SFLAGS)
+#
+SFLAGSg = -fdefault-integer-8 -fdefault-real-8 -fdefault-double-8 -cpp -ffpe-summary=none -O3 
+F90g    = gfortran     $(SFLAGSg) 
+MPIF90g = mpif90 -DMPI $(SFLAGSg)
+#
+###############################################################################################
 
-# Intel Fortran
-F90 = ifort -i8 -r8 -fpp -static -O3 -mkl
-MPIF90 = mpiifort -DMPI -r8 -i8 -fpp -O3 -mkl
+all: serial 
 
-# GNU Fortran
-SFLAGS = -fdefault-integer-8 -fdefault-real-8 -cpp -O3 -ffpe-summary=none -llapack -lblas
-F90g = gfortran $(SFLAGS)
-
-########################################################################
-
-all: serial #serialg  mpi
-
-########################################################################
+#########################################################################
 
 serial:
-
-	$(F90) -o donof.x donof.f90 mbpt.f90 gauss_legendre.f90 
-
-########################################################################
+	./gitversion.sh	
+	$(F90) -mkl -o DoNOF.x donof.f90 m_ccsd.f90 gauss_legendre.f90 gitver.f90 lapack.f mbpt.f
 
 mpi:
-
-	$(MPIF90) -o donofmpi.x donof.f90 mbpt.f90 gauss_legendre.f90
-
-########################################################################
-
+	$(MPIF90) -o DoNOFmpi.x donof.f90 lapack.f
+	
 serialg:
+	$(F90g) -o DoNOFg.x donof.f90 lapack.f
+	
+mpig:
+	$(MPIF90g) -o DoNOFmpig.x donof.f90 lapack.f
+	
 
-	$(F90g) -o donofgnu.x donof.f90 mbpt.f90 gauss_legendre.f90
+#########################################################################
 
-########################################################################
 
-tar:   
-	rm DoNOF.tar 
-	tar -cvf DoNOF.tar *f *f90 *h Makefile 
 
-########################################################################

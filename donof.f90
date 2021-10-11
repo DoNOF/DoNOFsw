@@ -36,6 +36,7 @@
       character(8) :: date
       character(10):: time
       character(5) :: zone
+      character(100):: sha
       integer,dimension(8) :: val
 !
       INTEGER,ALLOCATABLE,DIMENSION(:)::IAN0,IMIN0,IMAX0,KSTART0,KATOM0
@@ -120,7 +121,7 @@
       end do
       deallocate(Cxyz0)
       IF(NAT==1.and.IRUNTYP==3)THEN
-       WRITE(6,5)
+       WRITE(6,6)
        IRUNTYP = 2
       END IF
 !
@@ -219,8 +220,11 @@
       DELTATIME = timefinish - timestart
       WRITE(6,3)DELTATIME
 !-----------------------------------------------------------------------
+      call gitversion(sha)
+      WRITE(6,'(a,a)')'  Git sha : ',sha
+!-----------------------------------------------------------------------
       call date_and_time(date,time,zone,val)
-      write(6,4)val(5),val(6),val(2),val(3),val(1)
+      write(6,5)val(5),val(6),val(2),val(3),val(1)
 !-----------------------------------------------------------------------
 !     Format definitions
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -245,9 +249,9 @@
       /4X,'!                                                         !',&
       /4X,'===========================================================')
     3 FORMAT(/,'  Elapsed real time :',F10.2,'  (Seconds)')
-    4 FORMAT(/' The execution finished at ',I2,'h ',I2,'min on the ',   &
+    5 FORMAT(/' The execution finished at ',I2,'h ',I2,'min on the ',   &
                 I2,'/',I2,'/',I4)                                                                                                                       
-    5 FORMAT(/1X,'Warning: For geometry optimization the number of'     &
+    6 FORMAT(/1X,'Warning: For geometry optimization the number of'     &
                  'atoms must be greater,',/,10X,'than 1 '               &
                  'so RUNTYP has been set equal to GRAD, not OPTGEO')
 !-----------------------------------------------------------------------
@@ -917,8 +921,8 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL HFDAMP,HFEXTRAP,HFDIIS,DIIS,PERDIIS,RESTART,FROZEN
       LOGICAL PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO,OIMP2,SC2MCPT,HFID
-      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
-      LOGICAL HighSpin,SCALING,RHF
+      LOGICAL HighSpin,SCALING,RHF,MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT
+      LOGICAL CCSDINTONLY,CCSD_READ
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER
@@ -932,7 +936,8 @@
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
       COMMON/INPNOF_OIMP2/OIMP2
-      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM 
+      COMMON/INPNOF_MBPT/MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT,CCSDINTONLY
+      COMMON/INPNOF_MBPT2/QNCCSD,NTHRESHCC,CCSD_READ
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS       
       COMMON/INPNOF_EINI/IEINI
@@ -1131,14 +1136,6 @@
 !
 !.......... OIMP2               NOF - Orbital Invariant MP2
 !                     = F       (Default)
-!.......... MBPT                NOF - RPA, NOF - GW, etc. 
-!                     = F       (Default)
-!.......... TDHF                TDHF, do TDHF instead of TDH 
-!                     = F       (Default)
-!.......... MBPTMEM             Allocate three times ERIs?
-!                     = T       (Default)
-!.......... TUNEMBPT            Tune ERIs before solving Casida Eq?
-!                     = T       (Default)
 !
 !.......... NO1PT2              Frozen MOs in perturbative calculations
 !                               Maximum index of NOs with Occupation = 1
@@ -1154,6 +1151,9 @@
 !.......... NEX                 Number of excluded coupled orbitals 
 !                               in the PNOF5-PT2 calculation
 !                      = 0      All NOs are included (Default)
+!
+!.......... MBPT                NOF - c - MBPT
+!                     = F       (Default)
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Input Options for Gamma (Occ), C and Diagonal F
@@ -1307,13 +1307,13 @@
                       NTHRESHE,NTHRESHEC,NTHRESHEN,MAXLOOP,SCALING,     &
                       AUTOZEROS,NZEROS,NZEROSm,NZEROSr,ITZITER,DIIS,    &
                       NTHDIIS,NDIIS,PERDIIS,SC2MCPT,NO1PT2,NEX,OIMP2,   &
-                      MBPT,TUNEMBPT,MBPTMEM,TDHF,                       & 
                       RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ,   &
                       NPRINT,IWRITEC,IMULPOP,APSG,NTHAPSG,PRINTLAG,     &
                       DIAGLAG,IAIMPAC,IFCHK,MOLDEN,IEKT,NOUTRDM,        &
                       NTHRESHDM,NSQT,NOUTCJK,NTHRESHCJK,NOUTTijab,      &
                       NTHRESHTijab,ORTHO,CHKORTHO,FROZEN,IFROZEN,       &
-                      ICGMETHOD
+                      ICGMETHOD,MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT,        &
+                      CCSDINTONLY,QNCCSD,NTHRESHCC,CCSD_READ
 !-----------------------------------------------------------------------
 !     Preset values to namelist variables
 !-----------------------------------------------------------------------
@@ -1363,13 +1363,18 @@
 
 !     Options for pertubative calculations
       OIMP2=.FALSE.
-      MBPT=.FALSE.
-      TDHF=.FALSE.
-      TUNEMBPT=.TRUE.
-      MBPTMEM=.TRUE.
       NO1PT2=-1                  
       SC2MCPT=.FALSE.
       NEX=0      
+      MBPT=.FALSE.
+      MBPTMEM=.TRUE.
+      ACRPA=.TRUE. 
+      CCSD=.TRUE.
+      CCSD_READ=.FALSE.
+      CCSDINT=.FALSE.
+      CCSDINTONLY=.FALSE.
+      QNCCSD=.FALSE.
+      NTHRESHCC=6
 
 !     Input Options for Gamma (Occ), C and Diagonal F
       RESTART=.FALSE.
@@ -1482,15 +1487,11 @@
          RHF = .FALSE.        
         WRITE(6,'(/,1X,35A,/)')'!OPTGEO: HF has been set equal FALSE'
        end if
-       if(OIMP2)then      
+       if(OIMP2.or.MBPT)then      
         OIMP2 = .FALSE.
-        NOUTTijab = 0
-        WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 has been set equal FALSE'
-       end if
-       if(MBPT)then      
         MBPT = .FALSE.
         NOUTTijab = 0
-        WRITE(6,'(/,1X,38A,/)')'!OPTGEO: MBPT has been set equal FALSE'
+        WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 or MBPT has been set equal FALSE'
        end if
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -18999,12 +19000,13 @@
                          KSTART,KNG,XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,    &
                          CD,CF,CG,XINTS,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL OIMP2,SC2MCPT,HighSpin
-      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
+      LOGICAL OIMP2,SC2MCPT,HighSpin,MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT
+      LOGICAL CCSDINTONLY
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_OIMP2/OIMP2
-      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM
+      COMMON/INPNOF_MBPT/MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT,CCSDINTONLY
+      COMMON/INPNOF_MBPT2/QNCCSD,NTHRESHCC,CCSD_READ
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
@@ -19027,6 +19029,8 @@
       DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS 
 !-----------------------------------------------------------------------      
 !     Orbital-Invariant MP2 Perturbative Corrections
+!                         or
+!     NOF-canonicalization-MBPT corrections
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(OIMP2.or.MBPT)THEN
 #ifdef MPI
@@ -19038,8 +19042,13 @@
        XIJKL(1) = XIJKL(1)
 #else
        if(IERITYP==1 .or. IERITYP==3)then
-        CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
+        IF(OIMP2) THEN
+         CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
                        XIJKL,USER(N12),USER(N13),USER(N14))
+        ELSE
+         CALL MBPTCALC(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,USER(N12),&
+              USER(N13),USER(N14),IJKL,XIJKL)
+        ENDIF
        else if(IERITYP==2)then
         WRITE(6,5)
         CALL ABRT  
@@ -19087,12 +19096,12 @@
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
 #ifdef MPI
-    1 FORMAT(/1X,'Sorry: OIMP2 is not implemented with MPI.',           &
+    1 FORMAT(/1X,'Sorry: OIMP2 or MBPT is not implemented with MPI.',           &
             //1X,'Use serial code for perturbative calculations.',/)           
     2 FORMAT(/1X,'Sorry: SC2MCPT is not implemented with MPI.',         &
             //1X,'Use serial code for perturbative calculations.',/)  
 #else
-    5 FORMAT(/1X,'Sorry: OIMP2 is not implemented with ERITYP=RI.',     &
+    5 FORMAT(/1X,'Sorry: OIMP2 or MBPT is not implemented with ERITYP=RI.',     &
             //1X,'Use ERITYP=FULL for perturbative calculations.',/)
     6 FORMAT(/1X,'Sorry: SC2MCPT is not implemented with ERITYP=RI.',   &
             //1X,'Use ERITYP=FULL for perturbative calculations.',/) 
@@ -23593,8 +23602,8 @@
                           ISH,ITYP,EX1,C1,C2,CS,CP,CD,CF,CG,CH,CI,      &
                           IFIRSTCALL,DIPS,IRUNTYP)                          
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
-      LOGICAL EFIELDL,RESTART,APSG,OIMP2,HighSpin
-      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
+      LOGICAL EFIELDL,RESTART,APSG,OIMP2,HighSpin,MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT
+      LOGICAL CCSDINTONLY,QNCCSD,CCSD_READ
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
@@ -23602,7 +23611,8 @@
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
       COMMON/INPNOF_OIMP2/OIMP2
-      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM
+      COMMON/INPNOF_MBPT/MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT,CCSDINTONLY
+      COMMON/INPNOF_MBPT2/QNCCSD,NTHRESHCC,CCSD_READ
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK
@@ -23778,7 +23788,7 @@
 !-----------------------------------------------------------------------       
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Non-Dynamic Correction if OIMP2 or MBPT
+!     Non-Dynamic Correction if OIMP2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
 !----------------------------------------------------------------------
@@ -23885,8 +23895,7 @@
                               DIPS,IPRINTOPT,IRUNTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL EFIELDL,CONVGDELAG,PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO
-      LOGICAL OIMP2,HighSpin
-      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
+      LOGICAL OIMP2,HighSpin,MBPT
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
@@ -23896,7 +23905,8 @@
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG 
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
       COMMON/INPNOF_OIMP2/OIMP2
-      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM
+      COMMON/INPNOF_MBPT/MBPT,ACRPA,CCSD,MBPTMEM,CCSDINT,CCSDINTONLY
+      COMMON/INPNOF_MBPT2/QNCCSD,NTHRESHCC,CCSD_READ
       COMMON/INPNOF_EKT/IEKT
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
@@ -24110,7 +24120,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Non-Dynamic Correction if OIMP2 or MBPT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
+      if(OIMP2.or.MBPT) CALL ECorrNonDyn(RO,QK,ECndl)
 !-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'              &
             ,/1X,'========================================')
@@ -29554,18 +29564,16 @@
       RETURN
       END
 
-! ORBINVMP2 (OIMP2)
-      SUBROUTINE ORBINVMP2(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,ADIPx,ADIPy,ADIPz)
+! ORBINVMP2 (oiMP2)
+      SUBROUTINE ORBINVMP2(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,      &
+                           ADIPx,ADIPy,ADIPz)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
-      LOGICAL MBPT,TDHF,TUNEMBPT,MBPTMEM
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_GENERALINF/ICOEF,MAXIT
-      COMMON/INPNOF_MBPT/MBPT,TDHF,TUNEMBPT,MBPTMEM
       COMMON/EHFEN/EHF,EN
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/INPFILE_NO1PT2/NO1PT2,NEX
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
@@ -29583,7 +29591,6 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCC,EIG,FI1,FI2,Tijab
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,FOCKm
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:) :: ERImol
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:) :: ERImolMBPT
 !-----------------------------------------------------------------------
 !     NO1:  Number of inactive doubly occupied orbitals (OCC=1)         
 !     NDOC: Number of strongly doubly occupied MOs                      
@@ -29616,7 +29623,7 @@
       NOC = NA - NO1PT2
       NVI = NQMT - NA 
       NORB = NQMT - NO1PT2
-      if(.not.MBPT) WRITE(6,1)NO1PT2,NOC,NVI,NORB
+      WRITE(6,1)NO1PT2,NOC,NVI,NORB
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     NOCNC = NOC + NCWO*NOCB <= NORB
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -29656,9 +29663,9 @@
         OCC(i) = 0.0d0       
        end if
       ENDDO
-      DO j=1,NORB
+      DO J=1,NORB
        do i=1,NBF
-        VEC(i,j) = COEF(i,j+NO1PT2)
+        VEC(i,J) = COEF(i,J+NO1PT2)
        enddo
       ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -29679,74 +29686,43 @@
 !     FORM (ai/bj) for all b
       CALL ERIC4(ERImol,VEC(1,NOC+1),NOC,NVI,NORB)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     If it is NOF-X (X=RPA, GW, etc),  MBPT=TRUE
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(MBPT) then
-       if(NORB/=NBF .and. NO1PT2/=1) then
-        write(*,*) 'MBPT corrections only available with NO1PT2=1 and NORB=NBF'
-        CALL ABRT       
-       end if
-       ALLOCATE(ERImolMBPT(NBF,NBF,NBF,NBF))
-       ERImolMBPT=0.0D0
-       iai = 0
-       do ia=1,nvi
-        do i=1,noc
-         iai = iai+1
-         do ib=1,nvi
-          do j=1,noc
-           ERImolMBPT(j,i,ia+noc,ib+noc) = ERImol(j,iai,ib)
-           ERImolMBPT(j,ia+noc,i,ib+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(ib+noc,ia+noc,i,j) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(ib+noc,i,ia+noc,j) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(i,j,ib+noc,ia+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(i,ib+noc,j,ia+noc) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(ia+noc,ib+noc,j,i) = ERImolMBPT(j,i,ia+noc,ib+noc)
-           ERImolMBPT(ia+noc,j,ib+noc,i) = ERImolMBPT(j,i,ia+noc,ib+noc)
-          end do
-         end do
-        end do
-       end do
-       DEALLOCATE(ERImol)
-       call MBPTCALC(NBF,NCO,NA,NCWO,NO1PT2,EHFL,EN,ECndHF,ECndl,EELEC,COEF,OCC,EIG,FOCKm,&
-       ERImolMBPT,ADIPx,ADIPy,ADIPz,TUNEMBPT,MBPTMEM,TDHF)
-       DEALLOCATE(EIG,FOCKm,ERImolMBPT,OCC,VEC)
-      else
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Calculate second-order Dynamic Correlation E(2)
 !         Calculate excitation amplitudes to determine Psi(1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       NN1 = NOC*NOC*NVI*NVI
-       NN2 = NOC*NVI
-       ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
+      NN1 = NOC*NOC*NVI*NVI
+      NN2 = NOC*NVI
+      ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !                              FI1 and FI2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     like in PRL (NOF-MP2) (best result with PNOF7s)
 !     Note: Ci=DSQRT[4*(1-OCCi)*OCCi],FI2i=1-Ci*Ci -> (1-2*OCCi)**2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       FI1 = 1.0d0
-       DO i=1,NOCNC             ! best for H2
-        Ci = 1.0d0 - DABS(1.0d0-2.0d0*OCC(i))
-        FI1(i) = 1.0d0 - Ci*Ci
-       ENDDO
+      FI1 = 1.0d0
+      DO i=1,NOCNC             ! best for H2
+       Ci = 1.0d0 - DABS(1.0d0-2.0d0*OCC(i))
+       FI1(i) = 1.0d0 - Ci*Ci
+      ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - -      
-       FI2 = 1.0d0    
-       DO i=NOC+1,NOCNC
-        Ci = DABS(1.0d0-2.0d0*OCC(i))
-        FI2(i) = Ci*Ci
-       ENDDO
+      FI2 = 1.0d0    
+      DO i=NOC+1,NOCNC
+       Ci = DABS(1.0d0-2.0d0*OCC(i))
+       FI2(i) = Ci*Ci
+      ENDDO
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     Calculate Tijab amplitude solving Sparse Sym. Linear System
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-       CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,FI1,FI2)                                         
-       if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
-       CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,Tijab,ECd)
-       WRITE(6,2)EHFL+EN+ECndHF
-       WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
+      CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,   &
+                        FI1,FI2)                                         
+      if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
+      CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,           &
+                            Tijab,ECd)
+      WRITE(6,2)EHFL+EN+ECndHF
+      WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-       DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
-      endif
+      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
       RETURN
 !-----------------------------------------------------------------------
     1 FORMAT(//,2X,'NOF-MP2',/1X,9('='),//,                             &
@@ -30336,7 +30312,8 @@
       END
 
 ! FOCKMOL
-      SUBROUTINE FOCKMOL(NORB,COEF,VEC,ELAG,EIG,FOCKm,AHCORE,IERI,ERI,EHFL)
+      SUBROUTINE FOCKMOL(NORB,COEF,VEC,ELAG,EIG,FOCKm,AHCORE,IERI,ERI,  &
+                         EHFL)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
