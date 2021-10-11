@@ -1,0 +1,7 @@
+ &INPRUN RUNTYP=ENERGY MULT=3 ICHARG=0 IECP=1 /
+ $DATA
+Te-Singlet: aug-cc-pVDZ-PP from EMSL
+aug-cc-pvdz-pp
+Te 52.0   0.00    0.00    0.00
+ $END
+ &NOFINP IPNOF=7 Ista=0 NCWO=1 NO1=-1 RESTART=F ICOEF=1 /

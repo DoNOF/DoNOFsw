@@ -23,7 +23,7 @@
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
-!                          Date: January 2021                          !
+!                           Date: March 2021                           !
 !                                                                      !
 !    Program to compute the ground state properties of a molecule      !
 !    in the gas phase using PNOF5 - PNOF7 + perturbation corrections   !
@@ -3220,6 +3220,8 @@
 ! INRTIA
       SUBROUTINE INRTIA(C,COM,ZMASS,VMOI,NPART)
       IMPLICIT NONE
+      DOUBLE PRECISION :: Xcm,Ycm,Zcm
+      COMMON/CMCoord/Xcm,Ycm,Zcm
 !     ARGUMENTS
       INTEGER,INTENT(IN) :: NPART
       DOUBLE PRECISION,DIMENSION(3,NPART),INTENT(IN) :: C
@@ -3254,6 +3256,11 @@
       DO I=1,3
        CMASS(I)=CMASS(I)/TOTWT
       END DO
+!
+      Xcm = CMASS(1)
+      Ycm = CMASS(2)
+      Zcm = CMASS(3)
+!
       DO I=1,NPART
        DO J=1,3
         COM(J,I) = C(J,I)-CMASS(J)
@@ -18518,14 +18525,7 @@
       COMMON/PRPINT/XINT0,XINT1,XINT2,XINT3,YINT0,YINT1,YINT2,YINT3,    &
                     ZINT0,ZINT1,ZINT2,ZINT3                              
       COMMON/XYZORB/TXYZ,X00,Y00,Z00,XI,YI,ZI,XJ,YJ,ZJ,NI,NJ             
-      COMMON/XYZPRP/Xcm,Ycm,Zcm,                                        & 
-                    DIPMX,DIPMY,DIPMZ,                                  &
-                    QXX,QYY,QZZ,QXY,QXZ,QYZ,                            &
-                    QMXX,QMYY,QMZZ,QMXY,QMXZ,QMYZ,                      &
-                    OXXX,OXXY,OXXZ,OXYY,OYYY,OYYZ,                      &
-                    OXZZ,OYZZ,OZZZ,OXYZ,                                &
-                    OMXXX,OMXXY,OMXXZ,OMXYY,OMYYY,                      &
-                    OMYYZ,OMXZZ,OMYZZ,OMZZZ,OMXYZ                           
+      COMMON/CMCoord/Xcm,Ycm,Zcm                           
       DIMENSION H(36),WW(36),MINARRAY(8),MAXARRAY(8)                               
       DATA MINARRAY /1,2,4, 7,11,16,22,29/                                   
       DATA MAXARRAY /1,3,6,10,15,21,28,36/
@@ -19134,7 +19134,8 @@
 
 ! DQONuclear
       SUBROUTINE DQONuclear(DIPN,QUADN,OCTUN,Cxyz,ZAN,NAT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/CMCoord/Xcm,Ycm,Zcm
       DOUBLE PRECISION,DIMENSION(3) :: DIPN
       DOUBLE PRECISION,DIMENSION(6) :: QUADN
       DOUBLE PRECISION,DIMENSION(10):: OCTUN
@@ -19145,9 +19146,9 @@
       QUADN = 0.0d0                                                       
       OCTUN = 0.0d0
       DO I=1,NAT
-       XN = Cxyz(1,I) 
-       YN = Cxyz(2,I) 
-       ZN = Cxyz(3,I) 
+       XN = Cxyz(1,I) - Xcm
+       YN = Cxyz(2,I) - Ycm
+       ZN = Cxyz(3,I) - Zcm
        DIPN(1)   = DIPN(1)   + ZAN(I)*XN                                        
        DIPN(2)   = DIPN(2)   + ZAN(I)*YN                                        
        DIPN(3)   = DIPN(3)   + ZAN(I)*ZN                                        
