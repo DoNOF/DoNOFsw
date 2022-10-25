@@ -21282,6 +21282,7 @@
       INTEGER,DIMENSION(NPRIMI)::ISH,ITYP
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER,ALLOCATABLE,DIMENSION(:)::IUSER
       DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
       DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,C1,C2,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0,ELAGN,RON
@@ -21396,7 +21397,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       EELEC_OLD = EELEC
       IF( .NOT.CONVGDELAG.and.NV>0 )THEN
-       if(ICOEF/=2 .or. (ICOEF==2.and.IFIRSTCALL==0) )then
+       if(ICOEF/=2)then
         IF(ICGMETHOD==1)THEN
          CALL CGOCUPSUMSL(NV,GAMMA,USER,EELEC)
         ELSE IF(ICGMETHOD==2)THEN
@@ -21404,6 +21405,10 @@
         ELSE IF(ICGMETHOD==3)THEN       
          CALL LBFGSOCUP(NV,GAMMA,USER,EELEC)
         ENDIF
+       else
+        allocate(IUSER(1))
+        call CALCOE(NV,GAMMA,NF,ENERGY,IUSER,USER)
+        deallocate(IUSER)
        endif
       END IF
       DIF_EELEC = EELEC - EELEC_OLD                          
@@ -24490,6 +24495,8 @@
       Hcut = 0.02d0*DSQRT(2.0d0)
       ROd  = 0.0d0
       DROd = 0.0d0
+      Rd   = 0.0d0
+      DRd  = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     ROd (NO1+1:NBF5)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
