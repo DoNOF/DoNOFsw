@@ -4,7 +4,7 @@ if (-f $1.gcf) mv -f $1.gcf GCF
 
 if (-f $1.fra) mv -f $1.fra FRAG
 
-nice +18 ~/DoNOFsw/DoNOF.x < $1.inp > $1.out
+nice +18 /home/marm314/Installers/DoNOF/mario_forked/DoNOFsw/DoNOF.x < $1.inp > $1.out
 
 if (-f WFN) mv -f WFN $1.wfn
 

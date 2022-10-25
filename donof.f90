@@ -31934,7 +31934,7 @@
       IF(NOCNC>NORB)THEN
        NCWO1 = (NORB-NSOC)/NOCB - 1 
        IF(NCWO>NCWO1)THEN
-        WRITE(6,4)                                                      &
+        WRITE(6,5)                                                      &
         'NCWO is too large, reduce the value at least to',NCWO1        
         STOP
        ENDIF
@@ -31944,7 +31944,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NCWO1 = (NQMT-NO1-NSOC)/NOC - 1 
       IF(NO1PT2<NO1.and.NCWO>NCWO1)THEN
-       WRITE(6,4)                                                       &
+       WRITE(6,5)                                                       &
        'NCWO is too large, reduce the value at least to',NCWO1        
        STOP
       ENDIF
@@ -31992,7 +31992,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NN1 = NOC*NOC*NVI*NVI
       NN2 = NOC*NVI
-      ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
+      ALLOCATE (FI1(NORB),FI2(NORB))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !                              FI1 and FI2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -32011,30 +32011,48 @@
        FI2(i) = Ci*Ci
       ENDDO
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+!     Calculate RPA Ecorr
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+      Ecd = 0.0d0
+      do i=1,NOC             ! runs over occ
+       do a=NOC+1,NORB       ! runs over vir
+        FOCKm(i,a) = 0.0d0
+        FOCKm(a,i) = 0.0d0
+       enddo
+      enddo
+      CALL ERPA(NOCB,NOC,NVI,NORB,FI1,FI2,FOCKm,ERImol,ECd)
+      WRITE(6,2)EHFL+EN+ECndHF
+      WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     Calculate Tijab amplitude solving Sparse Sym. Linear System
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+      ALLOCATE (Tijab(NN1))
       CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,   &
                         FI1,FI2)                                         
       if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
       CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,           &
                             Tijab,ECd)
-      WRITE(6,2)EHFL+EN+ECndHF
-      WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
+      WRITE(6,4)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
+      DEALLOCATE(Tijab)
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
+      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol)
       RETURN
 !-----------------------------------------------------------------------
-    1 FORMAT(//,2X,'NOF-MP2',/1X,9('='),//,                             &
+    1 FORMAT(//,2X,'NOF-MP2 AND NOF-RPA',/1X,21('='),//,                &
                1X,'NUMBER OF CORE ORBITALS  (NO1PT2) =',I5,/,           &
-               1X,'NUMBER OF Doubly OCC. ORBS. (NOC) =',I5,/,           &
+               1X,'NUMBER OF DOUBLY OCC. ORBS. (NOC) =',I5,/,           &
                1X,'NUMBER OF VIRTUAL ORBS.     (NVI) =',I5,/,           &
                1X,'NUMBER OF LIN. IND. ORBS.  (NORB) =',I5)              
     2 FORMAT(/3X,'          Ehfc =',F20.10)                              
     3 FORMAT(/3X,'           ECd =',F20.10,/,                           &
               3X,'          ECnd =',F20.10,/,                           &
               3X,'         ECorr =',F20.10,/,                           &
+              3X,'     E(NOFRPA) =',F20.10)
+    4 FORMAT(/3X,'           ECd =',F20.10,/,                           &
+              3X,'          ECnd =',F20.10,/,                           &
+              3X,'         ECorr =',F20.10,/,                           &
               3X,'     E(NOFMP2) =',F20.10)
-    4 FORMAT(/1X,A47,I5)
+    5 FORMAT(/1X,A47,I5)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END
 
