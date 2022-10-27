@@ -24,13 +24,12 @@
       COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
       COMMON/NumLinIndOrb/NQMT
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      PARAMETER (tol10=1.0D-10)
       PARAMETER (ZERO=0.0D0)
       PARAMETER (FOURTH=0.25D0)
       PARAMETER (ONE=1.0D0)
       PARAMETER (TWO=2.0D0)
       PARAMETER (FOUR=4.0D0)
-      LOGICAL::diagFOCK,TDHF=.FALSE. ! Always tune within DoNOF and do RPA
+      LOGICAL::diagFOCK ! Always tune within DoNOF and do RPA
       INTEGER::i,j,k,l,a,b,info,last_coup
       INTEGER::order,Nab
       INTEGER,DIMENSION(NIJKL)::IERI
@@ -47,7 +46,7 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::ApB,AmB
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::XmY,XpY 
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:)::ERImol,ERImol2
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::wmn,wmn2
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::wmn
 !-----------------------------------------------------------------------
 !     NCO:  Number of HF occupied MOs (OCC=1 in SD)
 !     NVIR: Number of HF virtual  MOs (OCC=0 in SD)
@@ -70,7 +69,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       AUtoEV=27.211399
       NVIR=NBF-NA
-      Nab=NVIR*NA !NVIR*NCO
+      Nab=NVIR*NA
       last_coup=NA+NCWO*(NCO-NO1PT2)
       WRITE(6,1)NBF,NO1PT2,NA,NVIR,last_coup,Nab
       ALLOCATE(OCC(NBF),TEMPM(NBF,NBF))
@@ -151,10 +150,6 @@
              AmB(k,l)=EIG(a)-EIG(i)
              ApB(k,l)=ApB(k,l)+AmB(k,l)
             endif 
-            if(TDHF) then
-             ApB(k,l)=ApB(k,l)-ERImol(i,a,b,j)-ERImol(i,a,j,b) ! i-j,a-b and i-b,a-j
-             AmB(k,l)=AmB(k,l)-ERImol(i,a,b,j)+ERImol(i,a,j,b) ! i-j,a-b and i-b,a-j
-            endif
             if(k.eq.l) then ! 1st contrib. to RPA -> 0.25*diag_terms  
              EcRPA=EcRPA-FOURTH*(ApB(k,k)+AmB(k,k)) 
             endif  
@@ -211,19 +206,19 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Compute omegas, oscillator strenghts and static polarizability (omega->0)       
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA,TDHF,AUtoEV)
+      call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA,AUtoEV)
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Our RPA (trapezoidal rule) is 1/2 GoWo@Galitskii-Migdal EQN
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Compute w^s mn = sum_ia <im|an>* (X^s _ia + Y^s_ia) -> see MolGW paper (i is occ, a is virt) 
-      ALLOCATE(wmn(NBF,NBF,Nab),wmn2(NBF,NBF,Nab))
+      ALLOCATE(wmn(NBF,NBF,Nab))
       write(*,*) ' '
       write(*,*) 'Computing RPA correction for NOF-c-RPA'
-      wmn=ZERO; wmn2=ZERO;
-      call build_wmn(NBF,Nab,NA,wmn,wmn2,.true.,ERImol,ERImol2,XpY)
+      wmn=ZERO; 
+      call build_wmn(NBF,Nab,NA,wmn,ERImol,ERImol2,XpY)
       EcGoWo=ZERO
       EcGMSOS=ZERO
-      call gw_gm_eq(NA,NCO,NBF,Nab,wmn,wmn2,EIG,EcGoWo,EcGMSOS,.true.,XpY,BIGOMEGA,ERImol2)
+      call gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,EcGMSOS,XpY,BIGOMEGA,ERImol2)
       ECd=EcGoWo
       DEALLOCATE(XpY,wmn,BIGOMEGA)
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -231,7 +226,7 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       write(*,*) 'Computing MP2 correction for NOF-c-MP2'
       EcMP2=ZERO
-      call mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,.true.,EcMP2)
+      call mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,EcMP2)
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Write  Ec energies and final results
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -239,12 +234,11 @@
       ESDc=ESD+ECndl
       EPNOF=EELEC+EN
       write(6,3)ESD,ESDc,EPNOF,ECndl,EcRPA,ECd,&
-     & ESD+EcRPA,ESD+ECd,ESD+EcMP2,&
      & ESDc+EcRPA,ESDc+ECd,ESDc+EcMP2
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  Deallocate and clean 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DEALLOCATE(ERImol2,wmn2)
+      DEALLOCATE(ERImol2)
       DEALLOCATE(EIG,ERImol)
       RETURN
 !----------------------------------------------------------------------
@@ -257,18 +251,14 @@
             1X,'Last coupled orbital        (NLAS) =',I5,/,   &
             1X,'Size of A+B and A-B (NAB=NOCxNVIR) =',I5) 
     2 FORMAT(3X,F15.10,' ',F15.10,' ')
-    3 FORMAT(/,1X,'E(SD)                   ',5X,F20.10,' a.u.',/, &
-      1X,'E(SD+ND)                ',5X,F20.10,' a.u.',/,         &
+    3 FORMAT(/,1X,'E(HFL)                  ',5X,F20.10,' a.u.',/, &
+      1X,'E(HFL+ND)               ',5X,F20.10,' a.u.',/,         &
       1X,'E(PNOFi)                ',5X,F20.10,' a.u.',/,         &
       ' ',/,                                                     &
       1X,'Ec(ND)                  ',5X,F20.10,' a.u.',/,         &
       1X,'Ec(RPA-FURCHE)          ',5X,F20.10,' a.u.',/,         &
       1X,'Ec(RPA)                 ',5X,F20.10,' a.u.',/,         &
       ' ',/,                                                     & 
-      1X,'E(RPA-FURCHE)           ',5X,F20.10,' a.u.',/,         & 
-      1X,'E(RPA)                  ',5X,F20.10,' a.u.',/,         &
-      1X,'E(MP2)                  ',5X,F20.10,' a.u.',/,         &
-      ' ',/,                                                     &
       1X,'E(NOF-c-RPA-FURCHE)     ',5X,F20.10,' a.u.',/,         &
       1X,'E(NOF-c-RPA)            ',5X,F20.10,' a.u.',/,         &
       1X,'E(NOF-c-MP2)            ',5X,F20.10,' a.u.')
@@ -298,7 +288,7 @@
       write(*,*) ' '
       end subroutine tune_coefs
 
-      subroutine tunefock(CINTRA,CINTER,FOCKm,NBF,NCO,NVIR,NCWO,NFR,NA)
+      subroutine tunefock(CINTRA,CINTER,FOCKm,NBF,NCO,NVIR,NCWO,nfr,NA)
       implicit none
       integer,intent(in)::NBF,NCO,NVIR,NCWO,NFR,NA
       double precision,dimension(NBF),intent(inout)::CINTER,CINTRA
@@ -469,9 +459,8 @@
       deallocate(ERImolTMP,coup)
       end subroutine tuneerimol      
 
-      subroutine td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA,TDHF,AUtoEV)
+      subroutine td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA,AUtoEV)
       implicit none
-      LOGICAL,intent(in)::TDHF
       INTEGER,intent(in)::Nbf,Nab,NCO,NA
       DOUBLE PRECISION,intent(inout)::EcRPA
       DOUBLE PRECISION,intent(in)::AUtoEV
@@ -522,11 +511,7 @@
       enddo
 !  Print Omegas and Oscillator strenghts
       write(*,*) ' '
-      if(TDHF) then
-       write(*,*) 'TD-HF CASIDA eq. solved'
-      else 
-       write(*,*) 'TD-H (RPA) CASIDA eq. solved' 
-      endif
+      write(*,*) 'TD-H (RPA) CASIDA eq. solved' 
       write(*,*) 'N. excitation   a.u.         eV            nm      osc. strenght'
       do i=1,Nab
        if(OSCSTR(i).gt.tol6) then
@@ -558,11 +543,10 @@
 
       end subroutine td_polarizability
 
-      subroutine build_wmn(NBF,Nab,NA,wmn,wmn2,TUNEMBPT,ERImol,ERImol2,XpY)
+      subroutine build_wmn(NBF,Nab,NA,wmn,ERImol,ERImol2,XpY)
       implicit none
-      logical,intent(in)::TUNEMBPT
       integer,intent(in)::NBF,Nab,NA
-      double precision,dimension(NBF,NBF,Nab),intent(inout)::wmn,wmn2 
+      double precision,dimension(NBF,NBF,Nab),intent(inout)::wmn 
       double precision,dimension(Nab,Nab),intent(in)::XpY
       double precision,dimension(NBF,NBF,NBF,NBF),intent(in)::ERImol
       double precision,dimension(NBF,NBF,NBF,NBF),intent(in)::ERImol2
@@ -574,9 +558,6 @@
          b=NA+1
          do l=1,Nab
           wmn(i,j,k)=wmn(i,j,k)+ERImol(a,i,j,b)*XpY(l,k)
-          IF(TUNEMBPT) THEN
-           wmn2(i,j,k)=wmn2(i,j,k)+ERImol2(a,i,j,b)*XpY(l,k)
-          ENDIF
           b=b+1
           if(b.gt.NBF) then
            b=NA+1
@@ -584,10 +565,8 @@
           endif
          enddo
          wmn(i,j,k)=wmn(i,j,k)*DSQRT(2.0d0)
-         IF(TUNEMBPT) wmn2(i,j,k)=wmn2(i,j,k)*DSQRT(2.0d0) 
          if(i.ne.j) then
           wmn(j,i,k)=wmn(i,j,k)
-          IF(TUNEMBPT) wmn2(j,i,k)=wmn2(i,j,k)
          endif
         enddo
        enddo 
@@ -596,34 +575,19 @@
 
 !  Loop to compute the EcGoWo energy. Recall that Go is used in GM EQ.
 !  Very symple Eq: Ec = 2 sum _i sum_a sum_s [ (wia)^s ]**2 /(e(i)-e(a)-Omega(s))
-      subroutine gw_gm_eq(NA,NCO,NBF,Nab,wmn,wmn2,EIG,EcGoWo,EcGMSOS,TUNEMBPT,XpY,BIGOMEGA,ERImol)
+      subroutine gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,EcGMSOS,XpY,BIGOMEGA,ERImol)
       implicit none
-      logical,intent(in)::TUNEMBPT
       integer,intent(in)::NCO,NBF,Nab,NA
       double precision,intent(inout)::EcGoWo,EcGMSOS
       double precision,dimension(Nab),intent(in)::BIGOMEGA
       double precision,dimension(NBF),intent(in)::EIG
       double precision,dimension(Nab,Nab),intent(in)::XpY
-      double precision,dimension(NBF,NBF,Nab),intent(in)::wmn,wmn2
+      double precision,dimension(NBF,NBF,Nab),intent(in)::wmn
       double precision,dimension(NBF,NBF,NBF,NBF),intent(in)::ERImol
       integer::i,j,a,b,s,l,fst_virt
       double precision::tol10
       tol10=1.0D-10
       fst_virt=NA+1
-      ! Doubly occ part (simplified version)
-!      do a=NA+1,NBF
-!       do i=1,NCO
-!        do s=1,Nab
-!         IF(TUNEMBPT) then
-!         EcGoWo=EcGoWo+(wmn(i,a,s)*wmn2(i,a,s))/(EIG(i)-EIG(a)
-!     &        -BIGOMEGA(s)+tol10)
-!         ELSE
-!         EcGoWo=EcGoWo+(wmn(i,a,s)**2.0d0)/(EIG(i)-EIG(a)
-!     &        -BIGOMEGA(s)+tol10)
-!         ENDIF
-!        enddo
-!       enddo
-!      enddo
       ! Doubly occ part (4 index version)
        do a=NA+1,NBF
         do b=NA+1,NBF
@@ -639,7 +603,7 @@
         enddo
        enddo
       ! Open-shell part
-      if(NA/=NCO .and. TUNEMBPT) then  !TUNEMBPT=TRUE to have ERImol 
+      if(NA/=NCO) then  
        do a=NA+1,NBF
         do b=NA+1,NBF
          do i=1,NCO
@@ -674,9 +638,8 @@
       endif
       end subroutine gw_gm_eq
 
-      subroutine mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,TUNEMBPT,EcMP2)
+      subroutine mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,EcMP2)
       implicit none
-      logical,intent(in)::TUNEMBPT
       integer,intent(in)::NCO,NBF,NA
       double precision,intent(inout)::EcMP2
       double precision,dimension(NBF),intent(in)::EIG
@@ -689,39 +652,23 @@
        do b=NA+1,NBF
         do i=1,NCO
          do j=1,NCO
-          IF(TUNEMBPT) then
-           ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
-           EcMP2=EcMP2+ERImol2(a,b,j,i)*(2.0d0*ERImol(a,b,j,i)-ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ELSE
-           EcMP2=EcMP2+ERImol(a,b,j,i)*(2.0d0*ERImol(a,b,j,i)-ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ENDIF
+          ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
+          EcMP2=EcMP2+ERImol2(a,b,j,i)*(2.0d0*ERImol(a,b,j,i)-ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
          enddo
          do j=NCO+1,NA
-          IF(TUNEMBPT) then
-           ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
-           EcMP2=EcMP2+ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ELSE
-           EcMP2=EcMP2+ERImol(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ENDIF
+          ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
+          EcMP2=EcMP2+ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
          enddo
         enddo
         do i=NCO+1,NA
          do j=1,NCO
-          IF(TUNEMBPT) then
-           ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
-           EcMP2=EcMP2+ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ELSE
-           EcMP2=EcMP2+ERImol(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-          ENDIF
+          ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
+          EcMP2=EcMP2+ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
          enddo
          do j=NCO+1,NA
           if(j/=i) then
-           IF(TUNEMBPT) then
-            ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
-            EcMP2=EcMP2+0.5d0*ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-           ELSE
-            EcMP2=EcMP2+0.5d0*ERImol(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
-           ENDIF
+           ! Use [2Tij,ab - Tij,ba] as 2-RDM element (the tuned one in Piris PRA).
+           EcMP2=EcMP2+0.5d0*ERImol2(a,b,j,i)*(ERImol(a,b,j,i)-0.5d0*ERImol(a,b,i,j))/(EIG(i)+EIG(j)-EIG(a)-EIG(b)+tol10)
           endif
          enddo
         enddo
