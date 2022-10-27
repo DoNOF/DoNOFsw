@@ -17,16 +17,20 @@ all: serial serialg #mpi mpig
 #########################################################################
 
 serial:
-	$(F90) -o DoNOF.x donof.f90 mbpt.f90 lapack.f
+	./gitversion.sh	
+	$(F90) -o DoNOF.x donof.f90 mbpt.f90 gitver.f90 lapack.f
 
 mpi:
-	$(MPIF90) -o DoNOFmpi.x donof.f90 mbpt.90 lapack.f
+	./gitversion.sh	
+	$(MPIF90) -o DoNOFmpi.x donof.f90 mbpt.90 gitver.f90 lapack.f
 	
 serialg:
-	$(F90g) -o DoNOFg.x donof.f90 mbpt.f90 lapack.f
+	./gitversion.sh	
+	$(F90g) -o DoNOFg.x donof.f90 mbpt.f90 gitver.f90 lapack.f
 	
 mpig:
-	$(MPIF90g) -o DoNOFmpig.x donof.f90 mbpt.f90 lapack.f
+	./gitversion.sh	
+	$(MPIF90g) -o DoNOFmpig.x donof.f90 mbpt.f90 gitver.f90 lapack.f
 	
 
 #########################################################################

@@ -6,9 +6,11 @@
 !======================================================================!
 ! ==================================================================== !
 !              Developed    Date: 10/01/2021                           !
+!         by M. Rodríguez-Mayorga and I. Mitxelena                     !
 !              Adapted      Date: 30/10/2022                           !
+!         by M. Rodríguez-Mayorga                                      !
 !                                                                      !
-! mbpt.f90 contains the subroutines related to the RPA+GW              ! 
+! mbpt.f90 contains the subroutines related to the RPA(GW)             ! 
 ! calculations. RPA is trapezoidal rule of GW@GM                       !
 !                                                                      !
 ! ==================================================================== !
@@ -120,7 +122,7 @@
 ! Print orb. energies and occ numbers.
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      write(*,*) '          '
-     write(*,*) ' List of qp-orbital energies (a.u.) and occ numbers used'
+     write(*,*) ' LIST OF ORBITAL ENERGIES (A.U.) AND OCC NUMBERS IN USE'
      write(*,*) '          '
      mu=(EIG(NA+1)+EIG(NA))/TWO
      DO i=1,NBF
@@ -128,7 +130,7 @@
       write(6,2) EIG(i),OCC(i)
      ENDDO
      write(*,*) '          '
-     write(*,'(a,f10.5)') ' Chemical potential used for qp-orbital energies',mu
+     write(*,'(a,f10.5)') ' COMPUTED CHEMICAL POTENTIAL',mu
      write(*,*) '          '
      DEALLOCATE(OCC) ! We do not need the OCCs anymore
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -213,7 +215,7 @@
 ! Compute w^s mn = sum_ia <im|an>* (X^s _ia + Y^s_ia) -> see MolGW paper (i is occ, a is virt) 
      ALLOCATE(wmn(NBF,NBF,Nab))
      write(*,*) ' '
-     write(*,*) 'Computing RPA correction for NOF-c-RPA'
+     write(*,*) 'COMPUTING RPA CORRELATION ENERGY FOR NOF-c-RPA'
      wmn=ZERO; 
      call build_wmn(NBF,Nab,NA,wmn,ERImol,ERImol2,XpY)
      EcGoWo=ZERO
@@ -224,7 +226,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! MP2 Ec energy 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     write(*,*) 'Computing MP2 correction for NOF-c-MP2'
+     write(*,*) 'COMPUTING MP2 CORRELATION ENERGY FOR NOF-c-MP2'
      EcMP2=ZERO
      call mp2_eq(NA,NCO,NBF,EIG,ERImol,ERImol2,EcMP2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -244,12 +246,12 @@
 !---------------------------------------------------------------------
    1 FORMAT(2X,//,3X,'MBPT ENERGIES',/,                       &
            2X,15('='),//,                                    &
-           1X,'Number of orbitals        (NBASIS) =',I5,/,   &
-           1X,'Number of frozen pairs       (NFR) =',I5,/,   &
-           1X,'Number of occupied orbs.     (NOC) =',I5,/,   &
-           1X,'Number of virtual orbs.     (NVIR) =',I5,/,   &
-           1X,'Last coupled orbital        (NLAS) =',I5,/,   &
-           1X,'Size of A+B and A-B (NAB=NOCxNVIR) =',I5) 
+           1X,'NUMBER OF ORBITALS        (NBASIS) =',I5,/,   &
+           1X,'NUMBER OF FROZEN PAIRS       (NFR) =',I5,/,   &
+           1X,'NUMBER OF OCC ORBITALS       (NOC) =',I5,/,   &
+           1X,'NUMBER OF VIR ORBITALS      (NVIR) =',I5,/,   &
+           1X,'LAST COUPLED ORBITAL        (NLAS) =',I5,/,   &
+           1X,'SIZE OF A+B AND A-B (NAB=NOCxNVIR) =',I5) 
    2 FORMAT(3X,F15.10,' ',F15.10,' ')
    3 FORMAT(/,1X,'E(HFL)                ',5X,F20.10,' a.u.',/, &
      1X,'E(HFL+ND)             ',5X,F20.10,' a.u.',/,         &
@@ -359,9 +361,6 @@
      enddo
  359 continue
      if(diagF.eqv..false.) then
-      write(*,*) ' '
-      write(*,*) ' Diagonalizing the Fock Op.'
-      write(*,*) ' '
       allocate(TEMPV(NBF))
       CALL DIAG(NBF,FOCKm,EIGENVE,EIG,TEMPV) 
       deallocate(TEMPV)
@@ -512,8 +511,8 @@
      enddo
 ! Print Omegas and Oscillator strenghts
      write(*,*) ' '
-     write(*,*) 'TD-H (RPA) CASIDA eq. solved' 
-     write(*,*) 'N. excitation   a.u.         eV            nm      osc. strenght'
+     write(*,*) 'TD-H (RPA) CASIDA EQ. SOLVED' 
+     write(*,*) 'N. EXCITATION   A.U.         eV            nm      OSC. STRENGTH'
      do i=1,Nab
       if(OSCSTR(i)>tol6) then
        write(6,13) i,BIGOMEGA(i),BIGOMEGA(i)*AUtoEV,1239.84193/(BIGOMEGA(i)*AUtoEV),OSCSTR(i)
@@ -536,11 +535,11 @@
      DEALLOCATE(TEMPM,STATICPOL)
 
   13 FORMAT(3X,I5,3X,F12.5,1X,F12.5,1X,F12.4,1X,F12.6)
-  14 FORMAT(1X,'Static polarizability:',//,  &
+  14 FORMAT(1X,'STATIC POLARIZABILITY:',//,  &
            F15.10,3X,F15.10,3X,F15.10,/,     &
            F15.10,3X,F15.10,3X,F15.10,/,     &
            F15.10,3X,F15.10,3X,F15.10)
-  15 FORMAT(/,1X,'Trace of the static polarizability',F15.10)
+  15 FORMAT(/,1X,'TRACE OF THE STATIC POLARIZABILITY',F15.10)
 
      end subroutine td_polarizability
 
@@ -685,7 +684,7 @@
      double precision,dimension(:,:,:,:),allocatable::TMPDM2
      integer::i,j,k,l,m
      write(*,*) ' '
-     write(*,*) ' Starting transformation <IJ|KL> -> <PQ|RS>'
+     write(*,*) ' TRANSFORM <IJ|KL> -> <PQ|RS>'
      ! L -> S
      allocate(TMPDM2(NBF,NBF,NBF,NBF))
      do i=1,NBF
@@ -700,7 +699,7 @@
        enddo
       enddo
      enddo
-     write(*,*) ' L -> S done'
+     write(*,*) ' L -> S DONE'
      ! K -> R
      do i=1,NBF
       do j=1,NBF
@@ -714,7 +713,7 @@
        enddo
       enddo
      enddo
-     write(*,*) ' K -> R done'
+     write(*,*) ' K -> R DONE'
      ! J -> Q
      do i=1,NBF
       do m=1,NBF
@@ -728,7 +727,7 @@
        enddo
       enddo
      enddo
-     write(*,*) ' J -> Q done'
+     write(*,*) ' J -> Q DONE'
      ! I -> P
      do m=1,NBF
       do j=1,NBF
@@ -742,8 +741,8 @@
        enddo
       enddo
      enddo
-     write(*,*) ' I -> P done'
-     write(*,*) ' Transformation finished'
+     write(*,*) ' I -> P DONE'
+     write(*,*) ' TRANSFORMATION DONE'
      write(*,*) ' '
      deallocate(TMPDM2)
      end subroutine transformERI

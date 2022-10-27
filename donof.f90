@@ -36,6 +36,7 @@
       character(8) :: date
       character(10):: time
       character(5) :: zone
+      character(100):: sha
       integer,dimension(8) :: val
 !
       INTEGER,ALLOCATABLE,DIMENSION(:)::IAN0,IMIN0,IMAX0,KSTART0,KATOM0
@@ -229,6 +230,10 @@
       call cpu_time(timefinish)
       DELTATIME = timefinish - timestart
       WRITE(6,3)DELTATIME
+!-----------------------------------------------------------------------
+      call gitversion(sha)
+      WRITE(6,'(a,a)')'  Git sha : ',sha
+!-----------------------------------------------------------------------
       call date_and_time(date,time,zone,val)
       write(6,4)val(5),val(6),val(2),val(3),val(1)
 !-----------------------------------------------------------------------
