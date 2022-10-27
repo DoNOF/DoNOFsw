@@ -1,2 +1,7 @@
 DoNOF.x
 DoNOFg.x
+DoNOFmpi.x
+DoNOFmpig.x
+gitver.f90
+run_donof_mine
+run_donof_mineg

@@ -11692,4 +11692,2124 @@ C
 *
 *     End of DTRTRS
 *
-      END      
+      END 
+*
+*       SUBROUTINE DPOTRF( UPLO, N, A, LDA, INFO )
+*
+*       .. Scalar Arguments ..
+*       CHARACTER          UPLO
+*       INTEGER            INFO, LDA, N
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION   A( LDA, * )
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DPOTRF computes the Cholesky factorization of a real symmetric
+*> positive definite matrix A.
+*>
+*> The factorization has the form
+*>    A = U**T * U,  if UPLO = 'U', or
+*>    A = L  * L**T,  if UPLO = 'L',
+*> where U is an upper triangular matrix and L is lower triangular.
+*>
+*> This is the block version of the algorithm, calling Level 3 BLAS.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>          = 'U':  Upper triangle of A is stored;
+*>          = 'L':  Lower triangle of A is stored.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>          The order of the matrix A.  N >= 0.
+*> \endverbatim
+*>
+*> \param[in,out] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension (LDA,N)
+*>          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+*>          N-by-N upper triangular part of A contains the upper
+*>          triangular part of the matrix A, and the strictly lower
+*>          triangular part of A is not referenced.  If UPLO = 'L', the
+*>          leading N-by-N lower triangular part of A contains the lower
+*>          triangular part of the matrix A, and the strictly upper
+*>          triangular part of A is not referenced.
+*>
+*>          On exit, if INFO = 0, the factor U or L from the Cholesky
+*>          factorization A = U**T*U or A = L*L**T.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>          The leading dimension of the array A.  LDA >= max(1,N).
+*> \endverbatim
+*>
+*> \param[out] INFO
+*> \verbatim
+*>          INFO is INTEGER
+*>          = 0:  successful exit
+*>          < 0:  if INFO = -i, the i-th argument had an illegal value
+*>          > 0:  if INFO = i, the leading minor of order i is not
+*>                positive definite, and the factorization could not be
+*>                completed.
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup doublePOcomputational
+*
+*  =====================================================================
+      SUBROUTINE dpotrf( UPLO, N, A, LDA, INFO )
+*
+*  -- LAPACK computational routine --
+*  -- LAPACK is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      CHARACTER          UPLO
+      INTEGER            INFO, LDA, N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION   A( LDA, * )
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION   ONE
+      parameter( one = 1.0d+0 )
+*     ..
+*     .. Local Scalars ..
+      LOGICAL            UPPER
+      INTEGER            J, JB, NB
+*     ..
+*     .. External Functions ..
+      LOGICAL            LSAME
+      INTEGER            ILAENV
+      EXTERNAL           lsame, ilaenv
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           dgemm, dpotrf2, dsyrk, dtrsm, xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          max, min
+*     ..
+*     .. Executable Statements ..
+*
+*     Test the input parameters.
+*
+      info = 0
+      upper = lsame( uplo, 'U' )
+      IF( .NOT.upper .AND. .NOT.lsame( uplo, 'L' ) ) THEN
+         info = -1
+      ELSE IF( n.LT.0 ) THEN
+         info = -2
+      ELSE IF( lda.LT.max( 1, n ) ) THEN
+         info = -4
+      END IF
+      IF( info.NE.0 ) THEN
+         CALL xerbla( 'DPOTRF', -info )
+         RETURN
+      END IF
+*
+*     Quick return if possible
+*
+      IF( n.EQ.0 )
+     $   RETURN
+*
+*     Determine the block size for this environment.
+*
+      nb = ilaenv( 1, 'DPOTRF', uplo, n, -1, -1, -1 )
+      IF( nb.LE.1 .OR. nb.GE.n ) THEN
+*
+*        Use unblocked code.
+*
+         CALL dpotrf2( uplo, n, a, lda, info )
+      ELSE
+*
+*        Use blocked code.
+*
+         IF( upper ) THEN
+*
+*           Compute the Cholesky factorization A = U**T*U.
+*
+            DO 10 j = 1, n, nb
+*
+*              Update and factorize the current diagonal block and test
+*              for non-positive-definiteness.
+*
+               jb = min( nb, n-j+1 )
+               CALL dsyrk( 'Upper', 'Transpose', jb, j-1, -one,
+     $                     a( 1, j ), lda, one, a( j, j ), lda )
+               CALL dpotrf2( 'Upper', jb, a( j, j ), lda, info )
+               IF( info.NE.0 )
+     $            GO TO 30
+               IF( j+jb.LE.n ) THEN
+*
+*                 Compute the current block row.
+*
+                  CALL dgemm( 'Transpose', 'No transpose', jb, n-j-jb+1,
+     $                        j-1, -one, a( 1, j ), lda, a( 1, j+jb ),
+     $                        lda, one, a( j, j+jb ), lda )
+                  CALL dtrsm( 'Left', 'Upper', 'Transpose', 'Non-unit',
+     $                        jb, n-j-jb+1, one, a( j, j ), lda,
+     $                        a( j, j+jb ), lda )
+               END IF
+   10       CONTINUE
+*
+         ELSE
+*
+*           Compute the Cholesky factorization A = L*L**T.
+*
+            DO 20 j = 1, n, nb
+*
+*              Update and factorize the current diagonal block and test
+*              for non-positive-definiteness.
+*
+               jb = min( nb, n-j+1 )
+               CALL dsyrk( 'Lower', 'No transpose', jb, j-1, -one,
+     $                     a( j, 1 ), lda, one, a( j, j ), lda )
+               CALL dpotrf2( 'Lower', jb, a( j, j ), lda, info )
+               IF( info.NE.0 )
+     $            GO TO 30
+               IF( j+jb.LE.n ) THEN
+*
+*                 Compute the current block column.
+*
+                  CALL dgemm( 'No transpose', 'Transpose', n-j-jb+1, jb,
+     $                        j-1, -one, a( j+jb, 1 ), lda, a( j, 1 ),
+     $                        lda, one, a( j+jb, j ), lda )
+                  CALL dtrsm( 'Right', 'Lower', 'Transpose', 'Non-unit',
+     $                        n-j-jb+1, jb, one, a( j, j ), lda,
+     $                        a( j+jb, j ), lda )
+               END IF
+   20       CONTINUE
+         END IF
+      END IF
+      GO TO 40
+*
+   30 CONTINUE
+      info = info + j - 1
+*
+   40 CONTINUE
+      RETURN
+*
+*     End of DPOTRF
+*
+      END
+*> \brief \b DSYRK
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*  Definition:
+*  ===========
+*
+*       SUBROUTINE DSYRK(UPLO,TRANS,N,K,ALPHA,A,LDA,BETA,C,LDC)
+*
+*       .. Scalar Arguments ..
+*       DOUBLE PRECISION ALPHA,BETA
+*       INTEGER K,LDA,LDC,N
+*       CHARACTER TRANS,UPLO
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION A(LDA,*),C(LDC,*)
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DSYRK  performs one of the symmetric rank k operations
+*>
+*>    C := alpha*A*A**T + beta*C,
+*>
+*> or
+*>
+*>    C := alpha*A**T*A + beta*C,
+*>
+*> where  alpha and beta  are scalars, C is an  n by n  symmetric matrix
+*> and  A  is an  n by k  matrix in the first case and a  k by n  matrix
+*> in the second case.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>           On  entry,   UPLO  specifies  whether  the  upper  or  lower
+*>           triangular  part  of the  array  C  is to be  referenced  as
+*>           follows:
+*>
+*>              UPLO = 'U' or 'u'   Only the  upper triangular part of  C
+*>                                  is to be referenced.
+*>
+*>              UPLO = 'L' or 'l'   Only the  lower triangular part of  C
+*>                                  is to be referenced.
+*> \endverbatim
+*>
+*> \param[in] TRANS
+*> \verbatim
+*>          TRANS is CHARACTER*1
+*>           On entry,  TRANS  specifies the operation to be performed as
+*>           follows:
+*>
+*>              TRANS = 'N' or 'n'   C := alpha*A*A**T + beta*C.
+*>
+*>              TRANS = 'T' or 't'   C := alpha*A**T*A + beta*C.
+*>
+*>              TRANS = 'C' or 'c'   C := alpha*A**T*A + beta*C.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>           On entry,  N specifies the order of the matrix C.  N must be
+*>           at least zero.
+*> \endverbatim
+*>
+*> \param[in] K
+*> \verbatim
+*>          K is INTEGER
+*>           On entry with  TRANS = 'N' or 'n',  K  specifies  the number
+*>           of  columns   of  the   matrix   A,   and  on   entry   with
+*>           TRANS = 'T' or 't' or 'C' or 'c',  K  specifies  the  number
+*>           of rows of the matrix  A.  K must be at least zero.
+*> \endverbatim
+*>
+*> \param[in] ALPHA
+*> \verbatim
+*>          ALPHA is DOUBLE PRECISION.
+*>           On entry, ALPHA specifies the scalar alpha.
+*> \endverbatim
+*>
+*> \param[in] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension ( LDA, ka ), where ka is
+*>           k  when  TRANS = 'N' or 'n',  and is  n  otherwise.
+*>           Before entry with  TRANS = 'N' or 'n',  the  leading  n by k
+*>           part of the array  A  must contain the matrix  A,  otherwise
+*>           the leading  k by n  part of the array  A  must contain  the
+*>           matrix A.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>           On entry, LDA specifies the first dimension of A as declared
+*>           in  the  calling  (sub)  program.   When  TRANS = 'N' or 'n'
+*>           then  LDA must be at least  max( 1, n ), otherwise  LDA must
+*>           be at least  max( 1, k ).
+*> \endverbatim
+*>
+*> \param[in] BETA
+*> \verbatim
+*>          BETA is DOUBLE PRECISION.
+*>           On entry, BETA specifies the scalar beta.
+*> \endverbatim
+*>
+*> \param[in,out] C
+*> \verbatim
+*>          C is DOUBLE PRECISION array, dimension ( LDC, N )
+*>           Before entry  with  UPLO = 'U' or 'u',  the leading  n by n
+*>           upper triangular part of the array C must contain the upper
+*>           triangular part  of the  symmetric matrix  and the strictly
+*>           lower triangular part of C is not referenced.  On exit, the
+*>           upper triangular part of the array  C is overwritten by the
+*>           upper triangular part of the updated matrix.
+*>           Before entry  with  UPLO = 'L' or 'l',  the leading  n by n
+*>           lower triangular part of the array C must contain the lower
+*>           triangular part  of the  symmetric matrix  and the strictly
+*>           upper triangular part of C is not referenced.  On exit, the
+*>           lower triangular part of the array  C is overwritten by the
+*>           lower triangular part of the updated matrix.
+*> \endverbatim
+*>
+*> \param[in] LDC
+*> \verbatim
+*>          LDC is INTEGER
+*>           On entry, LDC specifies the first dimension of C as declared
+*>           in  the  calling  (sub)  program.   LDC  must  be  at  least
+*>           max( 1, n ).
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup double_blas_level3
+*
+*> \par Further Details:
+*  =====================
+*>
+*> \verbatim
+*>
+*>  Level 3 Blas routine.
+*>
+*>  -- Written on 8-February-1989.
+*>     Jack Dongarra, Argonne National Laboratory.
+*>     Iain Duff, AERE Harwell.
+*>     Jeremy Du Croz, Numerical Algorithms Group Ltd.
+*>     Sven Hammarling, Numerical Algorithms Group Ltd.
+*> \endverbatim
+*>
+*  =====================================================================
+      SUBROUTINE dsyrk(UPLO,TRANS,N,K,ALPHA,A,LDA,BETA,C,LDC)
+*
+*  -- Reference BLAS level3 routine --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION ALPHA,BETA
+      INTEGER K,LDA,LDC,N
+      CHARACTER TRANS,UPLO
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION A(LDA,*),C(LDC,*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. External Functions ..
+      LOGICAL LSAME
+      EXTERNAL lsame
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC max
+*     ..
+*     .. Local Scalars ..
+      DOUBLE PRECISION TEMP
+      INTEGER I,INFO,J,L,NROWA
+      LOGICAL UPPER
+*     ..
+*     .. Parameters ..
+      DOUBLE PRECISION ONE,ZERO
+      parameter(one=1.0d+0,zero=0.0d+0)
+*     ..
+*
+*     Test the input parameters.
+*
+      IF (lsame(trans,'N')) THEN
+          nrowa = n
+      ELSE
+          nrowa = k
+      END IF
+      upper = lsame(uplo,'U')
+*
+      info = 0
+      IF ((.NOT.upper) .AND. (.NOT.lsame(uplo,'L'))) THEN
+          info = 1
+      ELSE IF ((.NOT.lsame(trans,'N')) .AND.
+     +         (.NOT.lsame(trans,'T')) .AND.
+     +         (.NOT.lsame(trans,'C'))) THEN
+          info = 2
+      ELSE IF (n.LT.0) THEN
+          info = 3
+      ELSE IF (k.LT.0) THEN
+          info = 4
+      ELSE IF (lda.LT.max(1,nrowa)) THEN
+          info = 7
+      ELSE IF (ldc.LT.max(1,n)) THEN
+          info = 10
+      END IF
+      IF (info.NE.0) THEN
+          CALL xerbla('DSYRK ',info)
+          RETURN
+      END IF
+*
+*     Quick return if possible.
+*
+      IF ((n.EQ.0) .OR. (((alpha.EQ.zero).OR.
+     +    (k.EQ.0)).AND. (beta.EQ.one))) RETURN
+*
+*     And when  alpha.eq.zero.
+*
+      IF (alpha.EQ.zero) THEN
+          IF (upper) THEN
+              IF (beta.EQ.zero) THEN
+                  DO 20 j = 1,n
+                      DO 10 i = 1,j
+                          c(i,j) = zero
+   10                 CONTINUE
+   20             CONTINUE
+              ELSE
+                  DO 40 j = 1,n
+                      DO 30 i = 1,j
+                          c(i,j) = beta*c(i,j)
+   30                 CONTINUE
+   40             CONTINUE
+              END IF
+          ELSE
+              IF (beta.EQ.zero) THEN
+                  DO 60 j = 1,n
+                      DO 50 i = j,n
+                          c(i,j) = zero
+   50                 CONTINUE
+   60             CONTINUE
+              ELSE
+                  DO 80 j = 1,n
+                      DO 70 i = j,n
+                          c(i,j) = beta*c(i,j)
+   70                 CONTINUE
+   80             CONTINUE
+              END IF
+          END IF
+          RETURN
+      END IF
+*
+*     Start the operations.
+*
+      IF (lsame(trans,'N')) THEN
+*
+*        Form  C := alpha*A*A**T + beta*C.
+*
+          IF (upper) THEN
+              DO 130 j = 1,n
+                  IF (beta.EQ.zero) THEN
+                      DO 90 i = 1,j
+                          c(i,j) = zero
+   90                 CONTINUE
+                  ELSE IF (beta.NE.one) THEN
+                      DO 100 i = 1,j
+                          c(i,j) = beta*c(i,j)
+  100                 CONTINUE
+                  END IF
+                  DO 120 l = 1,k
+                      IF (a(j,l).NE.zero) THEN
+                          temp = alpha*a(j,l)
+                          DO 110 i = 1,j
+                              c(i,j) = c(i,j) + temp*a(i,l)
+  110                     CONTINUE
+                      END IF
+  120             CONTINUE
+  130         CONTINUE
+          ELSE
+              DO 180 j = 1,n
+                  IF (beta.EQ.zero) THEN
+                      DO 140 i = j,n
+                          c(i,j) = zero
+  140                 CONTINUE
+                  ELSE IF (beta.NE.one) THEN
+                      DO 150 i = j,n
+                          c(i,j) = beta*c(i,j)
+  150                 CONTINUE
+                  END IF
+                  DO 170 l = 1,k
+                      IF (a(j,l).NE.zero) THEN
+                          temp = alpha*a(j,l)
+                          DO 160 i = j,n
+                              c(i,j) = c(i,j) + temp*a(i,l)
+  160                     CONTINUE
+                      END IF
+  170             CONTINUE
+  180         CONTINUE
+          END IF
+      ELSE
+*
+*        Form  C := alpha*A**T*A + beta*C.
+*
+          IF (upper) THEN
+              DO 210 j = 1,n
+                  DO 200 i = 1,j
+                      temp = zero
+                      DO 190 l = 1,k
+                          temp = temp + a(l,i)*a(l,j)
+  190                 CONTINUE
+                      IF (beta.EQ.zero) THEN
+                          c(i,j) = alpha*temp
+                      ELSE
+                          c(i,j) = alpha*temp + beta*c(i,j)
+                      END IF
+  200             CONTINUE
+  210         CONTINUE
+          ELSE
+              DO 240 j = 1,n
+                  DO 230 i = j,n
+                      temp = zero
+                      DO 220 l = 1,k
+                          temp = temp + a(l,i)*a(l,j)
+  220                 CONTINUE
+                      IF (beta.EQ.zero) THEN
+                          c(i,j) = alpha*temp
+                      ELSE
+                          c(i,j) = alpha*temp + beta*c(i,j)
+                      END IF
+  230             CONTINUE
+  240         CONTINUE
+          END IF
+      END IF
+*
+      RETURN
+*
+*     End of DSYRK
+*
+      END
+
+*> \brief \b DPOTRF2
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*  Definition:
+*  ===========
+*
+*       RECURSIVE SUBROUTINE DPOTRF2( UPLO, N, A, LDA, INFO )
+*
+*       .. Scalar Arguments ..
+*       CHARACTER          UPLO
+*       INTEGER            INFO, LDA, N
+*       ..
+*       .. Array Arguments ..
+*       REAL               A( LDA, * )
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DPOTRF2 computes the Cholesky factorization of a real symmetric
+*> positive definite matrix A using the recursive algorithm.
+*>
+*> The factorization has the form
+*>    A = U**T * U,  if UPLO = 'U', or
+*>    A = L  * L**T,  if UPLO = 'L',
+*> where U is an upper triangular matrix and L is lower triangular.
+*>
+*> This is the recursive version of the algorithm. It divides
+*> the matrix into four submatrices:
+*>
+*>        [  A11 | A12  ]  where A11 is n1 by n1 and A22 is n2 by n2
+*>    A = [ -----|----- ]  with n1 = n/2
+*>        [  A21 | A22  ]       n2 = n-n1
+*>
+*> The subroutine calls itself to factor A11. Update and scale A21
+*> or A12, update A22 then calls itself to factor A22.
+*>
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>          = 'U':  Upper triangle of A is stored;
+*>          = 'L':  Lower triangle of A is stored.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>          The order of the matrix A.  N >= 0.
+*> \endverbatim
+*>
+*> \param[in,out] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension (LDA,N)
+*>          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+*>          N-by-N upper triangular part of A contains the upper
+*>          triangular part of the matrix A, and the strictly lower
+*>          triangular part of A is not referenced.  If UPLO = 'L', the
+*>          leading N-by-N lower triangular part of A contains the lower
+*>          triangular part of the matrix A, and the strictly upper
+*>          triangular part of A is not referenced.
+*>
+*>          On exit, if INFO = 0, the factor U or L from the Cholesky
+*>          factorization A = U**T*U or A = L*L**T.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>          The leading dimension of the array A.  LDA >= max(1,N).
+*> \endverbatim
+*>
+*> \param[out] INFO
+*> \verbatim
+*>          INFO is INTEGER
+*>          = 0:  successful exit
+*>          < 0:  if INFO = -i, the i-th argument had an illegal value
+*>          > 0:  if INFO = i, the leading minor of order i is not
+*>                positive definite, and the factorization could not be
+*>                completed.
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup doublePOcomputational
+*
+*  =====================================================================
+      RECURSIVE SUBROUTINE dpotrf2( UPLO, N, A, LDA, INFO )
+*
+*  -- LAPACK computational routine --
+*  -- LAPACK is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      CHARACTER          uplo
+      INTEGER            info, lda, n
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION   a( lda, * )
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION   one, zero
+      parameter( one = 1.0d+0, zero = 0.0d+0 )
+*     ..
+*     .. Local Scalars ..
+      LOGICAL            upper
+      INTEGER            n1, n2, iinfo
+*     ..
+*     .. External Functions ..
+      LOGICAL            lsame, disnan
+      EXTERNAL           lsame, disnan
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           dsyrk, dtrsm, xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          max, sqrt
+*     ..
+*     .. Executable Statements ..
+*
+*     Test the input parameters
+*
+      info = 0
+      upper = lsame( uplo, 'U' )
+      IF( .NOT.upper .AND. .NOT.lsame( uplo, 'L' ) ) THEN
+         info = -1
+      ELSE IF( n.LT.0 ) THEN
+         info = -2
+      ELSE IF( lda.LT.max( 1, n ) ) THEN
+         info = -4
+      END IF
+      IF( info.NE.0 ) THEN
+         CALL xerbla( 'DPOTRF2', -info )
+         RETURN
+      END IF
+*
+*     Quick return if possible
+*
+      IF( n.EQ.0 )
+     $   RETURN
+*
+*     N=1 case
+*
+      IF( n.EQ.1 ) THEN
+*
+*        Test for non-positive-definiteness
+*
+         IF( a( 1, 1 ).LE.zero.OR.disnan( a( 1, 1 ) ) ) THEN
+            info = 1
+            RETURN
+         END IF
+*
+*        Factor
+*
+         a( 1, 1 ) = sqrt( a( 1, 1 ) )
+*
+*     Use recursive code
+*
+      ELSE
+         n1 = n/2
+         n2 = n-n1
+*
+*        Factor A11
+*
+         CALL dpotrf2( uplo, n1, a( 1, 1 ), lda, iinfo )
+         IF ( iinfo.NE.0 ) THEN
+            info = iinfo
+            RETURN
+         END IF
+*
+*        Compute the Cholesky factorization A = U**T*U
+*
+         IF( upper ) THEN
+*
+*           Update and scale A12
+*
+            CALL dtrsm( 'L', 'U', 'T', 'N', n1, n2, one,
+     $                  a( 1, 1 ), lda, a( 1, n1+1 ), lda )
+*
+*           Update and factor A22
+*
+            CALL dsyrk( uplo, 'T', n2, n1, -one, a( 1, n1+1 ), lda,
+     $                  one, a( n1+1, n1+1 ), lda )
+            CALL dpotrf2( uplo, n2, a( n1+1, n1+1 ), lda, iinfo )
+            IF ( iinfo.NE.0 ) THEN
+               info = iinfo + n1
+               RETURN
+            END IF
+*
+*        Compute the Cholesky factorization A = L*L**T
+*
+         ELSE
+*
+*           Update and scale A21
+*
+            CALL dtrsm( 'R', 'L', 'T', 'N', n2, n1, one,
+     $                  a( 1, 1 ), lda, a( n1+1, 1 ), lda )
+*
+*           Update and factor A22
+*
+            CALL dsyrk( uplo, 'N', n2, n1, -one, a( n1+1, 1 ), lda,
+     $                  one, a( n1+1, n1+1 ), lda )
+            CALL dpotrf2( uplo, n2, a( n1+1, n1+1 ), lda, iinfo )
+            IF ( iinfo.NE.0 ) THEN
+               info = iinfo + n1
+               RETURN
+            END IF
+         END IF
+      END IF
+      RETURN
+*
+*     End of DPOTRF2
+*
+      END
+*> \brief \b DSYGST
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*> \htmlonly
+*> Download DSYGST + dependencies
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.tgz?format=tgz&filename=/lapack/lapack_routine/dsygst.f">
+*> [TGZ]</a>
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.zip?format=zip&filename=/lapack/lapack_routine/dsygst.f">
+*> [ZIP]</a>
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.txt?format=txt&filename=/lapack/lapack_routine/dsygst.f">
+*> [TXT]</a>
+*> \endhtmlonly
+*
+*  Definition:
+*  ===========
+*
+*       SUBROUTINE DSYGST( ITYPE, UPLO, N, A, LDA, B, LDB, INFO )
+*
+*       .. Scalar Arguments ..
+*       CHARACTER          UPLO
+*       INTEGER            INFO, ITYPE, LDA, LDB, N
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION   A( LDA, * ), B( LDB, * )
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DSYGST reduces a real symmetric-definite generalized eigenproblem
+*> to standard form.
+*>
+*> If ITYPE = 1, the problem is A*x = lambda*B*x,
+*> and A is overwritten by inv(U**T)*A*inv(U) or inv(L)*A*inv(L**T)
+*>
+*> If ITYPE = 2 or 3, the problem is A*B*x = lambda*x or
+*> B*A*x = lambda*x, and A is overwritten by U*A*U**T or L**T*A*L.
+*>
+*> B must have been previously factorized as U**T*U or L*L**T by DPOTRF.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] ITYPE
+*> \verbatim
+*>          ITYPE is INTEGER
+*>          = 1: compute inv(U**T)*A*inv(U) or inv(L)*A*inv(L**T);
+*>          = 2 or 3: compute U*A*U**T or L**T*A*L.
+*> \endverbatim
+*>
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>          = 'U':  Upper triangle of A is stored and B is factored as
+*>                  U**T*U;
+*>          = 'L':  Lower triangle of A is stored and B is factored as
+*>                  L*L**T.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>          The order of the matrices A and B.  N >= 0.
+*> \endverbatim
+*>
+*> \param[in,out] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension (LDA,N)
+*>          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+*>          N-by-N upper triangular part of A contains the upper
+*>          triangular part of the matrix A, and the strictly lower
+*>          triangular part of A is not referenced.  If UPLO = 'L', the
+*>          leading N-by-N lower triangular part of A contains the lower
+*>          triangular part of the matrix A, and the strictly upper
+*>          triangular part of A is not referenced.
+*>
+*>          On exit, if INFO = 0, the transformed matrix, stored in the
+*>          same format as A.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>          The leading dimension of the array A.  LDA >= max(1,N).
+*> \endverbatim
+*>
+*> \param[in] B
+*> \verbatim
+*>          B is DOUBLE PRECISION array, dimension (LDB,N)
+*>          The triangular factor from the Cholesky factorization of B,
+*>          as returned by DPOTRF.
+*> \endverbatim
+*>
+*> \param[in] LDB
+*> \verbatim
+*>          LDB is INTEGER
+*>          The leading dimension of the array B.  LDB >= max(1,N).
+*> \endverbatim
+*>
+*> \param[out] INFO
+*> \verbatim
+*>          INFO is INTEGER
+*>          = 0:  successful exit
+*>          < 0:  if INFO = -i, the i-th argument had an illegal value
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup doubleSYcomputational
+*
+*  =====================================================================
+      SUBROUTINE dsygst( ITYPE, UPLO, N, A, LDA, B, LDB, INFO )
+*
+*  -- LAPACK computational routine --
+*  -- LAPACK is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      CHARACTER          UPLO
+      INTEGER            INFO, ITYPE, LDA, LDB, N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION   A( LDA, * ), B( LDB, * )
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION   ONE, HALF
+      parameter( one = 1.0d0, half = 0.5d0 )
+*     ..
+*     .. Local Scalars ..
+      LOGICAL            UPPER
+      INTEGER            K, KB, NB
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           dsygs2, dsymm, dsyr2k, dtrmm, dtrsm, xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          max, min
+*     ..
+*     .. External Functions ..
+      LOGICAL            LSAME
+      INTEGER            ILAENV
+      EXTERNAL           lsame, ilaenv
+*     ..
+*     .. Executable Statements ..
+*
+*     Test the input parameters.
+*
+      info = 0
+      upper = lsame( uplo, 'U' )
+      IF( itype.LT.1 .OR. itype.GT.3 ) THEN
+         info = -1
+      ELSE IF( .NOT.upper .AND. .NOT.lsame( uplo, 'L' ) ) THEN
+         info = -2
+      ELSE IF( n.LT.0 ) THEN
+         info = -3
+      ELSE IF( lda.LT.max( 1, n ) ) THEN
+         info = -5
+      ELSE IF( ldb.LT.max( 1, n ) ) THEN
+         info = -7
+      END IF
+      IF( info.NE.0 ) THEN
+         CALL xerbla( 'DSYGST', -info )
+         RETURN
+      END IF
+*
+*     Quick return if possible
+*
+      IF( n.EQ.0 )
+     $   RETURN
+*
+*     Determine the block size for this environment.
+*
+      nb = ilaenv( 1, 'DSYGST', uplo, n, -1, -1, -1 )
+*
+      IF( nb.LE.1 .OR. nb.GE.n ) THEN
+*
+*        Use unblocked code
+*
+         CALL dsygs2( itype, uplo, n, a, lda, b, ldb, info )
+      ELSE
+*
+*        Use blocked code
+*
+         IF( itype.EQ.1 ) THEN
+            IF( upper ) THEN
+*
+*              Compute inv(U**T)*A*inv(U)
+*
+               DO 10 k = 1, n, nb
+                  kb = min( n-k+1, nb )
+*
+*                 Update the upper triangle of A(k:n,k:n)
+*
+                  CALL dsygs2( itype, uplo, kb, a( k, k ), lda,
+     $                         b( k, k ), ldb, info )
+                  IF( k+kb.LE.n ) THEN
+                     CALL dtrsm( 'Left', uplo, 'Transpose', 'Non-unit',
+     $                           kb, n-k-kb+1, one, b( k, k ), ldb,
+     $                           a( k, k+kb ), lda )
+                     CALL dsymm( 'Left', uplo, kb, n-k-kb+1, -half,
+     $                           a( k, k ), lda, b( k, k+kb ), ldb, one,
+     $                           a( k, k+kb ), lda )
+                     CALL dsyr2k( uplo, 'Transpose', n-k-kb+1, kb, -one,
+     $                            a( k, k+kb ), lda, b( k, k+kb ), ldb,
+     $                            one, a( k+kb, k+kb ), lda )
+                     CALL dsymm( 'Left', uplo, kb, n-k-kb+1, -half,
+     $                           a( k, k ), lda, b( k, k+kb ), ldb, one,
+     $                           a( k, k+kb ), lda )
+                     CALL dtrsm( 'Right', uplo, 'No transpose',
+     $                           'Non-unit', kb, n-k-kb+1, one,
+     $                           b( k+kb, k+kb ), ldb, a( k, k+kb ),
+     $                           lda )
+                  END IF
+   10          CONTINUE
+            ELSE
+*
+*              Compute inv(L)*A*inv(L**T)
+*
+               DO 20 k = 1, n, nb
+                  kb = min( n-k+1, nb )
+*
+*                 Update the lower triangle of A(k:n,k:n)
+*
+                  CALL dsygs2( itype, uplo, kb, a( k, k ), lda,
+     $                         b( k, k ), ldb, info )
+                  IF( k+kb.LE.n ) THEN
+                     CALL dtrsm( 'Right', uplo, 'Transpose', 'Non-unit',
+     $                           n-k-kb+1, kb, one, b( k, k ), ldb,
+     $                           a( k+kb, k ), lda )
+                     CALL dsymm( 'Right', uplo, n-k-kb+1, kb, -half,
+     $                           a( k, k ), lda, b( k+kb, k ), ldb, one,
+     $                           a( k+kb, k ), lda )
+                     CALL dsyr2k( uplo, 'No transpose', n-k-kb+1, kb,
+     $                            -one, a( k+kb, k ), lda, b( k+kb, k ),
+     $                            ldb, one, a( k+kb, k+kb ), lda )
+                     CALL dsymm( 'Right', uplo, n-k-kb+1, kb, -half,
+     $                           a( k, k ), lda, b( k+kb, k ), ldb, one,
+     $                           a( k+kb, k ), lda )
+                     CALL dtrsm( 'Left', uplo, 'No transpose',
+     $                           'Non-unit', n-k-kb+1, kb, one,
+     $                           b( k+kb, k+kb ), ldb, a( k+kb, k ),
+     $                           lda )
+                  END IF
+   20          CONTINUE
+            END IF
+         ELSE
+            IF( upper ) THEN
+*
+*              Compute U*A*U**T
+*
+               DO 30 k = 1, n, nb
+                  kb = min( n-k+1, nb )
+*
+*                 Update the upper triangle of A(1:k+kb-1,1:k+kb-1)
+*
+                  CALL dtrmm( 'Left', uplo, 'No transpose', 'Non-unit',
+     $                        k-1, kb, one, b, ldb, a( 1, k ), lda )
+                  CALL dsymm( 'Right', uplo, k-1, kb, half, a( k, k ),
+     $                        lda, b( 1, k ), ldb, one, a( 1, k ), lda )
+                  CALL dsyr2k( uplo, 'No transpose', k-1, kb, one,
+     $                         a( 1, k ), lda, b( 1, k ), ldb, one, a,
+     $                         lda )
+                  CALL dsymm( 'Right', uplo, k-1, kb, half, a( k, k ),
+     $                        lda, b( 1, k ), ldb, one, a( 1, k ), lda )
+                  CALL dtrmm( 'Right', uplo, 'Transpose', 'Non-unit',
+     $                        k-1, kb, one, b( k, k ), ldb, a( 1, k ),
+     $                        lda )
+                  CALL dsygs2( itype, uplo, kb, a( k, k ), lda,
+     $                         b( k, k ), ldb, info )
+   30          CONTINUE
+            ELSE
+*
+*              Compute L**T*A*L
+*
+               DO 40 k = 1, n, nb
+                  kb = min( n-k+1, nb )
+*
+*                 Update the lower triangle of A(1:k+kb-1,1:k+kb-1)
+*
+                  CALL dtrmm( 'Right', uplo, 'No transpose', 'Non-unit',
+     $                        kb, k-1, one, b, ldb, a( k, 1 ), lda )
+                  CALL dsymm( 'Left', uplo, kb, k-1, half, a( k, k ),
+     $                        lda, b( k, 1 ), ldb, one, a( k, 1 ), lda )
+                  CALL dsyr2k( uplo, 'Transpose', k-1, kb, one,
+     $                         a( k, 1 ), lda, b( k, 1 ), ldb, one, a,
+     $                         lda )
+                  CALL dsymm( 'Left', uplo, kb, k-1, half, a( k, k ),
+     $                        lda, b( k, 1 ), ldb, one, a( k, 1 ), lda )
+                  CALL dtrmm( 'Left', uplo, 'Transpose', 'Non-unit', kb,
+     $                        k-1, one, b( k, k ), ldb, a( k, 1 ), lda )
+                  CALL dsygs2( itype, uplo, kb, a( k, k ), lda,
+     $                         b( k, k ), ldb, info )
+   40          CONTINUE
+            END IF
+         END IF
+      END IF
+      RETURN
+*
+*     End of DSYGST
+*
+      END
+
+*> \brief \b DSYMM
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*  Definition:
+*  ===========
+*
+*       SUBROUTINE DSYMM(SIDE,UPLO,M,N,ALPHA,A,LDA,B,LDB,BETA,C,LDC)
+*
+*       .. Scalar Arguments ..
+*       DOUBLE PRECISION ALPHA,BETA
+*       INTEGER LDA,LDB,LDC,M,N
+*       CHARACTER SIDE,UPLO
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION A(LDA,*),B(LDB,*),C(LDC,*)
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DSYMM  performs one of the matrix-matrix operations
+*>
+*>    C := alpha*A*B + beta*C,
+*>
+*> or
+*>
+*>    C := alpha*B*A + beta*C,
+*>
+*> where alpha and beta are scalars,  A is a symmetric matrix and  B and
+*> C are  m by n matrices.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] SIDE
+*> \verbatim
+*>          SIDE is CHARACTER*1
+*>           On entry,  SIDE  specifies whether  the  symmetric matrix  A
+*>           appears on the  left or right  in the  operation as follows:
+*>
+*>              SIDE = 'L' or 'l'   C := alpha*A*B + beta*C,
+*>
+*>              SIDE = 'R' or 'r'   C := alpha*B*A + beta*C,
+*> \endverbatim
+*>
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>           On  entry,   UPLO  specifies  whether  the  upper  or  lower
+*>           triangular  part  of  the  symmetric  matrix   A  is  to  be
+*>           referenced as follows:
+*>
+*>              UPLO = 'U' or 'u'   Only the upper triangular part of the
+*>                                  symmetric matrix is to be referenced.
+*>
+*>              UPLO = 'L' or 'l'   Only the lower triangular part of the
+*>                                  symmetric matrix is to be referenced.
+*> \endverbatim
+*>
+*> \param[in] M
+*> \verbatim
+*>          M is INTEGER
+*>           On entry,  M  specifies the number of rows of the matrix  C.
+*>           M  must be at least zero.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>           On entry, N specifies the number of columns of the matrix C.
+*>           N  must be at least zero.
+*> \endverbatim
+*>
+*> \param[in] ALPHA
+*> \verbatim
+*>          ALPHA is DOUBLE PRECISION.
+*>           On entry, ALPHA specifies the scalar alpha.
+*> \endverbatim
+*>
+*> \param[in] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension ( LDA, ka ), where ka is
+*>           m  when  SIDE = 'L' or 'l'  and is  n otherwise.
+*>           Before entry  with  SIDE = 'L' or 'l',  the  m by m  part of
+*>           the array  A  must contain the  symmetric matrix,  such that
+*>           when  UPLO = 'U' or 'u', the leading m by m upper triangular
+*>           part of the array  A  must contain the upper triangular part
+*>           of the  symmetric matrix and the  strictly  lower triangular
+*>           part of  A  is not referenced,  and when  UPLO = 'L' or 'l',
+*>           the leading  m by m  lower triangular part  of the  array  A
+*>           must  contain  the  lower triangular part  of the  symmetric
+*>           matrix and the  strictly upper triangular part of  A  is not
+*>           referenced.
+*>           Before entry  with  SIDE = 'R' or 'r',  the  n by n  part of
+*>           the array  A  must contain the  symmetric matrix,  such that
+*>           when  UPLO = 'U' or 'u', the leading n by n upper triangular
+*>           part of the array  A  must contain the upper triangular part
+*>           of the  symmetric matrix and the  strictly  lower triangular
+*>           part of  A  is not referenced,  and when  UPLO = 'L' or 'l',
+*>           the leading  n by n  lower triangular part  of the  array  A
+*>           must  contain  the  lower triangular part  of the  symmetric
+*>           matrix and the  strictly upper triangular part of  A  is not
+*>           referenced.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>           On entry, LDA specifies the first dimension of A as declared
+*>           in the calling (sub) program.  When  SIDE = 'L' or 'l'  then
+*>           LDA must be at least  max( 1, m ), otherwise  LDA must be at
+*>           least  max( 1, n ).
+*> \endverbatim
+*>
+*> \param[in] B
+*> \verbatim
+*>          B is DOUBLE PRECISION array, dimension ( LDB, N )
+*>           Before entry, the leading  m by n part of the array  B  must
+*>           contain the matrix B.
+*> \endverbatim
+*>
+*> \param[in] LDB
+*> \verbatim
+*>          LDB is INTEGER
+*>           On entry, LDB specifies the first dimension of B as declared
+*>           in  the  calling  (sub)  program.   LDB  must  be  at  least
+*>           max( 1, m ).
+*> \endverbatim
+*>
+*> \param[in] BETA
+*> \verbatim
+*>          BETA is DOUBLE PRECISION.
+*>           On entry,  BETA  specifies the scalar  beta.  When  BETA  is
+*>           supplied as zero then C need not be set on input.
+*> \endverbatim
+*>
+*> \param[in,out] C
+*> \verbatim
+*>          C is DOUBLE PRECISION array, dimension ( LDC, N )
+*>           Before entry, the leading  m by n  part of the array  C must
+*>           contain the matrix  C,  except when  beta  is zero, in which
+*>           case C need not be set on entry.
+*>           On exit, the array  C  is overwritten by the  m by n updated
+*>           matrix.
+*> \endverbatim
+*>
+*> \param[in] LDC
+*> \verbatim
+*>          LDC is INTEGER
+*>           On entry, LDC specifies the first dimension of C as declared
+*>           in  the  calling  (sub)  program.   LDC  must  be  at  least
+*>           max( 1, m ).
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup double_blas_level3
+*
+*> \par Further Details:
+*  =====================
+*>
+*> \verbatim
+*>
+*>  Level 3 Blas routine.
+*>
+*>  -- Written on 8-February-1989.
+*>     Jack Dongarra, Argonne National Laboratory.
+*>     Iain Duff, AERE Harwell.
+*>     Jeremy Du Croz, Numerical Algorithms Group Ltd.
+*>     Sven Hammarling, Numerical Algorithms Group Ltd.
+*> \endverbatim
+*>
+*  =====================================================================
+      SUBROUTINE dsymm(SIDE,UPLO,M,N,ALPHA,A,LDA,B,LDB,BETA,C,LDC)
+*
+*  -- Reference BLAS level3 routine --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      DOUBLE PRECISION ALPHA,BETA
+      INTEGER LDA,LDB,LDC,M,N
+      CHARACTER SIDE,UPLO
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION A(LDA,*),B(LDB,*),C(LDC,*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. External Functions ..
+      LOGICAL LSAME
+      EXTERNAL lsame
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC max
+*     ..
+*     .. Local Scalars ..
+      DOUBLE PRECISION TEMP1,TEMP2
+      INTEGER I,INFO,J,K,NROWA
+      LOGICAL UPPER
+*     ..
+*     .. Parameters ..
+      DOUBLE PRECISION ONE,ZERO
+      parameter(one=1.0d+0,zero=0.0d+0)
+*     ..
+*
+*     Set NROWA as the number of rows of A.
+*
+      IF (lsame(side,'L')) THEN
+          nrowa = m
+      ELSE
+          nrowa = n
+      END IF
+      upper = lsame(uplo,'U')
+*
+*     Test the input parameters.
+*
+      info = 0
+      IF ((.NOT.lsame(side,'L')) .AND. (.NOT.lsame(side,'R'))) THEN
+          info = 1
+      ELSE IF ((.NOT.upper) .AND. (.NOT.lsame(uplo,'L'))) THEN
+          info = 2
+      ELSE IF (m.LT.0) THEN
+          info = 3
+      ELSE IF (n.LT.0) THEN
+          info = 4
+      ELSE IF (lda.LT.max(1,nrowa)) THEN
+          info = 7
+      ELSE IF (ldb.LT.max(1,m)) THEN
+          info = 9
+      ELSE IF (ldc.LT.max(1,m)) THEN
+          info = 12
+      END IF
+      IF (info.NE.0) THEN
+          CALL xerbla('DSYMM ',info)
+          RETURN
+      END IF
+*
+*     Quick return if possible.
+*
+      IF ((m.EQ.0) .OR. (n.EQ.0) .OR.
+     +    ((alpha.EQ.zero).AND. (beta.EQ.one))) RETURN
+*
+*     And when  alpha.eq.zero.
+*
+      IF (alpha.EQ.zero) THEN
+          IF (beta.EQ.zero) THEN
+              DO 20 j = 1,n
+                  DO 10 i = 1,m
+                      c(i,j) = zero
+   10             CONTINUE
+   20         CONTINUE
+          ELSE
+              DO 40 j = 1,n
+                  DO 30 i = 1,m
+                      c(i,j) = beta*c(i,j)
+   30             CONTINUE
+   40         CONTINUE
+          END IF
+          RETURN
+      END IF
+*
+*     Start the operations.
+*
+      IF (lsame(side,'L')) THEN
+*
+*        Form  C := alpha*A*B + beta*C.
+*
+          IF (upper) THEN
+              DO 70 j = 1,n
+                  DO 60 i = 1,m
+                      temp1 = alpha*b(i,j)
+                      temp2 = zero
+                      DO 50 k = 1,i - 1
+                          c(k,j) = c(k,j) + temp1*a(k,i)
+                          temp2 = temp2 + b(k,j)*a(k,i)
+   50                 CONTINUE
+                      IF (beta.EQ.zero) THEN
+                          c(i,j) = temp1*a(i,i) + alpha*temp2
+                      ELSE
+                          c(i,j) = beta*c(i,j) + temp1*a(i,i) +
+     +                             alpha*temp2
+                      END IF
+   60             CONTINUE
+   70         CONTINUE
+          ELSE
+              DO 100 j = 1,n
+                  DO 90 i = m,1,-1
+                      temp1 = alpha*b(i,j)
+                      temp2 = zero
+                      DO 80 k = i + 1,m
+                          c(k,j) = c(k,j) + temp1*a(k,i)
+                          temp2 = temp2 + b(k,j)*a(k,i)
+   80                 CONTINUE
+                      IF (beta.EQ.zero) THEN
+                          c(i,j) = temp1*a(i,i) + alpha*temp2
+                      ELSE
+                          c(i,j) = beta*c(i,j) + temp1*a(i,i) +
+     +                             alpha*temp2
+                      END IF
+   90             CONTINUE
+  100         CONTINUE
+          END IF
+      ELSE
+*
+*        Form  C := alpha*B*A + beta*C.
+*
+          DO 170 j = 1,n
+              temp1 = alpha*a(j,j)
+              IF (beta.EQ.zero) THEN
+                  DO 110 i = 1,m
+                      c(i,j) = temp1*b(i,j)
+  110             CONTINUE
+              ELSE
+                  DO 120 i = 1,m
+                      c(i,j) = beta*c(i,j) + temp1*b(i,j)
+  120             CONTINUE
+              END IF
+              DO 140 k = 1,j - 1
+                  IF (upper) THEN
+                      temp1 = alpha*a(k,j)
+                  ELSE
+                      temp1 = alpha*a(j,k)
+                  END IF
+                  DO 130 i = 1,m
+                      c(i,j) = c(i,j) + temp1*b(i,k)
+  130             CONTINUE
+  140         CONTINUE
+              DO 160 k = j + 1,n
+                  IF (upper) THEN
+                      temp1 = alpha*a(j,k)
+                  ELSE
+                      temp1 = alpha*a(k,j)
+                  END IF
+                  DO 150 i = 1,m
+                      c(i,j) = c(i,j) + temp1*b(i,k)
+  150             CONTINUE
+  160         CONTINUE
+  170     CONTINUE
+      END IF
+*
+      RETURN
+*
+*     End of DSYMM
+*
+      END
+
+*> \brief \b DSYGS2 reduces a symmetric definite generalized eigenproblem to standard form, using the factorization results obtained from spotrf (unblocked algorithm).
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*> \htmlonly
+*> Download DSYGS2 + dependencies
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.tgz?format=tgz&filename=/lapack/lapack_routine/dsygs2.f">
+*> [TGZ]</a>
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.zip?format=zip&filename=/lapack/lapack_routine/dsygs2.f">
+*> [ZIP]</a>
+*> <a href="http://www.netlib.org/cgi-bin/netlibfiles.txt?format=txt&filename=/lapack/lapack_routine/dsygs2.f">
+*> [TXT]</a>
+*> \endhtmlonly
+*
+*  Definition:
+*  ===========
+*
+*       SUBROUTINE DSYGS2( ITYPE, UPLO, N, A, LDA, B, LDB, INFO )
+*
+*       .. Scalar Arguments ..
+*       CHARACTER          UPLO
+*       INTEGER            INFO, ITYPE, LDA, LDB, N
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION   A( LDA, * ), B( LDB, * )
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DSYGS2 reduces a real symmetric-definite generalized eigenproblem
+*> to standard form.
+*>
+*> If ITYPE = 1, the problem is A*x = lambda*B*x,
+*> and A is overwritten by inv(U**T)*A*inv(U) or inv(L)*A*inv(L**T)
+*>
+*> If ITYPE = 2 or 3, the problem is A*B*x = lambda*x or
+*> B*A*x = lambda*x, and A is overwritten by U*A*U**T or L**T *A*L.
+*>
+*> B must have been previously factorized as U**T *U or L*L**T by DPOTRF.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] ITYPE
+*> \verbatim
+*>          ITYPE is INTEGER
+*>          = 1: compute inv(U**T)*A*inv(U) or inv(L)*A*inv(L**T);
+*>          = 2 or 3: compute U*A*U**T or L**T *A*L.
+*> \endverbatim
+*>
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>          Specifies whether the upper or lower triangular part of the
+*>          symmetric matrix A is stored, and how B has been factorized.
+*>          = 'U':  Upper triangular
+*>          = 'L':  Lower triangular
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>          The order of the matrices A and B.  N >= 0.
+*> \endverbatim
+*>
+*> \param[in,out] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension (LDA,N)
+*>          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+*>          n by n upper triangular part of A contains the upper
+*>          triangular part of the matrix A, and the strictly lower
+*>          triangular part of A is not referenced.  If UPLO = 'L', the
+*>          leading n by n lower triangular part of A contains the lower
+*>          triangular part of the matrix A, and the strictly upper
+*>          triangular part of A is not referenced.
+*>
+*>          On exit, if INFO = 0, the transformed matrix, stored in the
+*>          same format as A.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>          The leading dimension of the array A.  LDA >= max(1,N).
+*> \endverbatim
+*>
+*> \param[in] B
+*> \verbatim
+*>          B is DOUBLE PRECISION array, dimension (LDB,N)
+*>          The triangular factor from the Cholesky factorization of B,
+*>          as returned by DPOTRF.
+*> \endverbatim
+*>
+*> \param[in] LDB
+*> \verbatim
+*>          LDB is INTEGER
+*>          The leading dimension of the array B.  LDB >= max(1,N).
+*> \endverbatim
+*>
+*> \param[out] INFO
+*> \verbatim
+*>          INFO is INTEGER
+*>          = 0:  successful exit.
+*>          < 0:  if INFO = -i, the i-th argument had an illegal value.
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup doubleSYcomputational
+*
+*  =====================================================================
+      SUBROUTINE dsygs2( ITYPE, UPLO, N, A, LDA, B, LDB, INFO )
+*
+*  -- LAPACK computational routine --
+*  -- LAPACK is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      CHARACTER          UPLO
+      INTEGER            INFO, ITYPE, LDA, LDB, N
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION   A( LDA, * ), B( LDB, * )
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION   ONE, HALF
+      parameter( one = 1.0d0, half = 0.5d0 )
+*     ..
+*     .. Local Scalars ..
+      LOGICAL            UPPER
+      INTEGER            K
+      DOUBLE PRECISION   AKK, BKK, CT
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL           daxpy, dscal, dsyr2, dtrmv, dtrsv, xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC          max
+*     ..
+*     .. External Functions ..
+      LOGICAL            LSAME
+      EXTERNAL           lsame
+*     ..
+*     .. Executable Statements ..
+*
+*     Test the input parameters.
+*
+      info = 0
+      upper = lsame( uplo, 'U' )
+      IF( itype.LT.1 .OR. itype.GT.3 ) THEN
+         info = -1
+      ELSE IF( .NOT.upper .AND. .NOT.lsame( uplo, 'L' ) ) THEN
+         info = -2
+      ELSE IF( n.LT.0 ) THEN
+         info = -3
+      ELSE IF( lda.LT.max( 1, n ) ) THEN
+         info = -5
+      ELSE IF( ldb.LT.max( 1, n ) ) THEN
+         info = -7
+      END IF
+      IF( info.NE.0 ) THEN
+         CALL xerbla( 'DSYGS2', -info )
+         RETURN
+      END IF
+*
+      IF( itype.EQ.1 ) THEN
+         IF( upper ) THEN
+*
+*           Compute inv(U**T)*A*inv(U)
+*
+            DO 10 k = 1, n
+*
+*              Update the upper triangle of A(k:n,k:n)
+*
+               akk = a( k, k )
+               bkk = b( k, k )
+               akk = akk / bkk**2
+               a( k, k ) = akk
+               IF( k.LT.n ) THEN
+                  CALL dscal( n-k, one / bkk, a( k, k+1 ), lda )
+                  ct = -half*akk
+                  CALL daxpy( n-k, ct, b( k, k+1 ), ldb, a( k, k+1 ),
+     $                        lda )
+                  CALL dsyr2( uplo, n-k, -one, a( k, k+1 ), lda,
+     $                        b( k, k+1 ), ldb, a( k+1, k+1 ), lda )
+                  CALL daxpy( n-k, ct, b( k, k+1 ), ldb, a( k, k+1 ),
+     $                        lda )
+                  CALL dtrsv( uplo, 'Transpose', 'Non-unit', n-k,
+     $                        b( k+1, k+1 ), ldb, a( k, k+1 ), lda )
+               END IF
+   10       CONTINUE
+         ELSE
+*
+*           Compute inv(L)*A*inv(L**T)
+*
+            DO 20 k = 1, n
+*
+*              Update the lower triangle of A(k:n,k:n)
+*
+               akk = a( k, k )
+               bkk = b( k, k )
+               akk = akk / bkk**2
+               a( k, k ) = akk
+               IF( k.LT.n ) THEN
+                  CALL dscal( n-k, one / bkk, a( k+1, k ), 1 )
+                  ct = -half*akk
+                  CALL daxpy( n-k, ct, b( k+1, k ), 1, a( k+1, k ), 1 )
+                  CALL dsyr2( uplo, n-k, -one, a( k+1, k ), 1,
+     $                        b( k+1, k ), 1, a( k+1, k+1 ), lda )
+                  CALL daxpy( n-k, ct, b( k+1, k ), 1, a( k+1, k ), 1 )
+                  CALL dtrsv( uplo, 'No transpose', 'Non-unit', n-k,
+     $                        b( k+1, k+1 ), ldb, a( k+1, k ), 1 )
+               END IF
+   20       CONTINUE
+         END IF
+      ELSE
+         IF( upper ) THEN
+*
+*           Compute U*A*U**T
+*
+            DO 30 k = 1, n
+*
+*              Update the upper triangle of A(1:k,1:k)
+*
+               akk = a( k, k )
+               bkk = b( k, k )
+               CALL dtrmv( uplo, 'No transpose', 'Non-unit', k-1, b,
+     $                     ldb, a( 1, k ), 1 )
+               ct = half*akk
+               CALL daxpy( k-1, ct, b( 1, k ), 1, a( 1, k ), 1 )
+               CALL dsyr2( uplo, k-1, one, a( 1, k ), 1, b( 1, k ), 1,
+     $                     a, lda )
+               CALL daxpy( k-1, ct, b( 1, k ), 1, a( 1, k ), 1 )
+               CALL dscal( k-1, bkk, a( 1, k ), 1 )
+               a( k, k ) = akk*bkk**2
+   30       CONTINUE
+         ELSE
+*
+*           Compute L**T *A*L
+*
+            DO 40 k = 1, n
+*
+*              Update the lower triangle of A(1:k,1:k)
+*
+               akk = a( k, k )
+               bkk = b( k, k )
+               CALL dtrmv( uplo, 'Transpose', 'Non-unit', k-1, b, ldb,
+     $                     a( k, 1 ), lda )
+               ct = half*akk
+               CALL daxpy( k-1, ct, b( k, 1 ), ldb, a( k, 1 ), lda )
+               CALL dsyr2( uplo, k-1, one, a( k, 1 ), lda, b( k, 1 ),
+     $                     ldb, a, lda )
+               CALL daxpy( k-1, ct, b( k, 1 ), ldb, a( k, 1 ), lda )
+               CALL dscal( k-1, bkk, a( k, 1 ), lda )
+               a( k, k ) = akk*bkk**2
+   40       CONTINUE
+         END IF
+      END IF
+      RETURN
+*
+*     End of DSYGS2
+*
+      END
+
+*> \brief \b DTRSV
+*
+*  =========== DOCUMENTATION ===========
+*
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
+*
+*  Definition:
+*  ===========
+*
+*       SUBROUTINE DTRSV(UPLO,TRANS,DIAG,N,A,LDA,X,INCX)
+*
+*       .. Scalar Arguments ..
+*       INTEGER INCX,LDA,N
+*       CHARACTER DIAG,TRANS,UPLO
+*       ..
+*       .. Array Arguments ..
+*       DOUBLE PRECISION A(LDA,*),X(*)
+*       ..
+*
+*
+*> \par Purpose:
+*  =============
+*>
+*> \verbatim
+*>
+*> DTRSV  solves one of the systems of equations
+*>
+*>    A*x = b,   or   A**T*x = b,
+*>
+*> where b and x are n element vectors and A is an n by n unit, or
+*> non-unit, upper or lower triangular matrix.
+*>
+*> No test for singularity or near-singularity is included in this
+*> routine. Such tests must be performed before calling this routine.
+*> \endverbatim
+*
+*  Arguments:
+*  ==========
+*
+*> \param[in] UPLO
+*> \verbatim
+*>          UPLO is CHARACTER*1
+*>           On entry, UPLO specifies whether the matrix is an upper or
+*>           lower triangular matrix as follows:
+*>
+*>              UPLO = 'U' or 'u'   A is an upper triangular matrix.
+*>
+*>              UPLO = 'L' or 'l'   A is a lower triangular matrix.
+*> \endverbatim
+*>
+*> \param[in] TRANS
+*> \verbatim
+*>          TRANS is CHARACTER*1
+*>           On entry, TRANS specifies the equations to be solved as
+*>           follows:
+*>
+*>              TRANS = 'N' or 'n'   A*x = b.
+*>
+*>              TRANS = 'T' or 't'   A**T*x = b.
+*>
+*>              TRANS = 'C' or 'c'   A**T*x = b.
+*> \endverbatim
+*>
+*> \param[in] DIAG
+*> \verbatim
+*>          DIAG is CHARACTER*1
+*>           On entry, DIAG specifies whether or not A is unit
+*>           triangular as follows:
+*>
+*>              DIAG = 'U' or 'u'   A is assumed to be unit triangular.
+*>
+*>              DIAG = 'N' or 'n'   A is not assumed to be unit
+*>                                  triangular.
+*> \endverbatim
+*>
+*> \param[in] N
+*> \verbatim
+*>          N is INTEGER
+*>           On entry, N specifies the order of the matrix A.
+*>           N must be at least zero.
+*> \endverbatim
+*>
+*> \param[in] A
+*> \verbatim
+*>          A is DOUBLE PRECISION array, dimension ( LDA, N )
+*>           Before entry with  UPLO = 'U' or 'u', the leading n by n
+*>           upper triangular part of the array A must contain the upper
+*>           triangular matrix and the strictly lower triangular part of
+*>           A is not referenced.
+*>           Before entry with UPLO = 'L' or 'l', the leading n by n
+*>           lower triangular part of the array A must contain the lower
+*>           triangular matrix and the strictly upper triangular part of
+*>           A is not referenced.
+*>           Note that when  DIAG = 'U' or 'u', the diagonal elements of
+*>           A are not referenced either, but are assumed to be unity.
+*> \endverbatim
+*>
+*> \param[in] LDA
+*> \verbatim
+*>          LDA is INTEGER
+*>           On entry, LDA specifies the first dimension of A as declared
+*>           in the calling (sub) program. LDA must be at least
+*>           max( 1, n ).
+*> \endverbatim
+*>
+*> \param[in,out] X
+*> \verbatim
+*>          X is DOUBLE PRECISION array, dimension at least
+*>           ( 1 + ( n - 1 )*abs( INCX ) ).
+*>           Before entry, the incremented array X must contain the n
+*>           element right-hand side vector b. On exit, X is overwritten
+*>           with the solution vector x.
+*> \endverbatim
+*>
+*> \param[in] INCX
+*> \verbatim
+*>          INCX is INTEGER
+*>           On entry, INCX specifies the increment for the elements of
+*>           X. INCX must not be zero.
+*>
+*>  Level 2 Blas routine.
+*>
+*>  -- Written on 22-October-1986.
+*>     Jack Dongarra, Argonne National Lab.
+*>     Jeremy Du Croz, Nag Central Office.
+*>     Sven Hammarling, Nag Central Office.
+*>     Richard Hanson, Sandia National Labs.
+*> \endverbatim
+*
+*  Authors:
+*  ========
+*
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
+*
+*> \ingroup double_blas_level1
+*
+*  =====================================================================
+      SUBROUTINE dtrsv(UPLO,TRANS,DIAG,N,A,LDA,X,INCX)
+*
+*  -- Reference BLAS level1 routine --
+*  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
+*  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
+*
+*     .. Scalar Arguments ..
+      INTEGER INCX,LDA,N
+      CHARACTER DIAG,TRANS,UPLO
+*     ..
+*     .. Array Arguments ..
+      DOUBLE PRECISION A(LDA,*),X(*)
+*     ..
+*
+*  =====================================================================
+*
+*     .. Parameters ..
+      DOUBLE PRECISION ZERO
+      parameter(zero=0.0d+0)
+*     ..
+*     .. Local Scalars ..
+      DOUBLE PRECISION TEMP
+      INTEGER I,INFO,IX,J,JX,KX
+      LOGICAL NOUNIT
+*     ..
+*     .. External Functions ..
+      LOGICAL LSAME
+      EXTERNAL lsame
+*     ..
+*     .. External Subroutines ..
+      EXTERNAL xerbla
+*     ..
+*     .. Intrinsic Functions ..
+      INTRINSIC max
+*     ..
+*
+*     Test the input parameters.
+*
+      info = 0
+      IF (.NOT.lsame(uplo,'U') .AND. .NOT.lsame(uplo,'L')) THEN
+          info = 1
+      ELSE IF (.NOT.lsame(trans,'N') .AND. .NOT.lsame(trans,'T') .AND.
+     +         .NOT.lsame(trans,'C')) THEN
+          info = 2
+      ELSE IF (.NOT.lsame(diag,'U') .AND. .NOT.lsame(diag,'N')) THEN
+          info = 3
+      ELSE IF (n.LT.0) THEN
+          info = 4
+      ELSE IF (lda.LT.max(1,n)) THEN
+          info = 6
+      ELSE IF (incx.EQ.0) THEN
+          info = 8
+      END IF
+      IF (info.NE.0) THEN
+          CALL xerbla('DTRSV ',info)
+          RETURN
+      END IF
+*
+*     Quick return if possible.
+*
+      IF (n.EQ.0) RETURN
+*
+      nounit = lsame(diag,'N')
+*
+*     Set up the start point in X if the increment is not unity. This
+*     will be  ( N - 1 )*INCX  too small for descending loops.
+*
+      IF (incx.LE.0) THEN
+          kx = 1 - (n-1)*incx
+      ELSE IF (incx.NE.1) THEN
+          kx = 1
+      END IF
+*
+*     Start the operations. In this version the elements of A are
+*     accessed sequentially with one pass through A.
+*
+      IF (lsame(trans,'N')) THEN
+*
+*        Form  x := inv( A )*x.
+*
+          IF (lsame(uplo,'U')) THEN
+              IF (incx.EQ.1) THEN
+                  DO 20 j = n,1,-1
+                      IF (x(j).NE.zero) THEN
+                          IF (nounit) x(j) = x(j)/a(j,j)
+                          temp = x(j)
+                          DO 10 i = j - 1,1,-1
+                              x(i) = x(i) - temp*a(i,j)
+   10                     CONTINUE
+                      END IF
+   20             CONTINUE
+              ELSE
+                  jx = kx + (n-1)*incx
+                  DO 40 j = n,1,-1
+                      IF (x(jx).NE.zero) THEN
+                          IF (nounit) x(jx) = x(jx)/a(j,j)
+                          temp = x(jx)
+                          ix = jx
+                          DO 30 i = j - 1,1,-1
+                              ix = ix - incx
+                              x(ix) = x(ix) - temp*a(i,j)
+   30                     CONTINUE
+                      END IF
+                      jx = jx - incx
+   40             CONTINUE
+              END IF
+          ELSE
+              IF (incx.EQ.1) THEN
+                  DO 60 j = 1,n
+                      IF (x(j).NE.zero) THEN
+                          IF (nounit) x(j) = x(j)/a(j,j)
+                          temp = x(j)
+                          DO 50 i = j + 1,n
+                              x(i) = x(i) - temp*a(i,j)
+   50                     CONTINUE
+                      END IF
+   60             CONTINUE
+              ELSE
+                  jx = kx
+                  DO 80 j = 1,n
+                      IF (x(jx).NE.zero) THEN
+                          IF (nounit) x(jx) = x(jx)/a(j,j)
+                          temp = x(jx)
+                          ix = jx
+                          DO 70 i = j + 1,n
+                              ix = ix + incx
+                              x(ix) = x(ix) - temp*a(i,j)
+   70                     CONTINUE
+                      END IF
+                      jx = jx + incx
+   80             CONTINUE
+              END IF
+          END IF
+      ELSE
+*
+*        Form  x := inv( A**T )*x.
+*
+          IF (lsame(uplo,'U')) THEN
+              IF (incx.EQ.1) THEN
+                  DO 100 j = 1,n
+                      temp = x(j)
+                      DO 90 i = 1,j - 1
+                          temp = temp - a(i,j)*x(i)
+   90                 CONTINUE
+                      IF (nounit) temp = temp/a(j,j)
+                      x(j) = temp
+  100             CONTINUE
+              ELSE
+                  jx = kx
+                  DO 120 j = 1,n
+                      temp = x(jx)
+                      ix = kx
+                      DO 110 i = 1,j - 1
+                          temp = temp - a(i,j)*x(ix)
+                          ix = ix + incx
+  110                 CONTINUE
+                      IF (nounit) temp = temp/a(j,j)
+                      x(jx) = temp
+                      jx = jx + incx
+  120             CONTINUE
+              END IF
+          ELSE
+              IF (incx.EQ.1) THEN
+                  DO 140 j = n,1,-1
+                      temp = x(j)
+                      DO 130 i = n,j + 1,-1
+                          temp = temp - a(i,j)*x(i)
+  130                 CONTINUE
+                      IF (nounit) temp = temp/a(j,j)
+                      x(j) = temp
+  140             CONTINUE
+              ELSE
+                  kx = kx + (n-1)*incx
+                  jx = kx
+                  DO 160 j = n,1,-1
+                      temp = x(jx)
+                      ix = kx
+                      DO 150 i = n,j + 1,-1
+                          temp = temp - a(i,j)*x(ix)
+                          ix = ix - incx
+  150                 CONTINUE
+                      IF (nounit) temp = temp/a(j,j)
+                      x(jx) = temp
+                      jx = jx - incx
+  160             CONTINUE
+              END IF
+          END IF
+      END IF
+*
+      RETURN
+*
+*     End of DTRSV
+*
+      END
