@@ -31931,6 +31931,7 @@
 !     Calculation RPA corr energy
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ERPA(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
+      CALL ERPA2(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
       WRITE(6,1)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
     1 FORMAT(/3X,'           ECd =',F20.10,/,                           &
               3X,'          ECnd =',F20.10,/,                           &

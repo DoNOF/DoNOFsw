@@ -12,13 +12,13 @@ MPIF90g = mpif90 -DMPI $(SFLAGSg)
 #
 ###############################################################################################
 
-all: serial serialg mpi mpig
+all: serial serialg #mpi mpig
 
 #########################################################################
 
 serial:
 	./gitversion.sh	
-	$(F90) -o DoNOF.x donof.f90 mbpt.f90 gitver.f90 lapack.f
+	$(F90) -o DoNOF.x donof.f90 mbpt.f90 mbpt2.f90 gitver.f90 lapack.f
 
 mpi:
 	./gitversion.sh	
@@ -26,7 +26,7 @@ mpi:
 	
 serialg:
 	./gitversion.sh	
-	$(F90g) -o DoNOFg.x donof.f90 mbpt.f90 gitver.f90 lapack.f
+	$(F90g) -o DoNOFg.x donof.f90 mbpt.f90 mbpt2.f90 gitver.f90 lapack.f
 	
 mpig:
 	./gitversion.sh	

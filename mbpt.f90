@@ -45,7 +45,7 @@
      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::OCC,EIG,BIGOMEGA,TEMPV
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::CINTER,CINTRA 
-     DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::TEMPM,FOCKm
+     DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::TEMPM,FOCKm,COEF2
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::ApB,AmB
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::XmY,XpY 
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:)::ERImol,ERImol2
@@ -74,7 +74,8 @@
      Nab=NVIR*NA
      last_coup=NA+NCWO*(NCO-NO1PT2)
      WRITE(6,1)NBF,NO1PT2,NA,NVIR,last_coup,Nab
-     ALLOCATE(OCC(NBF),TEMPM(NBF,NBF))
+     ALLOCATE(OCC(NBF),TEMPM(NBF,NBF),COEF2(NBF,NBF))
+     COEF2=COEF
      OCC=ZERO
      DO i=1,NBF5
       OCC(i) = RO(i)
@@ -114,6 +115,7 @@
      call diafock(FOCKm,NBF,EIG,TEMPM,diagFOCK)
      DEALLOCATE(FOCKm)
      if(.not.diagFOCK) then
+      COEF2=matmul(COEF,TEMPM)
       call transformERI(NBF,TEMPM,ERImol)
       call transformERI(NBF,TEMPM,ERImol2)
      endif
@@ -208,7 +210,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Compute omegas, oscillator strenghts and static polarizability (omega->0)       
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA)
+     call td_polarizability(NBF,NCO,Nab,NA,COEF2,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA)
+     DEALLOCATE(COEF2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Our RPA (trapezoidal rule) is 1/2 GoWo@Galitskii-Migdal EQN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -516,7 +519,7 @@
      do i=1,Nab
       if(OSCSTR(i)>tol6) then
        write(6,13) i,BIGOMEGA(i),BIGOMEGA(i)*AUtoEV,1239.84193/(BIGOMEGA(i)*AUtoEV),OSCSTR(i)
-       endif
+      endif
      enddo
      DEALLOCATE(OSCSTR,MDIPx,MDIPy,MDIPz,DIPSUM)
 ! Static polarizability alpha_xx' = <x|Xi(r,r',w=0)|x'> 
