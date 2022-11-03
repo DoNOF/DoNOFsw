@@ -27012,7 +27012,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      DO j=1,NDNS
 !       jn = NO1+j      
-!       write(6,'(I6,2F19.6)')jn,CMIU(jn),CMIU(jn)*27.21138386
+!       write(6,'(I6,2F19.6)')jn,CMIU(jn),CMIU(jn)*27.211399
 !      ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CHEPOT = -1.0d10
@@ -27020,7 +27020,7 @@
        jn = NO1+j
        if(CMIU(jn)>CHEPOT)CHEPOT=CMIU(jn)
       ENDDO
-      write(6,1)CHEPOT,CHEPOT*27.21138386             
+      write(6,1)CHEPOT,CHEPOT*27.211399             
 !-----------------------------------------------------------------------
     1 FORMAT(/,3X,'Chemical Potential =',F10.4,2X,'(',F10.4,1X,'eV )')
       DEALLOCATE (CMIU,DCJ12DRO,DCK12DRO)
@@ -31931,6 +31931,7 @@
 !     Calculation RPA corr energy
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ERPA(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
+      CALL ERPA2(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
       WRITE(6,1)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
     1 FORMAT(/3X,'           ECd =',F20.10,/,                           &
               3X,'          ECnd =',F20.10,/,                           &

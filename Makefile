@@ -22,7 +22,7 @@ serial:
 
 mpi:
 	./gitversion.sh	
-	$(MPIF90) -o DoNOFmpi.x donof.f90 mbpt.90 gitver.f90 lapack.f
+	$(MPIF90) -o DoNOFmpi.x donof.f90 gitver.f90 lapack.f
 	
 serialg:
 	./gitversion.sh	

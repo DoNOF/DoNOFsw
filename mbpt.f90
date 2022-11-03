@@ -37,7 +37,7 @@
      INTEGER::order,Nab
      INTEGER,DIMENSION(NIJKL)::IERI
      DOUBLE PRECISION,DIMENSION(NIJKL)::ERI
-     DOUBLE PRECISION::ECd,EPNOF,ESDc,EcRPA,EcMP2,EcGoWo,EcGMSOS
+     DOUBLE PRECISION::ECd,EPNOF,ESDc,EcRPA,EcMP2,EcGoWo
      DOUBLE PRECISION::mu,EHFL 
      DOUBLE PRECISION,DIMENSION(NBF5)::RO
      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
@@ -45,7 +45,7 @@
      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ELAG,COEF
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::OCC,EIG,BIGOMEGA,TEMPV
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::CINTER,CINTRA 
-     DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::TEMPM,FOCKm
+     DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::TEMPM,FOCKm,COEF2
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::ApB,AmB
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::XmY,XpY 
      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:)::ERImol,ERImol2
@@ -74,7 +74,8 @@
      Nab=NVIR*NA
      last_coup=NA+NCWO*(NCO-NO1PT2)
      WRITE(6,1)NBF,NO1PT2,NA,NVIR,last_coup,Nab
-     ALLOCATE(OCC(NBF),TEMPM(NBF,NBF))
+     ALLOCATE(OCC(NBF),TEMPM(NBF,NBF),COEF2(NBF,NBF))
+     COEF2=COEF
      OCC=ZERO
      DO i=1,NBF5
       OCC(i) = RO(i)
@@ -114,6 +115,7 @@
      call diafock(FOCKm,NBF,EIG,TEMPM,diagFOCK)
      DEALLOCATE(FOCKm)
      if(.not.diagFOCK) then
+      COEF2=matmul(COEF,TEMPM)
       call transformERI(NBF,TEMPM,ERImol)
       call transformERI(NBF,TEMPM,ERImol2)
      endif
@@ -208,7 +210,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Compute omegas, oscillator strenghts and static polarizability (omega->0)       
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-     call td_polarizability(NBF,NCO,Nab,NA,COEF,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA)
+     call td_polarizability(NBF,NCO,Nab,NA,COEF2,XpY,BIGOMEGA,ADIPx,ADIPy,ADIPz,EcRPA)
+     DEALLOCATE(COEF2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Our RPA (trapezoidal rule) is 1/2 GoWo@Galitskii-Migdal EQN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -217,10 +220,9 @@
      write(*,*) ' '
      write(*,*) 'COMPUTING RPA CORRELATION ENERGY FOR NOF-c-RPA'
      wmn=ZERO; 
-     call build_wmn(NBF,Nab,NA,wmn,ERImol,ERImol2,XpY)
+     call build_wmn(NBF,Nab,NA,wmn,ERImol,XpY) ! Building only w(i,a,s) and w(a,i,s) like terms
      EcGoWo=ZERO
-     EcGMSOS=ZERO
-     call gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,EcGMSOS,XpY,BIGOMEGA,ERImol2)
+     call gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,XpY,BIGOMEGA,ERImol2)
      ECd=EcGoWo
      DEALLOCATE(XpY,wmn,BIGOMEGA)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -516,7 +518,7 @@
      do i=1,Nab
       if(OSCSTR(i)>tol6) then
        write(6,13) i,BIGOMEGA(i),BIGOMEGA(i)*AUtoEV,1239.84193/(BIGOMEGA(i)*AUtoEV),OSCSTR(i)
-       endif
+      endif
      enddo
      DEALLOCATE(OSCSTR,MDIPx,MDIPy,MDIPz,DIPSUM)
 ! Static polarizability alpha_xx' = <x|Xi(r,r',w=0)|x'> 
@@ -543,42 +545,44 @@
 
      end subroutine td_polarizability
 
-     subroutine build_wmn(NBF,Nab,NA,wmn,ERImol,ERImol2,XpY)
+     subroutine build_wmn(NBF,Nab,NA,wmn,ERImol,XpY)
      implicit none
      integer,intent(in)::NBF,Nab,NA
      double precision,dimension(NBF,NBF,Nab),intent(inout)::wmn 
      double precision,dimension(Nab,Nab),intent(in)::XpY
      double precision,dimension(NBF,NBF,NBF,NBF),intent(in)::ERImol
-     double precision,dimension(NBF,NBF,NBF,NBF),intent(in)::ERImol2
-     integer::i,j,k,l,a,b
-     do k=1,Nab
-      do i=1,NBF
-       do j=1,i
-        a=1
-        b=NA+1
-        do l=1,Nab
-         wmn(i,j,k)=wmn(i,j,k)+ERImol(a,i,j,b)*XpY(l,k)
-         b=b+1
-         if(b.gt.NBF) then
-          b=NA+1
-          a=a+1
+     integer::s,ss,p,q,i,a
+     do s=1,Nab
+      ! Building only w(i,a,s) occ-vir 
+      !do p=1,NBF 
+      do p=NA,NBF
+       !do q=1,p
+       do q=1,p-1
+        i=1
+        a=NA+1
+        do ss=1,Nab
+         wmn(p,q,s)=wmn(p,q,s)+ERImol(i,p,q,a)*XpY(ss,s)
+         a=a+1
+         if(a>NBF) then
+          a=NA+1
+          i=i+1
          endif
         enddo
-        wmn(i,j,k)=wmn(i,j,k)*DSQRT(2.0d0)
-        if(i.ne.j) then
-         wmn(j,i,k)=wmn(i,j,k)
+        wmn(p,q,s)=wmn(p,q,s)*DSQRT(2.0d0)
+        if(p/=q) then
+         wmn(q,p,s)=wmn(p,q,s)
         endif
        enddo
-      enddo 
+      enddo
      enddo
      end subroutine build_wmn
 
 ! Loop to compute the EcGoWo energy. Recall that Go is used in GM EQ.
 ! Very symple Eq: Ec = 2 sum _i sum_a sum_s [ (wia)^s ]**2 /(e(i)-e(a)-Omega(s))
-     subroutine gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,EcGMSOS,XpY,BIGOMEGA,ERImol)
+     subroutine gw_gm_eq(NA,NCO,NBF,Nab,wmn,EIG,EcGoWo,XpY,BIGOMEGA,ERImol)
      implicit none
      integer,intent(in)::NCO,NBF,Nab,NA
-     double precision,intent(inout)::EcGoWo,EcGMSOS
+     double precision,intent(inout)::EcGoWo
      double precision,dimension(Nab),intent(in)::BIGOMEGA
      double precision,dimension(NBF),intent(in)::EIG
      double precision,dimension(Nab,Nab),intent(in)::XpY
@@ -596,7 +600,6 @@
           l=(j-1)*(NBF-NA)+(b-fst_virt+1)
           do s=1,Nab 
            EcGoWo=EcGoWo+wmn(i,a,s)*ERImol(j,i,a,b)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
-           EcGMSOS=EcGMSOS-wmn(i,a,s)*ERImol(j,i,b,a)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
           enddo
          enddo
         enddo
@@ -611,7 +614,6 @@
           l=(j-1)*(NBF-NA)+(b-fst_virt+1)
           do s=1,Nab 
            EcGoWo=EcGoWo+0.5d0*wmn(i,a,s)*ERImol(j,i,a,b)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
-           EcGMSOS=EcGMSOS-0.5d0*wmn(i,a,s)*ERImol(j,i,b,a)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
           enddo
          enddo
         enddo
@@ -620,7 +622,6 @@
           l=(j-1)*(NBF-NA)+(b-fst_virt+1)
           do s=1,Nab 
            EcGoWo=EcGoWo+0.5d0*wmn(i,a,s)*ERImol(j,i,a,b)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
-           EcGMSOS=EcGMSOS-0.5d0*wmn(i,a,s)*ERImol(j,i,b,a)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
           enddo
          enddo
          do j=NCO+1,NA
@@ -628,7 +629,6 @@
            l=(j-1)*(NBF-NA)+(b-fst_virt+1)
            do s=1,Nab 
             EcGoWo=EcGoWo+0.25d0*wmn(i,a,s)*ERImol(j,i,a,b)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
-            EcGMSOS=EcGMSOS-0.25d0*wmn(i,a,s)*ERImol(j,i,b,a)*XpY(l,s)*DSQRT(2.0d0)/(EIG(i)-EIG(a)-BIGOMEGA(s)+tol10)
            enddo
           endif
          enddo
