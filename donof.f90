@@ -32091,9 +32091,9 @@
       Ecd = 0.0d0
       ! Eliminate the occ <-> virt Fock elements
       do i=1,NOC             ! runs over occ
-       do a=NOC+1,NORB       ! runs over vir
-        FOCKm(i,a) = 0.0d0
-        FOCKm(a,i) = 0.0d0
+       do j=NOC+1,NORB       ! runs over vir
+        FOCKm(i,j) = 0.0d0
+        FOCKm(j,i) = 0.0d0
        enddo
       enddo
       WRITE(6,2)EHFL+EN+ECndHF
