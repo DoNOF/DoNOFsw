@@ -31931,7 +31931,6 @@
 !     Calculation RPA corr energy
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ERPA(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
-      CALL ERPA2(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
       WRITE(6,1)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
     1 FORMAT(/3X,'           ECd =',F20.10,/,                           &
               3X,'          ECnd =',F20.10,/,                           &
@@ -32092,9 +32091,9 @@
       Ecd = 0.0d0
       ! Eliminate the occ <-> virt Fock elements
       do i=1,NOC             ! runs over occ
-       do a=NOC+1,NORB       ! runs over vir
-        FOCKm(i,a) = 0.0d0
-        FOCKm(a,i) = 0.0d0
+       do j=NOC+1,NORB       ! runs over vir
+        FOCKm(i,j) = 0.0d0
+        FOCKm(j,i) = 0.0d0
        enddo
       enddo
       WRITE(6,2)EHFL+EN+ECndHF
