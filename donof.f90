@@ -38502,7 +38502,7 @@
       DAAUX2=ZER
        DO IJ=1,NBFT
         DO LP=1,NBF5
-          DAAUX(LP,IJ) = DAAUX(LP,IJ) + RO(LP)*DA(LP,IJ)
+         if(LP<=NB.or.LP>NA)DAAUX(LP,IJ)=DAAUX(LP,IJ)+RO(LP)*DA(LP,IJ)
           DO LQ=1,LP-1
             DAAUX(LQ,IJ) = DAAUX(LQ,IJ) + CJ12(LP,LQ)*DA(LP,IJ)
             DAAUX2(LQ,IJ) = DAAUX2(LQ,IJ) + CK12(LP,LQ)*DA(LP,IJ)
