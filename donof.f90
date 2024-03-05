@@ -23,7 +23,7 @@
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
-!                            Date: May 2022                            !
+!                           Date: March 2024                           !
 !                                                                      !
 !    Program to compute the ground state properties of a molecule      !
 !    in the gas phase using PNOF5 - GNOF + perturbation corrections    !
@@ -256,7 +256,7 @@
       /4X,'!                                                         !',& 
       /4X,'!          GNU General Public License version 3           !',&                                                                     
       /4X,'!                                                         !',&                                                                     
-      /4X,'!                   VERSION: May 2022                     !',&
+      /4X,'!                  VERSION: March 2024                    !',&
       /4X,'!                                                         !',&
       /4X,'===========================================================')
     3 FORMAT(/,'  Elapsed real time :',F10.2,'  (Seconds)')
@@ -1606,7 +1606,7 @@
 !     Preset values to namelist variables
 !-----------------------------------------------------------------------
       MAXIT=1000
-      MAXIT21=20
+      MAXIT21=10
 
 !     Type of Calculation
       ICOEF=1
@@ -4760,7 +4760,8 @@
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/USELIBRETA/ILIBRETA                  
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/INTFIL/NINTMX
 #include "mpip.h"
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -4804,6 +4805,13 @@
         NINTEGtm = NBF*(NBF+1)*(NBF*NBF+NBF+2)/8       
         NINTEGAUXtm = NBF*(NBF+1)/2*NBFaux        
        end if
+!- - - - - - - - - - - - - - - - - - - -       
+!      Use only 1 record if DONTW = T      
+!- - - - - - - - - - - - - - - - - - - -
+       if(IERITYP==1.or.IERITYP==3)then
+        NINTMX = NINTEGtm 
+        NINTEG = NINTEGtm 
+       endif
       ELSE
        NINTEGtm = NINTEG
       ENDIF
@@ -5526,7 +5534,7 @@
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET
 !
       LOGICAL PRVEC,CVGED,CVDENS,CVENGY,CVDIIS,NOTOPN     
-      INTEGER :: IPRINTOPT
+      INTEGER :: NBF,NSQ,NBFT,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT
       INTEGER,DIMENSION(NINTEGtm) :: IXInteg
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -5612,7 +5620,7 @@
 !                            RHF Iterations
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                                             
-      DO ITER=1,MAXITRHF                                               
+      DO ITER=1,MAXITRHF 
 !      Skeleton 2e- Fock matrix                           
        CALL HSTAR(NBF,DEN,FAO,NBFT,XInteg,IXInteg,NINTEGt,NREC,IDONTW)
 !      Add H to form Fock Matrix
@@ -5632,7 +5640,7 @@
         DELE  = Etot - Etot0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
 !       DIIS Interpolation (ERR=F*D*S-S*D*F)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         IF(HFDIIS)THEN
          CALL CPYTSQ(FAO,Fsq,NBF)    ! FAO->Fsq
          CALL CPYTSQ(S,Ssq,NBF)      ! S->Ssq                 
@@ -6031,7 +6039,7 @@
 !
       LOGICAL PRVEC,CVGED,CVDENS,CVENGY,CVDIIS,NOTOPN          
       INTEGER,DIMENSION(NINTEGtm) :: IXInteg
-      INTEGER :: IPRINTOPT
+      INTEGER :: NBF,NSQ,NBFT,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NBF) :: OCCa,OCCb,EIG
@@ -7529,7 +7537,8 @@
       LOGICAL EFLDL                                                  
       COMMON/EFLDC_1/EFLDL
       COMMON/EFLDC_2/EVEC(3)
-      INTEGER :: IPRINTOPT
+!      
+      INTEGER :: NBFT,IPRINTOPT,NPRIMI,NSHELL
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
@@ -7637,8 +7646,10 @@
       COMMON/INTFIL/NINTMX           
       COMMON/INTOPT/ISCHWZ,IECP,NECP            
       COMMON/RESTAR/NREC,IST,JST,KST,LST           
+!      
       LOGICAL SCHWRZ
-      INTEGER :: IPRINTOPT
+      INTEGER :: NINTEGtm,NINTEGt,NRECO,NSH2,IDONTW,IPRINTOPT
+      INTEGER :: NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NINTEGtm) :: IX2
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
@@ -7704,7 +7715,7 @@
       COMMON/RESTAR/NREC,IST,JST,KST,LST           
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
-      INTEGER :: IPRINTOPT
+      INTEGER :: IDONTW,IPRINTOPT,NSHELL
       INTEGER,DIMENSION(NSHELL) :: KATOM
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz   
       DOUBLE PRECISION,DIMENSION(NSHELL,3) :: CO
@@ -7761,13 +7772,14 @@
       COMMON/USELIBRETA/ILIBRETA      
       TYPE(C_PTR),DIMENSION(600)::BASLIB
       COMMON/LIBRETA/BASLIB
-!
       LOGICAL SCHWRZ,SCHSKP,SKIPA,SKIPB,SKIPC,NPSYM                                   
       COMMON/INTFIL/NINTMX  
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
       COMMON/RESTAR/NREC,IST,JST,KST,LST           
       COMMON/SHLNOS1/QQ4,IJKL 
-      INTEGER :: IPRINTOPT
+!      
+      INTEGER :: NINTEGtm,NINTEGt,NSCHWZ,MAXG,IDONTW,IPRINTOPT
+      INTEGER :: NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NINTEGtm) :: IX2
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
@@ -7952,7 +7964,8 @@
 ! FINAL                                            
       SUBROUTINE FINAL(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,       &
                        IDONTW,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT
       DIMENSION BUFP(NINTMX),IX(NINTMX)
       COMMON /RESTAR/ NREC,IST,JST,KST,LST          
       INTEGER,DIMENSION(NINTEGtm) :: IX2
@@ -17513,7 +17526,7 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/USELIBRETA/ILIBRETA
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER :: IPRINTOPT
+      INTEGER :: NINTEGtm,IDONTW,IPRINTOPT,NBF,NSHELL,NAT
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -17582,10 +17595,10 @@
       COMMON/SHLNOS1/QQ4,IJKL
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
 !
+      INTEGER :: NINTEGtm,MAXG,NBF,IPRINTOPT,NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      INTEGER :: IPRINTOPT
       DIMENSION GHONDO(MAXG)
       DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux)::GMAT
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
@@ -17676,6 +17689,7 @@
                            KTYPE,KLOC,NSHELL,IPRINTOPT)
       USE ISO_C_BINDING
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEGtm,MAXG,MAXORI,NBF,NSHELL,IPRINTOPT
       INTEGER :: ORII,ORIJ,ORIK      
       COMMON/ORI/ORII,ORIJ,ORIK            
       COMMON/RESTAR/NREC,IST,JST,KST,LST                 
@@ -19284,6 +19298,8 @@
                           N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
                           N47,N48,N49,N50,N51,NUSER
 !
+      INTEGER :: NATOMSn,NBFn,NBFTn,NSHELLn,NPRIMIn,NVAL,NINTMXn,NREC
+      INTEGER :: NINTEGt,NINTEGAUXtm,IDONTW,IRUNTYP,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NATOMSn):: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATOMSn):: Cxyz
       INTEGER,DIMENSION(NATOMSn):: IAN,IMIN,IMAX
@@ -19299,7 +19315,6 @@
       DOUBLE PRECISION,DIMENSION(10):: OCTUN
       DOUBLE PRECISION,DIMENSION(NVAL*NBFTn):: DQOInt
       INTEGER,DIMENSION(NINTEGt) :: IX2
-      INTEGER:: IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NINTEGt) :: BUFP2
       DOUBLE PRECISION,DIMENSION(NINTEGAUXtm) :: BUFP2aux      
       DOUBLE PRECISION,DIMENSION(3*NATOMSn) :: GRADS
@@ -19385,7 +19400,7 @@
       NINTMX = NINTMXn
       NIJKL  = NINTEGt
       NIJKaux  = NINTEGAUXtm
-      CALL DISTRIBUTION(IPRINTOPT)
+      CALL DISTRIBUTION(IPRINTOPT,IDONTW)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Read two-electron Repulsion Integrals in AO basis (ERI)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -20035,10 +20050,10 @@
       RETURN
       END
 
-! DISTRIBUTION
-      SUBROUTINE DISTRIBUTION(IPRINTOPT)
+! DISTRIBUTION      
+      SUBROUTINE DISTRIBUTION(IPRINTOPT,IDONTW)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      INTEGER:: IPRINTOPT     
+      INTEGER:: IPRINTOPT,IDONTW     
       LOGICAL ERIACTIVATED       
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
@@ -20060,31 +20075,41 @@
 #ifdef MPI
 
       if(IERITYP==1 .or. IERITYP==3)then
-      
-       NINTCHK = INT(NINTMX/(2*NPROCS))*2+2
-       NCHUNKS = INT(NIJKL/NINTMX)+1+10
-       NINTCR = NINTCHK*NCHUNKS
-       NSTORE = NINTCR+NINTMX
-       IF(IPRINTOPT==1)THEN
-        Write(6,501)
-        Write(6,502)NIJKL
-        Write(6,503)NINTCHK
-        Write(6,504)NCHUNKS
-        Write(6,505)NINTCR
-        Write(6,506)NSTORE
-       ENDIF
 
+       IF(IDONTW==0)THEN      
+        NINTCHK = INT(NINTMX/(2*NPROCS))*2+2
+        NCHUNKS = INT(NIJKL/NINTMX)+1+10
+        NINTCR = NINTCHK*NCHUNKS
+        NSTORE = NINTCR+NINTMX
+        IF(IPRINTOPT==1)THEN
+         Write(6,501)
+         Write(6,502)NIJKL
+         Write(6,503)NINTCHK
+         Write(6,504)NCHUNKS
+         Write(6,505)NINTCR
+         Write(6,506)NSTORE
+        ENDIF
+       ELSE    ! NINTMX = NINTEGtm, only 1 record
+        NINTCR = INT(NIJKL/(2*NPROCS))*2+2
+        NSTORE = NINTCR+NIJKL
+        IF(IPRINTOPT==1)THEN
+         Write(6,501)
+         Write(6,502)NIJKL
+         Write(6,505)NINTCR
+         Write(6,506)NSTORE
+        ENDIF
+       ENDIF
       end if
 
       if(IERITYP==2 .or. IERITYP==3)then       
 
        NSTOREaux = INT(NBFaux/NPROCS)*NBF*(NBF+1)/2
        IAUXDIM = INT(NBFaux/NPROCS)
-       EXTRAS = MOD(NBFaux,NPROCS)
+       IEXTRAS = MOD(NBFaux,NPROCS)
        IF(IPRINTOPT==1)THEN
         Write(6,511)
         Write(6,512)NIJKaux
-        IF(EXTRAS==0) THEN
+        IF(IEXTRAS==0) THEN
           Write(6,513) NSTOREaux
         ELSE
           Write(6,513) NSTOREaux+NBF*(NBF+1)/2
@@ -20115,8 +20140,7 @@
 !-----------------------------------------------------------------------
       
 #else
-      IPRINTOPT = IPRINTOPT
-      
+      IPRINTOPT1 = IPRINTOPT
       if(IERITYP==1 .or. IERITYP==3)then
        NINTCR = NIJKL
        NSTORE = NINTCR
@@ -20310,12 +20334,12 @@
       END IF
       CALL MPI_BCAST(INTTYPE,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
       L_PER_PROC = INT(NBFaux/NPROCS)
-      EXTRAS = MOD(NBFaux,NPROCS)
+      IEXTRAS = MOD(NBFaux,NPROCS)
       DO I=1,NPROCS-1
         NSIZE = L_PER_PROC
-        IF (EXTRAS>0) THEN
+        IF (IEXTRAS>0) THEN
          NSIZE = NSIZE + 1
-         EXTRAS = EXTRAS -1
+         IEXTRAS = IEXTRAS -1
         END IF
         NINTCRaux = NSIZE*NBF*(NBF+1)/2
         CALL MPI_SEND(NINTCRaux,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
@@ -20325,13 +20349,13 @@
       CALL MPI_BCAST(NBF5,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(NBFaux,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
 
-      EXTRAS = MOD(NBFaux,NPROCS)
+      IEXTRAS = MOD(NBFaux,NPROCS)
       JJ=1
       DO I=1,NPROCS-1
         NSIZE = L_PER_PROC
-        IF (EXTRAS>0) THEN
+        IF (IEXTRAS>0) THEN
          NSIZE = NSIZE + 1
-         EXTRAS = EXTRAS - 1
+         IEXTRAS = IEXTRAS - 1
         END IF
         NINTCRaux = NSIZE*NBF*(NBF+1)/2
         CALL MPI_SEND(BUFP2aux(JJ),NINTCRaux,MPI_REAL8,I,I,             &
