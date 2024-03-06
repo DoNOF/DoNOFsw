@@ -36,7 +36,6 @@
       character(8) :: date
       character(10):: time
       character(5) :: zone
-      character(100):: sha
       integer,dimension(8) :: val
 !
       INTEGER,ALLOCATABLE,DIMENSION(:)::IAN0,IMIN0,IMAX0,KSTART0,KATOM0
@@ -200,7 +199,8 @@
 !      If RUNTYP = 1) ENERGY  : single-point energy
 !                  2) GRADIENT: single-point energy + gradients
 !                  3) OPTIMIZE: optimize the molecular geometry
-!                  4) HESS    : compute numerical hessian
+!                  4) HESS    : compute numerical hessian 
+!                  5) DYN     : run Born-Oppenheimer molecular dynamics
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE(GRADS(3*NAT))
        IF(IRUNTYP==1.or.IRUNTYP==2)THEN
@@ -218,6 +218,11 @@
                      KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,   &
                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,GRADS,     &
                      IRUNTYP,IPROJECT,ISIGMA)
+       ELSE IF(IRUNTYP==5)THEN
+        CALL MOLDYN (NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
+                     KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,  &
+                     CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)                     
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        DEALLOCATE(ZAN,ZMASS,Cxyz,GRADS,IAN,IMIN,IMAX)
@@ -230,9 +235,6 @@
       call cpu_time(timefinish)
       DELTATIME = timefinish - timestart
       WRITE(6,3)DELTATIME
-!-----------------------------------------------------------------------
-      call gitversion(sha)
-      WRITE(6,'(a,a)')'  Git sha : ',sha
 !-----------------------------------------------------------------------
       call date_and_time(date,time,zone,val)
       write(6,4)val(5),val(6),val(2),val(3),val(1)
@@ -306,14 +308,16 @@
       COMMON/USEHUBBARD/IHUB
       LOGICAL DONTW,USELIB,USEHUB,HSSCAL,PROJECT
       DOUBLE PRECISION,DIMENSION(3) :: EVECTOR
-      CHARACTER(6) :: RUNTYP,ENERGY,GRAD,OPTGEO,HESS
-      DATA ENERGY,GRAD,OPTGEO,HESS/'ENERGY','GRAD  ','OPTGEO','HESS  '/
+      CHARACTER(6) :: RUNTYP,ENERGY,GRAD,OPTGEO,HESS,DYN
+      DATA ENERGY,GRAD,OPTGEO/'ENERGY','GRAD  ','OPTGEO'/
+      DATA HESS,DYN/'HESS  ','DYN   '/
       CHARACTER(8) :: ANGS,BOHR
       DATA ANGS, BOHR /'ANGS    ','BOHR    '/
       CHARACTER(4) :: ERITYP,FULL,RI,MIX
       DATA FULL,RI,MIX /'FULL','RI  ','MIX '/
+      CHARACTER(5) :: RITYP
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       CHARACTER(3) :: GEN
 !----------------------------------------------------------------------!
 !                   --- INPRUN NAMELIST VARIABLES ---                  !
@@ -324,6 +328,7 @@
 !       = GRAD     2)energy + gradients with respect to nuclear coord
 !       = OPTGEO   3)optimize the molecular geometry
 !       = HESS     4)compute numerical hessian from analytic gradients
+!       = DYN      5)run Born-Oppenheimer on-the-fly molecular dynamics
 !
 ! MULT             Multiplicity of the electronic state
 !       = 1        singlet (Default)
@@ -365,12 +370,16 @@
 !       = MIX      3c/2c ERIs for Resolution of the Identity (RI) App.
 !                  once converged change to 4c ERIs (FULL)
 !
+! RITYP            Typ of Auxiliary Basis
+!       = JKFIT    Read from jkfit files (default)
+!       = GEN      Use Generative Auxiliary Basis
+!
 ! GEN              Generative Auxiliary Basis to use in RI Approx.
 !                  if ERITYP = RI. Values: A2,A2*,A3,A3*,A4,A4* 
 !       = A2*      (Default)
 !
 ! SMCD             Symmetric Modified Cholesky Decomposition for the 
-!                  G matrix in the RI Approximation
+!                  G matrix in the RI Approximation.
 !       = F        (Default)
 !      
 ! HSSCAL           Compute Hessian from analytic gradients and carry
@@ -397,7 +406,7 @@
 !
 !-----------------------------------------------------------------------
       NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,UNITS,EVEC,USELIB,  &
-                      USEHUB,DONTW,ERITYP,GEN,SMCD,HSSCAL,PROJECT,      &
+                      USEHUB,DONTW,ERITYP,RITYP,GEN,SMCD,HSSCAL,PROJECT,&
                       ISIGMA,NATmax,NSHELLmax,NPRIMImax
 !-----------------------------------------------------------------------
       TI = 0.0D0                                                           
@@ -416,6 +425,7 @@
       USEHUB    = .FALSE.
       DONTW     = .TRUE.
       ERITYP    = FULL
+      RITYP     = 'JKFIT'
       GEN       = 'A2*'
       SMCD      = .FALSE.
       HSSCAL    = .TRUE.
@@ -446,6 +456,8 @@
        IRUNTYP = 3
       ELSE IF(RUNTYP==HESS)THEN
        IRUNTYP = 4
+      ELSE IF(RUNTYP==DYN)THEN
+       IRUNTYP = 5
       END IF
       ITYPRUN = IRUNTYP
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -498,6 +510,14 @@
       ELSE
        WRITE(6,6) 
        CALL ABRT
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Typ of RIs auxiliary basis
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(RITYP=="JKFIT")THEN
+       IRITYP = 1 
+      ELSE IF(RITYP(1:3)=="GEN")THEN
+       IRITYP = 2
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Determine Star in Auxiliary Basis if required
@@ -596,6 +616,10 @@
        WRITE(6,12)
        CALL ABRT
       END IF
+      IF(IRUNTYP==5 .and. NATmax>101)THEN ! due to COMMON/INPDYN_FLAGS/
+       WRITE(6,13)
+       CALL ABRT
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ICH = ICHARG                                                      
       MUL = MULT
@@ -623,6 +647,7 @@
    10 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with USELIB = T',/)
    11 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ERITYP = RI',/)
    12 FORMAT(/1X,'Stop: NPRIMImax must be <= 2000 with ERITYP = RI',/)
+   13 FORMAT(/1X,'Stop: NATmax must be <= 101 with RUNTYP = DYN',/)
 !-----------------------------------------------------------------------
       END
 
@@ -635,7 +660,7 @@
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5                                                        
       COMMON/EHFEN/EHF,EN
@@ -930,10 +955,16 @@
        end if        
 !      Orbital Optimization
        IF(ICOEF==1.or.ICOEF==2)THEN
-        CALL OrbOptFMIUGr(IT,ITLIM,AHCORE,IJKL,XIJKL,RDUMMYA,USER(N7),  &
-                          COEF,USER(N1),USER(N2),USER(N3),ELAG,FMIUG0,  &
-                          USER(N11),USER(N12),USER(N13),USER(N14),      &
-                          ILOOP,1)
+        IF(IORBOPT==1)THEN       
+         CALL OrbOptFMIUGr(IT,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,RDUMMYA,  &
+                           USER(N7),COEF,USER(N1),USER(N2),USER(N3),    &
+                           ELAG,FMIUG0,USER(N11),USER(N12),USER(N13),   &
+                           USER(N14),ILOOP,1)
+        ELSE IF(IORBOPT==2)THEN                           
+         CALL OrbOptRot(IT,OVERLAP,AHCORE,IJKL,XIJKL,RDUMMYA,USER(N7),  &
+                        COEF,USER(N1),USER(N2),USER(N3),ELAG,USER(N11), &
+                        USER(N12),USER(N13),USER(N14),ILOOP,1)
+        END IF                       
 !      Core-Fragment Orbital Optimization
        ELSEIF(ICOEF==3)THEN
         WRITE(6,14)
@@ -1184,7 +1215,7 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HFDAMP,HFEXTRAP,HFDIIS,DIIS,PERDIIS,DAMPING,EXTRAP
       LOGICAL RESTART,FROZEN,PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO
-      LOGICAL OIMP2,MBPT,SC2MCPT,HFID,HighSpin,SCALING,RHF
+      LOGICAL OIMP2,SC2MCPT,HFID,HighSpin,SCALING,RHF
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER
@@ -1198,7 +1229,7 @@
       COMMON/INPNOF_LAGRANGE/PRINTLAG,DIAGLAG
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
-      COMMON/INPNOF_OIMP2/OIMP2,MBPT
+      COMMON/INPNOF_OIMP2/OIMP2
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS       
       COMMON/INPNOF_EINI/IEINI
@@ -1215,11 +1246,11 @@
       COMMON/INPNOF_STATIC/Ista
       COMMON/INPNOF_EXSTA/NESt,OMEGA1
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NO1PT2/NO1PT2,NEX
       COMMON/USEHUBBARD/IHUB
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !
       LOGICAL AUTOZEROS
       INTEGER:: IRUNTYP
@@ -1248,6 +1279,13 @@
 !                      = 3      Optimize by all ONs and core-fragment 
 !                               orbitals. The rest of fragment orbitals 
 !                               remain frozen
+!
+!.......... IORBOPT             Select method for NO optimization
+!
+!                      = 1      Iterative diagonalization (OrbOptFMIUGr)
+!                               (Default)
+!                      = 2      By unitary tranformations (OrbOptRot)
+!                      = 3      Sequential Quadratic Program (OrbOptSQP)
 !
 !.......... IEINI               Calculate only the initial energy
 !                      = 0      (Default)
@@ -1411,9 +1449,6 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !
 !.......... OIMP2               NOF - Orbital Invariant MP2
-!                     = F       (Default)
-!
-!.......... MBPT                NOF - c - X (X=RPA, MP2, etc)
 !                     = F       (Default)
 !
 !.......... NO1PT2              Frozen MOs in perturbative calculations
@@ -1590,18 +1625,19 @@
 !                      = 1.0    Only GS is considered (Default) 
 !
 !-----------------------------------------------------------------------
-      NAMELIST/NOFINP/MAXIT,MAXIT21,ICOEF,IEINI,NO1,RHF,NCONVRHF,       &
-                      MAXITRHF,HFDAMP,HFEXTRAP,HFDIIS,HFID,NTHRESHEID,  &
-                      MAXITID,KOOPMANS,IPNOF,Ista,HighSpin,NCWO,        &
-                      NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN,MAXLOOP,    &
-                      SCALING,AUTOZEROS,NZEROS,NZEROSm,NZEROSr,ITZITER, &
-                      DIIS,NTHDIIS,NDIIS,PERDIIS,DAMPING,EXTRAP,OIMP2,  &
-                      NO1PT2,SC2MCPT,NEX,RESTART,INPUTGAMMA,INPUTC,     &
-                      INPUTFMIUG,NPRINT,INPUTCXYZ,IWRITEC,IMULPOP,MBPT, &
-                      PRINTLAG,DIAGLAG,IEKT,IAIMPAC,IFCHK,MOLDEN,       &
-                      NOUTRDM,NTHRESHDM,NSQT,NOUTCJK,NTHRESHCJK,        &
-                      NOUTTijab,NTHRESHTijab,APSG,NTHAPSG,ORTHO,        &
-                      CHKORTHO,FROZEN,IFROZEN,ICGMETHOD,NESt,OMEGA1
+      NAMELIST/NOFINP/MAXIT,MAXIT21,ICOEF,IORBOPT,IEINI,NO1,RHF,        &
+                      NCONVRHF,MAXITRHF,HFDAMP,HFEXTRAP,HFDIIS,HFID,    &
+                      NTHRESHEID,MAXITID,KOOPMANS,IPNOF,Ista,HighSpin,  &
+                      NCWO,NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN,       &
+                      MAXLOOP,SCALING,AUTOZEROS,NZEROS,NZEROSm,NZEROSr, &
+                      ITZITER,DIIS,NTHDIIS,NDIIS,PERDIIS,DAMPING,       &
+                      EXTRAP,OIMP2,NO1PT2,SC2MCPT,NEX,RESTART,          &
+                      INPUTGAMMA,INPUTC,INPUTFMIUG,NPRINT,INPUTCXYZ,    &
+                      IWRITEC,IMULPOP,PRINTLAG,DIAGLAG,IEKT,IAIMPAC,    &
+                      IFCHK,MOLDEN,NOUTRDM,NTHRESHDM,NSQT,NOUTCJK,      &
+                      NTHRESHCJK,NOUTTijab,NTHRESHTijab,APSG,NTHAPSG,   &
+                      ORTHO,CHKORTHO,FROZEN,IFROZEN,ICGMETHOD,NESt,     &
+                      OMEGA1
 !-----------------------------------------------------------------------
 !     Preset values to namelist variables
 !-----------------------------------------------------------------------
@@ -1610,6 +1646,7 @@
 
 !     Type of Calculation
       ICOEF=1
+      IORBOPT=1
       IEINI=0
       NO1=0
 
@@ -1655,7 +1692,6 @@
       
 !     Options for pertubative calculations
       OIMP2=.FALSE.
-      MBPT=.FALSE.
       NO1PT2=-1                  
       SC2MCPT=.FALSE.
       NEX=0      
@@ -1732,13 +1768,15 @@
          NZEROSm = NTHRESHL + 2
         end if
        ELSE                  ! RESTART=F
-        if(NTHRESHL>3)THEN
-         NTHRESHL=3
-         WRITE(6,'(/1X,79A/)')'Beware of high NTHRESHL with RESTART=F, NTHRESHL has been reduced to 3 !!!'
+        if(IRUNTYP/=5)then
+         if(NTHRESHL>3)then
+          NTHRESHL=3
+          WRITE(6,'(/1X,79A/)')'Beware of high NTHRESHL with RESTART=F, NTHRESHL has been reduced to 3 !!!'
+         end if
+         NZEROS  = 1
+         NZEROSr = 2
+         NZEROSm = NTHRESHL + 2
         end if
-        NZEROS  = 1
-        NZEROSr = 2
-        NZEROSm = NTHRESHL + 2
        END IF
       end if      
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1778,9 +1816,8 @@
          RHF = .FALSE.        
         WRITE(6,'(/,1X,35A,/)')'!OPTGEO: HF has been set equal FALSE'
        end if
-       if(OIMP2 .or. MBPT)then      
+       if(OIMP2)then      
         OIMP2 = .FALSE.
-        MBPT  = .FALSE.
         NOUTTijab = 0
         WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 has been set equal FALSE'
        end if
@@ -1796,6 +1833,32 @@
        end if
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Mandatory Options with RUNTYP=DYN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IRUNTYP==5)THEN
+       if(HFID.or.RHF)then
+        HFID = .FALSE.
+         RHF = .FALSE.
+        WRITE(6,'(/,1X,33A,/)')'!DYN: HF has been set equal FALSE'
+       end if
+       if(OIMP2)then
+        OIMP2 = .FALSE.
+        NOUTTijab = 0
+        WRITE(6,'(/,1X,36A,/)')'!DYN: OIMP2 has been set equal FALSE'
+       end if
+!
+       RESTART = .FALSE.
+       INPUTCXYZ = 0       
+       WRITE(6,'(/,1X,38A,/)')'!DYN: RESTART=FALSE, INPUTCXYZ=0'              
+       INPUTGAMMA = 1
+       INPUTC = 1
+       INPUTFMIUG = 1
+       WRITE(6,'(  1X,38A,/)')'!INPUTGAMMA=1, INPUTC=1, INPUTFMIUG=1'
+       IAIMPAC=0
+       MOLDEN=0
+       IFCHK=0
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Restart Options
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(RESTART)THEN
@@ -1808,10 +1871,10 @@
 !     Stop if ICGMETHOD=2 to use NAG library (E04DKF,E04DGF,F11JEF)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ICGMETHOD==2)THEN
-       WRITE(6,*)                                                       !nag
-       WRITE(6,*)'Stop: To use the NAG library you must uncomment',&    !nag
-                 '      the calls to the relevant routines'             !nag
-       CALL ABRT                                                        !nag
+!nag   WRITE(6,*)                                                       
+!nag   WRITE(6,*)'Stop: To use the NAG library you must uncomment',&    
+!nag             '      the calls to the relevant routines'             
+!nag   CALL ABRT                                                        
        NTHRESHEN = 16                                               
        THRESHEN = 10.0**(-NTHRESHEN)                                
       END IF
@@ -1851,6 +1914,8 @@
         CALL ABRT       
        ENDIF
       ENDIF
+!
+      IF(IPNOF==8)Ista=0     ! FIs = DSQRT(RO*(1.0d0-RO))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Forced options if Hubbard model is used
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1913,7 +1978,7 @@
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_STATIC/Ista
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPNOF_EXSTA/NESt,OMEGA1      
 !-----------------------------------------------------------------------
 !     Set NZEROSm equal to NTHRESHL if NZEROSm < NTHRESHL
@@ -1932,18 +1997,25 @@
        WRITE(6,4)ICOEF
       ELSEIF(ICOEF==1)THEN
        WRITE(6,51)ICOEF
-       WRITE(6,6)MAXIT
       ELSEIF(ICOEF==2)THEN
        WRITE(6,52)ICOEF
-       WRITE(6,6)MAXIT
       ELSEIF(ICOEF==21)THEN
-       WRITE(6,54)ICOEF
-       WRITE(6,59)MAXIT21
-       WRITE(6,6)MAXIT
+       WRITE(6,54)ICOEF       
       ELSEIF(ICOEF==3)THEN
        WRITE(6,53)ICOEF
-       WRITE(6,6)MAXIT
       ENDIF
+      
+      IF(ICOEF>0)THEN
+       IF(IORBOPT==1)THEN
+        WRITE(6,55)IORBOPT
+       ELSE IF(IORBOPT==2)THEN
+        WRITE(6,56)IORBOPT       
+       ELSE IF(IORBOPT==3)THEN
+        WRITE(6,57)IORBOPT       
+       END IF
+       IF(ICOEF==21)WRITE(6,59)MAXIT21
+       WRITE(6,6)MAXIT       
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write the Functional used
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1986,7 +2058,7 @@
        WRITE(6,85)NTHRESHEID,MAXITID,KOOPMANS
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF( ICOEF==1 .or. ICOEF==2 .or. ICOEF==21 )THEN
+      IF( IORBOPT==1 .and. (ICOEF==1.or.ICOEF==2.or.ICOEF==21) )THEN
        WRITE(6,9)NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN,MAXLOOP
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1995,16 +2067,16 @@
       IF(CHKORTHO)WRITE(6,*)                                            &
       'Check the orthonormality of MOs:        (CHKORTHO)      T'
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF( (ICOEF==1.or.ICOEF==21) .and. SCALING )THEN
+      IF( IORBOPT==1 .and. (ICOEF==1.or.ICOEF==21) .and. SCALING )THEN
        WRITE(6,10)NZEROS,NZEROSm,NZEROSr,ITZITER
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(.not.SCALING)THEN
+      IF(  IORBOPT==1 .and. (.not.SCALING) )THEN
        WRITE(6,*)
        WRITE(6,*)'Warning: Scaling Technique is not used !'
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF( ICOEF==1 .or. ICOEF==21 )THEN
+      IF( IORBOPT==1 .and. (ICOEF==1.or.ICOEF==21) )THEN
        IF(DIIS)THEN
         WRITE(6,*)
         WRITE(6,*)                                                      &
@@ -2077,13 +2149,19 @@
     4 FORMAT(                                                           &
        /1X,'Type of calculation = No Coeff. Opt.:   (ICOEF)     ',I5)    
    51 FORMAT(                                                           &
-       /1X,'Type of calculation = Iter-Diag-Method: (ICOEF)     ',I5)    
+       /1X,'Type of calculation =    Coeff. Opt.:   (ICOEF)     ',I5)    
    52 FORMAT(                                                           &
        /1X,'Type of calculation = No Occup. Opt.:   (ICOEF)     ',I5)    
    53 FORMAT(                                                           &
        /1X,'Type of calculation = Fragment Calc.:   (ICOEF)     ',I5) 
    54 FORMAT(                                                           &
-       /1X,'Type of calculation = ICOEF2 + ICOEF1:  (ICOEF)     ',I5)    
+       /1X,'Type of calculation = ICOEF2 + ICOEF1:  (ICOEF)     ',I5) 
+   55 FORMAT(                                                           &
+        1X,'Type of Orb. Opt. = Iterative Diag.:    (IORBOPT)   ',I5)    
+   56 FORMAT(                                                           &
+        1X,'Type of Orb. Opt. = Orbital Rotations:  (IORBOPT)   ',I5)    
+   57 FORMAT(                                                           &
+        1X,'Type of Orb. Opt. = Seq. Quad. Prog.:   (IORBOPT)   ',I5)          
    59 FORMAT(                                                           &
         1X,'Maximum Number of Coef Outer Iter.:     (MAXIT21)   ',I5)    
     6 FORMAT(                                                           &
@@ -2151,7 +2229,7 @@
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK      
       COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
 !-----------------------------------------------------------------------
 !     NOF Files    CONTENTS
 !     ------------------------------------------------------------------
@@ -2176,14 +2254,20 @@
 !     19  (FCHK)   Formatted checkpoint file for visualization softwares
 !     20  (IRAF)   Direct File used for DIIS data in RHFCL and RHFOP
 !
-!     50  (BASIS_FILE) Opened in Subroutine ATOMS <- MOLECULE <- START
+!     30 (DYN.xyz)  Formatted xyz trajectory file
+!     31 (DYNl.xyz) Formatted xyz last trajectory file (use for restart)
+!     32 (DYNen)    Formatted File with energy information
+!     33 ()
+!     34 (EPOTs)    Formatted File with ngcf potential energies
+!
+!     50 (BASIS_FILE) Opened in Subroutine ATOMS <- MOLECULE <- START
 !-----------------------------------------------------------------------
 !                    Open general working files
 !-----------------------------------------------------------------------
       OPEN(2,FILE='CGM',STATUS='UNKNOWN',FORM='FORMATTED',              &
              ACCESS='SEQUENTIAL')
       IF(IRUNTYP<5)OPEN(3,FILE='GCF',STATUS='UNKNOWN',                  &
-                          FORM='FORMATTED',ACCESS='SEQUENTIAL')                                        
+                          FORM='FORMATTED',ACCESS='SEQUENTIAL')         
       OPEN(4,FILE='BFST',STATUS='UNKNOWN',FORM='FORMATTED',             &
              ACCESS='SEQUENTIAL')                                        
       IF(IAIMPAC==1)OPEN(7,FILE='WFN',STATUS='UNKNOWN',                 &
@@ -2197,7 +2281,7 @@
       IF(IRUNTYP==3.or.IRUNTYP==4)OPEN(11,FILE='CGGRAD',                &
          STATUS='UNKNOWN',FORM='FORMATTED',ACCESS='SEQUENTIAL')          
       IF(NOUTCJK==1)OPEN(12,FILE='CJK',STATUS='UNKNOWN',                &
-                            FORM='UNFORMATTED')
+                            FORM='UNFORMATTED')                          
       IF(NOUTTijab==1)OPEN(13,FILE='CND',STATUS='UNKNOWN',              &
                               FORM='UNFORMATTED')                        
       IF(NOUTRDM==1.or.NOUTRDM==3)THEN                                                 
@@ -2548,6 +2632,7 @@
                        CS,CP,CD,CF,CG,CH,CI)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       CHARACTER(4) :: ERITYP,GEN 
+      CHARACTER(5) :: RITYP 
       CHARACTER(8) :: UNITS
       LOGICAL EFLDL,LINEAR                                                  
 !
@@ -2562,7 +2647,7 @@
       COMMON/RUNTYPE/IRUNTYP
       COMMON/WRTGCF/IWRTGCF                                                  
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !      
       INTEGER,DIMENSION(NATmax) :: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
@@ -2624,17 +2709,19 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
       IF(IERITYP==1)THEN
        ERITYP = 'FULL'
-       WRITE(6,2)1.0D-09,ISCHWZ,ERITYP       
-      ELSE IF(IERITYP==2)THEN
-       ERITYP = 'RI'
-       if(ISTAR==0)WRITE(GEN,'(A1,I1)')    'A',IGEN
-       if(ISTAR==1)WRITE(GEN,'(A1,I1,A1)') 'A',IGEN,'*'
-       WRITE(6,3)1.0D-09,ISCHWZ,ERITYP,GEN       
-      ELSE IF(IERITYP==3)THEN
-       ERITYP = 'MIX'
-       if(ISTAR==0)WRITE(GEN,'(A1,I1)')    'A',IGEN
-       if(ISTAR==1)WRITE(GEN,'(A1,I1,A1)') 'A',IGEN,'*'
-       WRITE(6,3)1.0D-09,ISCHWZ,ERITYP,GEN
+       WRITE(6,2)1.0D-09,ISCHWZ,ERITYP      
+      ELSE IF(IERITYP==2 .OR. IERITYP==3)THEN
+       IF(IERITYP==2) ERITYP = 'RI'
+       IF(IERITYP==3) ERITYP = 'MIX'
+       IF(IRITYP==1) RITYP = 'JKFIT'
+       IF(IRITYP==2) RITYP = 'GEN'
+       IF(IRITYP==1) THEN
+        WRITE(6,3)1.0D-09,ISCHWZ,ERITYP,RITYP       
+       ELSE IF(IRITYP==2) THEN
+        IF(ISTAR==0)WRITE(GEN,'(A1,I1)')    'A',IGEN
+        IF(ISTAR==1)WRITE(GEN,'(A1,I1,A1)') 'A',IGEN,'*'
+        WRITE(6,4)1.0D-09,ISCHWZ,ERITYP,RITYP,GEN       
+       END IF
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Abort Program if LMAXIMA > 5
@@ -2667,7 +2754,10 @@
     2 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
               3X,'ISCHWZ =',I2,3X,'ERITYP =',A5)
     3 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
-              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5,3X,'GEN =',A5)
+              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5,3X,'AUX =',A6)
+    4 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
+              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5,3X,'AUX =',A6,           &
+              3X,'GEN =',A5)
 !-----------------------------------------------------------------------
       END                                                               
 
@@ -2753,7 +2843,7 @@
       TYPE(C_PTR),DIMENSION(600)::BASLIB
       COMMON/LIBRETA/BASLIB
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
       INTEGER,DIMENSION(NSHELLmax) :: KLOC,KMIN,KMAX
@@ -3496,8 +3586,12 @@
       WRITE(6,500)NSHELL,NPRIMI,NUM
       IF (IERITYP==2 .or. IERITYP==3) THEN
        if(ILIBRETA==0)then
-        CALL AUXGEN(NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux,NUMaux,  &
+        IF(IRITYP==1) THEN
+          CALL AUXREAD(NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
+        ELSE IF(IRITYP==2) THEN
+         CALL AUXGEN(NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux,NUMaux, &
                     IGEN,ISTAR,EX,ZAN)       
+        END IF
        else if(ILIBRETA==1)then
         CALL AUXGENlib(NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux,      &
                        NUMaux,EX,ZAN,Cxyz)
@@ -4746,6 +4840,8 @@
 !                                                                      !
 !   HESSCAL : Calculate Hessian from analytic gradients (IRUNTYP=4)    !
 !                                                                      !
+!   MOLDYN  : Run Born-Oppenheimer on-the-fly Mol. Dyn. (IRUNTYP=5)    !
+!                                                                      !
 !======================================================================!
 !======================================================================!
 
@@ -4756,6 +4852,8 @@
                           C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,     &
                           DIPS,NOPTCG,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI
+      INTEGER :: IRUNTYP,NOPTCG,IPRINTOPT
       LOGICAL RESTART
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/USELIBRETA/ILIBRETA                  
@@ -4893,7 +4991,7 @@
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_CGM/ICGMETHOD
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/USELIBRETA/ILIBRETA
@@ -5027,9 +5125,10 @@
       COMMON/INFOA/NATOMS,ICH,MUL,NUM,NQMT,NE,NA,NB 
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !      
-      INTEGER :: IPRINTOPT
+      INTEGER :: NPRIMI,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm
+      INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT
       INTEGER,DIMENSION(NINTEGtm) :: IXInteg      
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
@@ -5119,10 +5218,10 @@
       SUBROUTINE GuessCore(OCCa,OCCb,DENa,DENb,EIG,VEC,                 &
                            Q,H,S,NBF,NSQ,NBFT,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      INTEGER:: IPRINTOPT
       LOGICAL HFID
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS       
 !
+      INTEGER :: NBF,NSQ,NBFT,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NBF) :: OCCa,OCCb,EIG
       DOUBLE PRECISION,DIMENSION(NSQ) :: VEC,Q
       DOUBLE PRECISION,DIMENSION(NBFT) :: DENa,DENb,H,S
@@ -5195,8 +5294,9 @@
 ! CLENMO                                           
       SUBROUTINE CLENMO(VEC,NAO,NMO,TOLZ,TOLE,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)                                
-      DIMENSION VEC(NAO,NMO)                                            
-      INTEGER :: IPRINTOPT
+      INTEGER :: NAO,NMO,IPRINTOPT
+      DOUBLE PRECISION :: TOLZ,TOLE     
+      DOUBLE PRECISION,DIMENSION(NAO,NMO) :: VEC                                            
 !-----------------------------------------------------------------------
       NZER = 0                                                            
       NEQU = 0                                                            
@@ -8620,7 +8720,7 @@
       DEALLOCATE(FF1,P1,F1,FF2,P2,F2,FF3,P3,F3)
       RETURN
       END
-      
+
 #endif
 
 ! ERRORMEM
@@ -13027,7 +13127,7 @@
                      NIJ,IJ,KL                                    
 !-----------------------------------------------------------------------                                                                       
 !     HONDO Conventional integral Output
-!-----------------------------------------------------------------------                                                                       
+!-----------------------------------------------------------------------  
       IJN = 0                                                           
       JMAX = MAXJ                                                       
       DO I = MINI,MAXI                                              
@@ -17292,11 +17392,12 @@
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz 
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
       COMMON/LIBRETA/BASLIB
       COMMON/LIBRETAaux/AUXLIB
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)      
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       INTEGER :: I,IATOM
 !-----------------------------------------------------------------------      
 !     Update coordinates of shells
@@ -17327,11 +17428,182 @@
 !                                                                      !
 !----------------------------------------------------------------------!
 
+! AUXREAD
+      SUBROUTINE AUXREAD(NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
+      COMMON/BASIS_FILE/BASIS_FILE
+      LOGICAL :: FILE_EXISTS
+      CHARACTER(80) :: BASIS_FILE,PREFIX,AUX_FILE,AUX_FILE_1
+      CHARACTER(8),DIMENSION(NATmax) :: ANAM
+      DOUBLE PRECISION :: COEFICIENT
+      INTEGER :: EXT_POS
+      DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
+      DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
+      DOUBLE PRECISION,PARAMETER :: PT75=0.75D0
+      DOUBLE PRECISION,PARAMETER :: PT187=1.875D0
+      DOUBLE PRECISION,PARAMETER :: TM10=1.0D-10
+      DOUBLE PRECISION,PARAMETER :: PT6562=6.5625D0
+      CHARACTER(8) :: BLANK
+      DATA BLANK /'        '/
+      CHARACTER(8) :: CBASIS
+      CHARACTER(8),DIMENSION(8) :: LABEL
+      DATA LABEL/'S       ','P       ','D       ','F       ',           &
+                 'G       ','H       ','I       ','L       '/
+      CHARACTER(8) :: BASIS
+
+      PI = 2.0d0*DASIN(1.0d0)
+      PI32 = PI*SQRT(PI)
+      NGAUSS=0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Open Basis Set file if exists
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CBASIS = BLANK 
+      EXT_POS = SCAN(TRIM(ADJUSTL(BASIS_FILE)),".", BACK= .TRUE.)  !Look for extension position
+      AUX_FILE = TRIM(ADJUSTL(BASIS_FILE(1:EXT_POS-1))) !Remove extension
+      IF(LEN_TRIM(AUX_FILE)>0)THEN
+       CALL GETENV( 'HOME', PREFIX )
+       AUX_FILE_1 = TRIM(PREFIX)//'/DoNOFsw/basis/'//                 &
+                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+       INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+       if(FILE_EXISTS)then                                ! in DoNOFsw
+        AUX_FILE = AUX_FILE_1
+!      DoNOF
+       else
+        AUX_FILE_1= TRIM(PREFIX)//'/DoNOF/basis/'//                   &
+                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+        INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+        if(FILE_EXISTS)then                               ! in DoNOF         
+         AUX_FILE = AUX_FILE_1
+        else
+         CALL GETENV( 'PWD', PREFIX )
+         AUX_FILE_1 = TRIM(PREFIX)//"/"//                             &
+                        TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+         INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+         if(FILE_EXISTS)then                              ! in pwd           
+          AUX_FILE = AUX_FILE_1
+         else
+          AUX_FILE_1 = TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+          INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+          if(FILE_EXISTS)then                             ! in given path    
+           AUX_FILE = AUX_FILE_1
+          else                             ! auxiliar basis set file not found    
+           WRITE(6,*)"Basis File ",TRIM(AUX_FILE)//"-jkfit.bas"," does not exist"
+           WRITE(*,*) "Plese provide the file or use auxgen auxiliary basis"
+           CALL ABRT
+          endif
+         endif
+        endif
+       endif
+!      Open Auxiliar Basis Set File ( Unit = 50 )         
+       CLOSE(50) !Close original Basis Set file                        
+       OPEN(50,FILE=AUX_FILE,STATUS='UNKNOWN',                        &
+               FORM='FORMATTED',ACCESS='SEQUENTIAL')
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Read Auxilairy Basis from the basisname-jkfit.bas
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NUMaux = 0
+      NSHELLaux = 0
+      DO IAT=1,NAT
+       if(LEN_TRIM(AUX_FILE)>0)then      
+        REWIND(50)
+        CALL FNDATMBASIS(ANAM(IAT),IEOF)
+       endif
+    2  CONTINUE
+       IEOF = 0
+       IERR = 0
+       CALL RDCARD(50,'$DATA 6U',IEOF)
+       KSIZE = -8
+       CALL GSTRNG(CBASIS,KSIZE)
+       READ(UNIT=CBASIS,FMT='(A8)')BASIS
+       IGAUSS = IFIND('NGAUSS  ',IERR)
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!!     Read shell information
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+       IF(BASIS/=BLANK)THEN
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -        
+        KTYP = 0
+        DO I=1,7
+         IF(BASIS==LABEL(I))KTYP=I
+        ENDDO
+        IF(KTYP==0) THEN
+        WRITE(*,*) 'Stop: Illegal auxiliary basis function type ',BASIS
+        CALL ABRT                                                         
+        END IF
+!- - - - - - -
+        NSHELLaux = NSHELLaux + 1
+        KSTARTaux(NSHELLaux) = NGAUSS+1
+        KATOMaux(NSHELLaux) = IAT
+        KTYPEaux(NSHELLaux) = KTYP
+        KNGaux(NSHELLaux) = IGAUSS
+        KLOCaux(NSHELLaux) = NUMaux+1
+        L = KTYP-1
+        NGAUSS = NGAUSS + IGAUSS
+        NUMaux = NUMaux + (L+1)*(L+2)/2
+        K1 = KSTARTaux(NSHELLaux)
+        K2 = K1 + KNGaux(NSHELLaux) - 1
+        ! Read exponents and coefficients of primitives
+        DO K = K1,K2
+         C1 = 0.0D0                                             
+         IEOF = 0                                      
+         IERR = 0
+         CALL RDCARD(50,'$DATA 7U',IEOF)  
+         IDUM = IFIND('IDUM    ',IERR)
+         IF(IERR/=0)CALL ABRT
+         EXaux(K) = RFIND('ZETA    ',IERR)
+         IF(IERR/=0) CALL ABRT
+         C1 = RFIND('C1      ',IERR)
+         IF(IERR/=0) CALL ABRT
+         CALL NORMALIZE_AUXILIAR(EXaux(K),COEFICIENT,L)
+         Caux(K) = C1*COEFICIENT
+        END DO
+        ! Compute contracted normalization constant
+        FACL = 0.0D0
+        DO IG = K1,K2
+         DO JG = K1,IG
+          EE = EXaux(IG)+EXaux(JG)
+          FAC = EE*SQRT(EE)
+          IF(L==0) DUM = Caux(IG)*Caux(JG)/FAC
+          IF(L==1) DUM = 0.5D0*Caux(IG)*Caux(JG)/(EE*FAC)
+          IF(L==2) DUM = PT75  *Caux(IG)*Caux(JG)/(EE*EE*FAC)
+          IF(L==3) DUM = PT187 *Caux(IG)*Caux(JG)/(EE**3*FAC)
+          IF(L==4) DUM = PT6562*Caux(IG)*Caux(JG)/(EE**4*FAC)
+          IF(L==5) DUM = PT2953*Caux(IG)*Caux(JG)/(EE**5*FAC)
+          IF(L==6) DUM = PT1624*Caux(IG)*Caux(JG)/(EE**6*FAC)
+          IF(IG /= JG) THEN
+           DUM = DUM+DUM
+          END IF
+          FACL = FACL+DUM
+         END DO
+        END DO
+        IF(FACL < TM10) THEN
+         FACL = 0.0D0
+        ELSE
+         FACL = 1.0D0/SQRT(FACL*PI32)
+        END IF
+        DO K = K1,K2
+         Caux(K) = Caux(K) * FACL
+        END DO
+        GOTO 2
+       END IF
+      END DO
+      CLOSE(UNIT=50)
+!     Open Basis Set File ( Unit = 50 )                                 
+      OPEN(50,FILE=BASIS_FILE,STATUS='UNKNOWN',                        &
+              FORM='FORMATTED',ACCESS='SEQUENTIAL')
+
+      RETURN
+      END
+
 ! AUXGEN
       SUBROUTINE AUXGEN(NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,NUMaux,     &
                         IGEN,ISTAR,EX,ZAN)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                         
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       INTEGER::IGEN,N
@@ -17389,10 +17661,12 @@
             if (ifa==1) TMPEXP = TMPEXP*(r+0.5*IGEN)/r
             do L=0,2*(iblock-1)
               NSHELLaux = NSHELLaux + 1
+              KSTARTaux(NSHELLaux) = NSHELLaux
+              KATOMaux(NSHELLaux) = IAT
+              KTYPEaux(NSHELLaux) = L+1
+              KNGaux(NSHELLaux) = 1
               KLOCaux(NSHELLaux) = NUMaux+1
               NUMaux = NUMaux + (L+1)*(L+2)/2
-              KTYPEaux(NSHELLaux) = L+1
-              KATOMaux(NSHELLaux) = IAT
               EXaux(NSHELLaux) = TMPEXP
               CALL NORMALIZE_AUXILIAR(TMPEXP,COEFICIENT,L)
               Caux(NSHELLaux) = COEFICIENT
@@ -17454,8 +17728,9 @@
       TYPE(C_PTR),DIMENSION(600)::AUXLIB
       COMMON/LIBRETAaux/AUXLIB
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !      
       INTEGER,DIMENSION(NAT)::LMAX
       DOUBLE PRECISION,DIMENSION(NAT)::EXMAX,EXMIN
@@ -17533,20 +17808,15 @@
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Gaux
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !-----------------------------------------------------------------------
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !-----------------------------------------------------------------------
 !     Driver for 2e integrals
 !-----------------------------------------------------------------------
       call cpu_time(timestarttwoE)
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
-      MAXG = 4**4
-      IF(LMAXIMA==2)MAXG =  6**4
-      IF(LMAXIMA==3)MAXG = 10**4
-      IF(LMAXIMA==4)MAXG = 15**4
-      IF(LMAXIMA==5)MAXG = 21**4
-      IF(LMAXIMA==6)MAXG = 28**4
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Debut
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17583,15 +17853,16 @@
 !-----------------------------------------------------------------------
       RETURN
       END
-      
+
 ! AuxERI                                            
       SUBROUTINE AuxERI(NINTEGtm,BUFP2,GHONDO,MAXG,NBF,IPRINTOPT,       &
                         EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,    &
                         KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)     
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)     
-      COMMON/RESTAR/NREC,IST,JST,KST,LST 
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
+      COMMON/RESTAR/NREC,IST,JST,KST,LST
       COMMON/SHLNOS1/QQ4,IJKL
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
 !
@@ -17600,8 +17871,8 @@
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DIMENSION GHONDO(MAXG)
-      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux)::GMAT
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::GMAT
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
 !-----------------------------------------------------------------------
       ALLOCATE(AUX(49*900))
@@ -17609,67 +17880,72 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Evaluate G = (P|Q) and G^{-1/2}
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(GMAT(NBFaux,NBFaux))
       CALL METRICmat(GMAT,GHONDO,MAXG,Cxyz,NAT)
-      CALL PDPT_msqrt(GMAT,NBFaux,IPRINTOPT) 
+      CALL PDPT_msqrt(GMAT,NBFaux,IPRINTOPT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
       CALL BASCHK(LMAXIMAaux,KTYPEaux,NSHELLaux)
-      NANGM =  4                                          
-      IF(LMAXIMA==2) NANGM =  6                                         
-      IF(LMAXIMA==3) NANGM = 10                                         
-      IF(LMAXIMA==4) NANGM = 15                                         
-      IF(LMAXIMA==5) NANGM = 21                                         
-      IF(LMAXIMA==6) NANGM = 28                                         
-      NANGMaux =  4                                         
-      IF(LMAXIMAaux==2) NANGMaux =  6                                   
-      IF(LMAXIMAaux==3) NANGMaux = 10                                  
-      IF(LMAXIMAaux==4) NANGMaux = 15                                   
-      IF(LMAXIMAaux==5) NANGMaux = 21                                   
-      IF(LMAXIMAaux==6) NANGMaux = 28                                   
-      NGTH(4) = 1                                                       
-      NGTH(3) = NGTH(4) * 1                                      
-      NGTH(2) = NGTH(3) * NANGMaux                                      
-      NGTH(1) = NGTH(2) * NANGM                                         
+      NANGM = 0
+      IF(LMAXIMA==0) NANGM =  1
+      IF(LMAXIMA==1) NANGM =  3
+      IF(LMAXIMA==2) NANGM =  6
+      IF(LMAXIMA==3) NANGM = 10
+      IF(LMAXIMA==4) NANGM = 15
+      IF(LMAXIMA==5) NANGM = 21
+      IF(LMAXIMA==6) NANGM = 28
+      NANGMaux = 0
+      IF(LMAXIMAaux==0) NANGMaux =  1
+      IF(LMAXIMAaux==1) NANGMaux =  3
+      IF(LMAXIMAaux==2) NANGMaux =  6
+      IF(LMAXIMAaux==3) NANGMaux = 10
+      IF(LMAXIMAaux==4) NANGMaux = 15
+      IF(LMAXIMAaux==5) NANGMaux = 21
+      IF(LMAXIMAaux==6) NANGMaux = 28
+      NGTH(4) = 1
+      NGTH(3) = NGTH(4) * 1
+      NGTH(2) = NGTH(3) * NANGMaux
+      NGTH(1) = NGTH(2) * NANGM
 !
-      NORGSH = 0                                               
-      NORGSP = 0    
+      NORGSH = 0
+      NORGSP = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II = IST,NSHELL                            
-       J0 = JST                                                       
-       DO JJ = J0,II                                               
-        JST = 1                                                        
-        K0 = KST                                                        
-        DO KK = K0,NSHELLaux                     
-         KST = 1                                                        
+      DO II = IST,NSHELL
+       J0 = JST
+       DO JJ = J0,II
+        JST = 1
+        K0 = KST
+        DO KK = K0,NSHELLaux
+         KST = 1
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !        (II,JJ//KK)                                        
 !- - - - - - - - - - - - - - - - - - - - - - - -                            
-         IEXCH = 1                                                     
-         ISH = II                                                      
-         JSH = JJ                                                      
-         KSH = KK                                                      
-         QQ4 = 1                                                       
+         IEXCH = 1
+         ISH = II
+         JSH = JJ
+         KSH = KK
+         QQ4 = 1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
 !         Compute 2e- Integrals (mn|k)                  
 !         Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         LQSUM = KTYPE(ISH) + KTYPE(JSH) + KTYPEaux(KSH) - 3     
+         LQSUM = KTYPE(ISH) + KTYPE(JSH) + KTYPEaux(KSH) - 3
          CALL SHELLS3C(1,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)                       
-         CALL IJPRIM(AUX)                                          
+                       NSHELL,Cxyz,NAT)
+         CALL IJPRIM(AUX)
          CALL SHELLS3C(2,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)                       
-         NORGH = NORGSH(IEXCH)                                        
-         CALL ZQOUT(GHONDO,MAXG)                                
-         IF(LQSUM==0) THEN                                             
-          CALL S0000(GHONDO(1+NORGH),AUX)                        
-         ELSE                                                         
-         CALL ERISPDFGHIL(GHONDO(1+NORGH),AUX)                       
-         END IF                                                       
+                       NSHELL,Cxyz,NAT)
+         NORGH = NORGSH(IEXCH)
+         CALL ZQOUT(GHONDO,MAXG)
+         IF(LQSUM==0) THEN
+          CALL S0000(GHONDO(1+NORGH),AUX)
+         ELSE
+         CALL ERISPDFGHIL(GHONDO(1+NORGH),AUX)
+         END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Contract to B tensor
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -17679,10 +17955,11 @@
         END DO
        END DO
       END DO
-      DEALLOCATE(AUX)                                                 
+      DEALLOCATE(AUX)
+      DEALLOCATE(GMAT)
 !-----------------------------------------------------------------------
-      RETURN                                                            
-      END     
+      RETURN
+      END
 
 ! AuxERIlib
       SUBROUTINE AuxERIlib(NINTEGtm,BUFP2,GLIBRETA,MAXG,MAXORI,NBF,     &
@@ -17695,7 +17972,8 @@
       COMMON/RESTAR/NREC,IST,JST,KST,LST                 
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)      
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !      
       TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
       COMMON/LIBRETA/BASLIB
@@ -17771,28 +18049,35 @@
                                Cxyz,NAT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       COMMON/RESTAR/NREC,IST,JST,KST,LST
       COMMON/SHLNOS1/QQ4,IJKL
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
 !
+      INTEGER :: MAXG,NBF,IPRINTOPT,NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      INTEGER :: IPRINTOPT
       DIMENSION GHONDO(MAXG)
-      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux)::GMAT,L,D,P
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BUFP
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::GMAT,L,D,P
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
 
-      DOUBLE PRECISION,DIMENSION(NBFaux)::E
-      INTEGER,DIMENSION(NBFaux)::IPIV
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::E
+      INTEGER,ALLOCATABLE,DIMENSION(:)::IPIV
       INTEGER::INFO
 !-----------------------------------------------------------------------
       ALLOCATE(AUX(49*900))
 !-----------------------------------------------------------------------
 !     Evaluate G = (P|Q), G = PLDL^TP^T, ModChol and get P, L, D^1/2
 !-----------------------------------------------------------------------
+      ALLOCATE(BUFP(NBF*(NBF+1)/2,NBFaux))
+      ALLOCATE(GMAT(NBFaux,NBFaux))
+      ALLOCATE(L(NBFaux,NBFaux),D(NBFaux,NBFaux),P(NBFaux,NBFaux))
+      ALLOCATE(E(NBFaux),IPIV(NBFaux))
+
       CALL METRICmat(GMAT,GHONDO,MAXG,Cxyz,NAT)
       CALL LDLT(GMAT,IPIV,E,NBFaux)
       CALL MODCHOL( NBFaux, GMAT, IPIV, E, 1D-10,IPRINTOPT)
@@ -17802,13 +18087,17 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
       CALL BASCHK(LMAXIMAaux,KTYPEaux,NSHELLaux)
-      NANGM =  4
+      NANGM =  0
+      IF(LMAXIMA==0) NANGM =  1
+      IF(LMAXIMA==1) NANGM =  3
       IF(LMAXIMA==2) NANGM =  6
       IF(LMAXIMA==3) NANGM = 10
       IF(LMAXIMA==4) NANGM = 15
       IF(LMAXIMA==5) NANGM = 21
       IF(LMAXIMA==6) NANGM = 28
-      NANGMaux =  4
+      NANGMaux =  0
+      IF(LMAXIMAaux==0) NANGMaux =  1
+      IF(LMAXIMAaux==1) NANGMaux =  3
       IF(LMAXIMAaux==2) NANGMaux =  6
       IF(LMAXIMAaux==3) NANGMaux = 10
       IF(LMAXIMAaux==4) NANGMaux = 15
@@ -17859,7 +18148,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Store 3 center ERIs (mn|k)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         CALL QOUT3CModChol(BUFP2,GHONDO,MAXG,NBF,NBFaux,               &
+         CALL QOUT3CModChol(BUFP,GHONDO,MAXG,NBF,NBFaux,               &
                             KLOC,KMIN,KMAX,NSHELL)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         END DO
@@ -17869,7 +18158,8 @@
 !-----------------------------------------------------------------------
 !     Build b tensor, solve linear equation system LD^1/2 b = P^T(k|mn)
 !-----------------------------------------------------------------------
-      BUFP2 = MATMUL(BUFP2,P)
+      BUFP2 = MATMUL(BUFP,P)
+      DEALLOCATE(BUFP)
       DO N=1,NBF
         DO M=1,N
           MN = M + N*(N-1)/2
@@ -17878,6 +18168,9 @@
           CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
         END DO
       END DO
+      DEALLOCATE(GMAT)
+      DEALLOCATE(L,D,P)
+      DEALLOCATE(E,IPIV)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -17901,13 +18194,13 @@
 ! MODCHOL
       SUBROUTINE MODCHOL ( n, a, ipiv, diag, delta, iprintopt )
       implicit none
-      integer    n
+      integer    n, iprintopt
       integer ipiv(n)
       real(8) a(n,n), diag(n), delta
 !
       real(8) t(2,2), eig(2), work(20), zero
       parameter (zero = 0.0d0)
-      integer k, lwork, info, nchanged, iprintopt
+      integer k, lwork, info, nchanged
 !-----------------------------------------------------------------------
       lwork = 10
       k = 1
@@ -17918,7 +18211,6 @@
 !     Check 1x1 block
         if ( k.eq.n .or. diag(k).eq. zero ) then
           if ( a(k,k).le.delta) then
-             if(iprintopt.eq.1) write(6,*) "Changing 1",k,a(k,k)
              nchanged = nchanged + 1
              a(k,k) = delta
           end if
@@ -17936,13 +18228,11 @@
           call dsyev ( 'v', 'l', 2, t, 2, eig, work, lwork, info )
 
           if (eig(1).le.delta) then
-            if(iprintopt.eq.1) write(6,*) "Changing 2",k,eig(1)
             nchanged = nchanged + 1
             eig(1) = delta
           end if
           eig(1) = sqrt(eig(1))
           if (eig(2).le.delta) then
-            if(iprintopt.eq.1) write(6,*) "Changing 2",k+1,eig(2)
             nchanged = nchanged + 1
             eig(2) = delta
           end if
@@ -17963,6 +18253,12 @@
 
         end if
       end do
+
+      if(iprintopt==1.and.nchanged>0) THEN
+       write(6,*)"SMCD Warning - Number of values changed from metric:",&
+             nchanged
+      end if
+
 !-----------------------------------------------------------------------
       END
 
@@ -18050,7 +18346,8 @@
       SUBROUTINE METRICmat(GMAT,GHONDO,MAXG,Cxyz,NAT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
       COMMON/RESTAR/NREC,IST,JST,KST,LST   
       COMMON/SHLNOS1/QQ4,IJKL
@@ -18065,7 +18362,9 @@
       ALLOCATE(AUX(49*900))        
 
       CALL BASCHK(LMAXIMAaux,KTYPEaux,NSHELLaux)
-      NANGMAUX =  4                                          
+      NANGMAUX =  0                                          
+      IF(LMAXIMAAUX==0) NANGMAUX =  1                                   
+      IF(LMAXIMAAUX==1) NANGMAUX =  3                                   
       IF(LMAXIMAAUX==2) NANGMAUX =  6                                   
       IF(LMAXIMAAUX==3) NANGMAUX = 10                                  
       IF(LMAXIMAAUX==4) NANGMAUX = 15                                   
@@ -18146,7 +18445,8 @@
                     NIJ,IJ,KL                                          
       COMMON/SHLNOS1/QQ4,IJKL                                           
 !      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       DIMENSION IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
@@ -18292,9 +18592,9 @@
       I = KATOMaux(INU)                                                 
       AX = Cxyz(1,I)                                                       
       AY = Cxyz(2,I)                                                       
-      AZ = Cxyz(3,I)                                                       
-      I1 = INU                                               
-      I2 = INU                                           
+      AZ = Cxyz(3,I)                                          
+      I1 = KSTARTAUX(INU)   !
+      I2 = I1+KNGAUX(INU)-1 !
       LIT = KTYPEaux(INU)                                              
       MINI = MINF(LIT)                                                  
       MAXI = MAXF(LIT)                                                  
@@ -18377,8 +18677,8 @@
       CX = Cxyz(1,K)                                                       
       CY = Cxyz(2,K)                                                       
       CZ = Cxyz(3,K)                                                       
-      K1 = KNU                                           
-      K2 = KNU                                             
+      K1 = KSTARTAUX(KNU)   !
+      K2 = K1+KNGAUX(KNU)-1 !
       LKT = KTYPEaux(KNU) 
       MINK = MINF(LKT)                                                  
       MAXK = MAXF(LKT)                                                  
@@ -18480,7 +18780,8 @@
                     NIJ,IJ,KL                                          
       COMMON/SHLNOS1/QQ4,IJKL
 !      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       LOGICAL FLIP
@@ -18725,8 +19026,8 @@
       CX = Cxyz(1,K)                                                       
       CY = Cxyz(2,K)                                                       
       CZ = Cxyz(3,K)                                                       
-      K1 = KNU                                                 
-      K2 = KNU                                               
+      K1 = KSTARTAUX(KNU)   !
+      K2 = K1+KNGAUX(KNU)-1 !
       LKT = KTYPEaux(KNU)                                               
       MINK = MINF(LKT)                                                  
       MAXK = MAXF(LKT)                                                  
@@ -18800,17 +19101,23 @@
 
 ! PDPT_msqrt
       SUBROUTINE PDPT_msqrt(GMAT,N,IPRINTOPT)
-      INTEGER :: N,I,J
-      DOUBLE PRECISION :: GMAT(N,N),TOL,VEC(N,N),EIG(N),W(N),AUX(N,N)
+      INTEGER :: N,IPRINTOPT,I,J,NTRUNC
+      DOUBLE PRECISION :: GMAT(N,N),TOL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,AUX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EIG,W
+
+      ALLOCATE(VEC(N,N),AUX(N,N))
+      ALLOCATE(EIG(N),W(N))
 !
       TOL = 1.0d-10
       AUX = GMAT
       CALL DIAG(N,AUX,VEC,EIG,W)
 !
+      NTRUNC = 0
       AUX = 0.0d0
       DO I=1,N
        IF (EIG(I)<=TOL) THEN
-        IF(IPRINTOPT==1) write(6,*) "Truncating",I,EIG(I)
+        NTRUNC = NTRUNC + 1
         EIG(I) = 0.0d0
         DO J=1,N
          VEC(J,I) = 0.0d0
@@ -18820,7 +19127,13 @@
        END IF
       END DO
 
+      IF(IPRINTOPT==1.AND.NTRUNC>0) THEN
+        WRITE(6,*) "RI Warning - Number of values truncated from metric:",NTRUNC
+      END IF
+
+      DEALLOCATE(EIG,W)
       GMAT = MATMUL(MATMUL(VEC,AUX),TRANSPOSE(VEC))
+      DEALLOCATE(VEC,AUX)
 
       END
 
@@ -18833,7 +19146,8 @@
       COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
                     NIJ,IJ,KL                                          
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !
       DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux) :: GMAT
       DOUBLE PRECISION,DIMENSION(MAXG) :: GHONDO
@@ -18876,7 +19190,8 @@
       LOGICAL IANDJ,KANDL,SAME
       COMMON/MISC/IANDJ,KANDL,SAME                                  
       COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL           
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !
       INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
@@ -18937,7 +19252,8 @@
       LOGICAL IANDJ,KANDL,SAME
       COMMON/MISC/IANDJ,KANDL,SAME
       COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600)
+      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
+                    KSTARTaux(600),KNGaux(600)
 !
       INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
@@ -19282,13 +19598,13 @@
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ELPROP/IEMOM
       COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
                   KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
@@ -19506,6 +19822,7 @@
       DIF_EELEC = 0.0d0      
       IF(IRUNTYP/=3) EELEC_MIN = 1.0d20 ! GLOBAL FIRST CALL
       IF(ICOEF==21)THEN
+       ICOEFori=21
        ICOEF=2
        COEF21=.TRUE.
       ENDIF
@@ -19548,7 +19865,7 @@
         CALL OrbOpt(IT,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
                     USER(N7),COEF,USER(N1),USER(N2),USER(N3),ELAG,      &
                     FMIUG0,USER(N11),USER(N12),USER(N13),USER(N14),     &
-                    ILOOP,IPRINTOPT,1)
+                    ILOOP,IPRINTOPT,IORBOPT)
 !      Core-Fragment Orbital Optimization
        ELSEIF(ICOEF==3)THEN
         if(MSpin==0)then          ! Singlet and Multiplet States
@@ -19581,9 +19898,10 @@
 !      END SINGLE-POINT CALCULATION (CONVG=TRUE)=(CONVGDELAG & ICOEF/=0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(CONVG)THEN
-        CALL PT2GRAD(ELAG,COEF,AHCORE,IJKL,XIJKL,USER,IRUNTYP,GRADS,    &
-                    ATMNAME,KATOM,KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,&
-                    YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,XINTS,IPRINTOPT)
+        CALL PT2GRAD(ELAG,COEF,AHCORE,IJKL,XIJKL,USER,IRUNTYP,          &
+                     GRADS,ATMNAME,KATOM,KTYPE,KLOC,KMIN,KMAX,          &
+                     KSTART,KNG,XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,        &
+                     CD,CF,CG,XINTS,IPRINTOPT)
 !       MIX: Return to RI ERIs if FULL is converged                    
         IF(IERITYP==3 .and. MIXSTATE==2 .and. CONVGDELAG)MIXSTATE = 1
 !                    
@@ -19605,6 +19923,7 @@
 !     STOP PROGRAM, DEALLOCATE MEMORY, GIVES ELAPSED TIME if IT > MAXIT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    10 CONTINUE 
+      IF(IRUNTYP==5.and.ICOEFori==21)ICOEF=21
       DEALLOCATE(COEF,ATMNAME,LIMLOW,LIMSUP,XATOM,YATOM,ZATOM)
       DEALLOCATE(GAMMA,FMIUG0,ELAG,ELAGN,RON,USER,COEFN)
       DEALLOCATE(IJKL,XIJKL,XIJKaux)
@@ -19649,13 +19968,13 @@
                          KSTART,KNG,XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,    &
                          CD,CF,CG,XINTS,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL MBPT,OIMP2,SC2MCPT,HighSpin
+      LOGICAL OIMP2,SC2MCPT,HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_OIMP2/OIMP2,MBPT
+      COMMON/INPNOF_OIMP2/OIMP2
       COMMON/INPNOF_SC2MCPT/SC2MCPT
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
                           N14,N15,N16,N17,N18,N19,N20,N21,N22,N23,N24,  &
@@ -19663,6 +19982,7 @@
                           N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
                           N47,N48,N49,N50,N51,NUSER
 !
+      INTEGER :: IRUNTYP,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: ELAG,COEF,AHCORE
       INTEGER,DIMENSION(NSTORE) :: IJKL  
       DOUBLE PRECISION,DIMENSION(NSTORE):: XIJKL
@@ -19676,7 +19996,7 @@
 !-----------------------------------------------------------------------      
 !     Orbital-Invariant MP2 Perturbative Corrections
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(OIMP2 .or. MBPT)THEN
+      IF(OIMP2)THEN
 #ifdef MPI
        WRITE(6,1)
        CALL ABRT       
@@ -19686,14 +20006,8 @@
        XIJKL(1) = XIJKL(1)
 #else
        if(IERITYP==1 .or. IERITYP==3)then
-        IF(OIMP2)THEN
         CALL ORBINVMP2(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
                        XIJKL,USER(N12),USER(N13),USER(N14))
-        ENDIF
-        IF(MBPT)THEN
-        CALL MBPT_RPA(ELAG,COEF,USER(N1),USER(N2),USER(N3),AHCORE,IJKL,&
-                       XIJKL,USER(N12),USER(N13),USER(N14))
-        ENDIF
        else if(IERITYP==2)then
         WRITE(6,5)
         CALL ABRT  
@@ -19741,12 +20055,12 @@
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
 #ifdef MPI
-    1 FORMAT(/1X,'Sorry: OIMP2/MBPT is not implemented with MPI.',           &
+    1 FORMAT(/1X,'Sorry: OIMP2 is not implemented with MPI.',           &
             //1X,'Use serial code for perturbative calculations.',/)           
     2 FORMAT(/1X,'Sorry: SC2MCPT is not implemented with MPI.',         &
             //1X,'Use serial code for perturbative calculations.',/)  
 #else
-    5 FORMAT(/1X,'Sorry: OIMP2/MBPT is not implemented with ERITYP=RI.',     &
+    5 FORMAT(/1X,'Sorry: OIMP2 is not implemented with ERITYP=RI.',     &
             //1X,'Use ERITYP=FULL for perturbative calculations.',/)
     6 FORMAT(/1X,'Sorry: SC2MCPT is not implemented with ERITYP=RI.',   &
             //1X,'Use ERITYP=FULL for perturbative calculations.',/) 
@@ -20058,7 +20372,7 @@
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
 !-----------------------------------------------------------------------      
@@ -20166,6 +20480,7 @@
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/USEHUBBARD/IHUB
 #include "mpip.h"
+      INTEGER :: NINTEGt,IDONTW,NREC
       INTEGER,DIMENSION(NINTEGt) :: IX2
       DOUBLE PRECISION,DIMENSION(NINTEGt) :: BUFP2
       INTEGER,DIMENSION(NSTORE) :: IERI
@@ -20398,10 +20713,10 @@
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 !
+      INTEGER :: IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEF,OVERLAP
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
       DOUBLE PRECISION,DIMENSION(NBF5)::GAMMA
-      INTEGER::IPRINTOPT
 !-----------------------------------------------------------------------
 !     INPUTGAMMA=0: Initial Values for GAMMA close to Fermi-Dirac dist.
 !     INPUTGAMMA=1: Read ONs on file 3 (GCF) and transform to GAMMA
@@ -20590,7 +20905,7 @@
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ      
       COMMON/INPNOF_COEFOPT/MAXLOOP
@@ -20608,7 +20923,7 @@
                           N47,N48,N49,N50,N51,NUSER
       COMMON/USEHUBBARD/IHUB
 !
-      INTEGER:: IPRINTOPT
+      INTEGER :: IPRINTOPT
       INTEGER,DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
@@ -21302,7 +21617,7 @@
       COMMON/INPNOF_EINI/IEINI
       COMMON/INPNOF_CGM/ICGMETHOD
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/SUMSZ/SUMS,SUMF
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
@@ -21315,14 +21630,12 @@
                           N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
                           N47,N48,N49,N50,N51,NUSER
 !
+      INTEGER :: IFIRSTCALL,IT,ITTOTAL,IPRINTOPT,IRUNTYP
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
-      INTEGER::IPRINTOPT
-!
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP,IZCORE,IMIN,IMAX
       INTEGER,DIMENSION(NPRIMI)::ISH,ITYP
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSTORE)::IJKL
-      INTEGER,ALLOCATABLE,DIMENSION(:)::IUSER
       DOUBLE PRECISION,DIMENSION(NATOMS)::ZNUC,CX0,CY0,CZ0
       DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,C1,C2,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0,ELAGN,RON
@@ -21418,7 +21731,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Output Energy and Properties with the input, and Stop if IEINI=1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(IEINI==1.or.NV==0)THEN
+      IF(IEINI==1 .or. NV==0 .or. (ICOEF==2.and.IFIRSTCALL==0) )THEN
        CALL OUTINITIALSr(NV,GAMMA,COEF,                                 &
             USER(N1),USER(N2),USER(N3),USER(N4),USER(N5),USER(N6),      &
             USER(N7),USER(N8),USER(N9),USER(N10),USER(N11),USER(N12),   &
@@ -21430,29 +21743,24 @@
             USER(N38),USER(N39),USER(N40),USER(N41),USER(N42),          &
             USER(N43),USER(N44),USER(N45),USER(N46),USER(N47),          &
             USER(N48),USER(N49),USER(N50),USER(N51),                    &
-            ATMNAME,ZNUC,LIMLOW,LIMSUP,OVERLAP,IT,ITTOTAL,IPRINTOPT)
+            ATMNAME,ZNUC,LIMLOW,LIMSUP,OVERLAP,IT,ITTOTAL,              &
+            IPRINTOPT,IRUNTYP)
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Minimization of the total energy with respect to GAMMAs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       EELEC_OLD = EELEC
-      IF( .NOT.CONVGDELAG.and.NV>0 )THEN
-       if(ICOEF/=2)then
-        IF(ICGMETHOD==1)THEN
-         CALL CGOCUPSUMSL(NV,GAMMA,USER,EELEC)
-        ELSE IF(ICGMETHOD==2)THEN
-         CALL CGOCUPNAG(NV,GAMMA,USER,EELEC)
-        ELSE IF(ICGMETHOD==3)THEN       
-         CALL LBFGSOCUP(NV,GAMMA,USER,EELEC)
-        ENDIF
-       else
-        allocate(IUSER(1))
-        call CALCOE(NV,GAMMA,NF,ENERGY,IUSER,USER)
-        deallocate(IUSER)
-       endif
+      IF( .NOT.CONVGDELAG .and. NV>0 .and. ICOEF/=2 )THEN
+       IF(ICGMETHOD==1)THEN
+        CALL CGOCUPSUMSL(NV,GAMMA,USER,EELEC)
+       ELSE IF(ICGMETHOD==2)THEN
+        CALL CGOCUPNAG(NV,GAMMA,USER,EELEC)
+       ELSE IF(ICGMETHOD==3)THEN       
+        CALL LBFGSOCUP(NV,GAMMA,USER,EELEC)
+       ENDIF
       END IF
       DIF_EELEC = EELEC - EELEC_OLD                          
-      IF(DIF_EELEC>0.0d0)GAMMA = GAMMA_OLD                   
+      IF(DIF_EELEC>0.0d0.and.IFIRSTCALL==1)GAMMA = GAMMA_OLD                   
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     One-particle Energies
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -21461,6 +21769,7 @@
 !      Determine the 1-energies if first call and pass to ELAG
        CALL ENENEWr(USER(N1),USER(N8),USER(N9),USER(N10),USER(N2),      &
                     USER(N3),USER(N15),USER(N16),USER(N17),EAHF,E)
+       ELAG = 0.0d0
        DO I=1,NBF
         ELAG(I,I) = E(I)
        ENDDO
@@ -21520,16 +21829,25 @@
                    USER(N16),USER(N17),1) 
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Write RO,COEF,E,FMIUG0 on File GCF
+!     Write RO,COEF,E,FMIUG0 on GCF file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(IWRTGCF==1)then
-       CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,    &
-            EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,CX0,CY0,CZ0,NATOMS) 
-       IF(EELEC<EELEC_MIN.AND.IPRINTOPT==1)THEN                          
-        CALL WRITEGCFr(8,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
-            EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,CX0,CY0,CZ0,NATOMS)
-        EELEC_MIN = EELEC
-       ENDIF
+       IF(IRUNTYP<5)THEN
+        CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
+                       EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,        &
+                       CX0,CY0,CZ0,NATOMS,1) 
+        IF(EELEC<EELEC_MIN.and.IPRINTOPT==1)THEN                          
+         CALL WRITEGCFr(8,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,  &
+                        EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,       &
+                        CX0,CY0,CZ0,NATOMS,1)
+         EELEC_MIN = EELEC
+        ENDIF
+       ELSE IF(IRUNTYP==5)THEN
+        CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
+                       EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,        &
+                       CX0,CY0,CZ0,NATOMS,1)                        
+!                      CX0,CY0,CZ0,NATOMS,0) !Don't write RO on GCF file
+       END IF
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Exit if convergence achieved
@@ -21826,7 +22144,7 @@
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !
       DIMENSION COEF(NBF,NBF)
       DIMENSION QD(NBF,NBF,NBF),HCORE(NBF5),QJ(NBFT5),QK(NBFT5)
@@ -22685,7 +23003,6 @@
 ! CGOCUPSUMSL
       SUBROUTINE CGOCUPSUMSL(NV,GAMMA,USER,ENERGY)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
                           N14,N15,N16,N17,N18,N19,N20,N21,N22,N23,N24,  &
@@ -22765,14 +23082,6 @@
                 + PRODCWQWj(in,USER(N2),USER(N9))                       &
                 - PRODCWQWj(in,USER(N3),USER(N10))                       
         enddo                                                            
-        if(NSOC>0)then                                                   
-         do i=NDOC+1,NDNS                                                
-          in = NO1+i                                                     
-          ENERGY = ENERGY + 2.0d0*USER(N1-1+in)*USER(N8-1+in)           &
-                 + PRODCWQWj(in,USER(N2),USER(N9))                      &
-                 - PRODCWQWj(in,USER(N3),USER(N10))
-         enddo
-        endif
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(NCWO>1)THEN        ! PNOFi(Nc): Extended PNOF (NCWO>1)
@@ -22802,15 +23111,15 @@
                 + PRODCWQWj(in,USER(N2),USER(N9))                       &
                 - PRODCWQWj(in,USER(N3),USER(N10))                       
         enddo                                                            
-        if(NSOC>0)then                                                   
-         do i=NDOC+1,NDNS                                                
-          in = NO1+i                                                     
-          ENERGY = ENERGY + 2.0d0*USER(N1-1+in)*USER(N8-1+in)           &
-                 + PRODCWQWj(in,USER(N2),USER(N9))                      &
-                 - PRODCWQWj(in,USER(N3),USER(N10))
-         enddo
-        endif
-       ENDIF
+       END IF
+       IF(NSOC>0)THEN                                                   
+        do i=NDOC+1,NDNS                                                
+         in = NO1+i                                                     
+         ENERGY = ENERGY + 2.0d0*USER(N1-1+in)*USER(N8-1+in)           &
+                + PRODCWQWj(in,USER(N2),USER(N9))                      &
+                - PRODCWQWj(in,USER(N3),USER(N10))
+        enddo
+       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(EFIELDL)THEN       ! including electric field
         CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),          &
@@ -22942,8 +23251,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Occupations
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL OCUPACIONr(GAMMA,USER(N1),USER(N2),USER(N3),                 &
-!                            USER(N4),USER(N5),USER(N6),NV)
+!     CALL OCUPACIONr(GAMMA,USER(N1),USER(N2),USER(N3),                 &
+!                           USER(N4),USER(N5),USER(N6),NV)
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     Singlet State (S=0,Ms=0) and Multiplet States (S>0,Ms=0)
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -23156,47 +23465,47 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send output of E04DGF to CGM file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     avoiding warnings
-      USER(1) = USER(1)
-      ENERGY = ENERGY      
-!nag      CALL X04ABF(1,2)                                        
+      CALL X04ABF(1,2)                                        !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Function Precision (machine precision**0.9)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(THRESHEN>=1.0d-10)THEN
-!nag       CALL E04DKF ('Function Precision = 1.0D-10')           
-          ELSEIF(THRESHEN==1.0d-11)THEN                           
-!nag       CALL E04DKF ('Function Precision = 1.0D-11')           
-          ELSEIF(THRESHEN==1.0d-12)THEN                               
-!nag       CALL E04DKF ('Function Precision = 1.0D-12')           
-          ELSEIF(THRESHEN==1.0d-13)THEN                               
-!nag       CALL E04DKF ('Function Precision = 1.0D-13')           
-          ELSEIF(THRESHEN==1.0d-14)THEN                               
-!nag       CALL E04DKF ('Function Precision = 1.0D-14')           
-          ELSEIF(THRESHEN==1.0d-15)THEN                               
-!nag       CALL E04DKF ('Function Precision = 1.0D-15')           
-          ELSEIF(THRESHEN<=1.0d-16)THEN                               
-!nag       CALL E04DKF ('Function Precision = 1.0D-16')           
+       CALL E04DKF ('Function Precision = 1.0D-10')           !nag
+      ELSEIF(THRESHEN==1.0d-11)THEN                               
+       CALL E04DKF ('Function Precision = 1.0D-11')           !nag
+      ELSEIF(THRESHEN==1.0d-12)THEN                                   
+       CALL E04DKF ('Function Precision = 1.0D-12')           !nag
+      ELSEIF(THRESHEN==1.0d-13)THEN                                   
+       CALL E04DKF ('Function Precision = 1.0D-13')           !nag
+      ELSEIF(THRESHEN==1.0d-14)THEN                                   
+       CALL E04DKF ('Function Precision = 1.0D-14')           !nag
+      ELSEIF(THRESHEN==1.0d-15)THEN                                   
+       CALL E04DKF ('Function Precision = 1.0D-15')           !nag
+      ELSEIF(THRESHEN<=1.0d-16)THEN                                   
+       CALL E04DKF ('Function Precision = 1.0D-16')           !nag
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Verify Level (-1 = No checks, 0 = cheap test, 1 = 0 + gradients)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Verify Level = -1')                       
+      CALL E04DKF ('Verify Level = -1')                       !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Print Level (0 = No output, 1 = The final solution only)
 !                 (5 = One line of summary output for each iteration)
 !                 (10 = The final solution and one line for each iter.)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Print Level = 0')                         
+      CALL E04DKF ('Print Level = 0')                         !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Maximum Step Length (Default = 10**20))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Maximum Step Length  = 0.1')              
+      CALL E04DKF ('Maximum Step Length  = 0.1')              !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Linesearch Tolerance (0<r<1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Linesearch Tolerance = 0.01')             
+      CALL E04DKF ('Linesearch Tolerance = 0.01')             !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Optimality Tolerance (default = relative precision**0.8)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL E04DKF ('Optimality Tolerance = 1.0D-10')          !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calling to NAG Library for using the CG method
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -23205,8 +23514,8 @@
 !     Avoiding warnings
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       GAMMA(1) = GAMMA(1)
-!nag      CALL E04DGF(NV,ENERFUNr,ITER_E04DGF,ENERGY,GRAD,GAMMA,            &    
-!nag                  IWORK,WORK,IUSER,USER,IFAIL)                               
+      CALL E04DGF(NV,ENERFUNr,ITER_E04DGF,ENERGY,GRAD,GAMMA,            &    !nag
+                  IWORK,WORK,IUSER,USER,IFAIL)                               !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE (IUSER,IWORK,GRAD,WORK)
       RETURN
@@ -23302,13 +23611,6 @@
          ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))       &
                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)          
         enddo                                                            
-        if(NSOC>0)then                                                   
-         do i=NDOC+1,NDNS                                                
-          in = NO1+i                                                     
-          ENERGY = ENERGY + 2.0d0*RO(in)*HCORE(in)                      &
-                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)
-         enddo
-        endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ELSE                        ! PNOFi(Nc): Extended PNOF (NCWO>1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -23330,14 +23632,14 @@
          ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))       &
                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)          
         enddo                                                            
-        if(NSOC>0)then                                                   
-         do i=NDOC+1,NDNS                                                
-          in = NO1+i                                                     
-          ENERGY = ENERGY + 2.0d0*RO(in)*HCORE(in)                      &
-                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)
-         enddo
-        endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       ENDIF
+       IF(NSOC>0)THEN                                                   
+        do i=NDOC+1,NDNS                                                
+         in = NO1+i       
+         ENERGY = ENERGY + 2.0d0*RO(in)*HCORE(in)                      &
+                + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)
+        enddo
        ENDIF
 !- - - including Electric Field  - - - - - - - - - - - - - - - - -
        if(EFIELDL)then
@@ -23353,9 +23655,9 @@
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
       IF(MODE==1.or.MODE==2)THEN
+       GRAD = 0.0d0      
        IF(NCWO==1)THEN             ! PNOFi(1): Perfect Pairing (NCWO=1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        GRAD = 0.0d0
         DO ig=1,NV
          do i=1,NDOC
           in = NO1+i
@@ -23386,7 +23688,6 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ELSE                        ! PNOFi(Nc): Extended PNOF (NCWO>1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        GRAD = 0.0d0
         DO ig=1,NV
          do i=1,NDOC
           in = NO1+i
@@ -24535,8 +24836,6 @@
       Hcut = 0.02d0*DSQRT(2.0d0)
       ROd  = 0.0d0
       DROd = 0.0d0
-      Rd   = 0.0d0
-      DRd  = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     ROd (NO1+1:NBF5)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -24572,6 +24871,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Rd(1:NBF5) = SQRT(ROd)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Rd   = 0.0d0
+      DRd  = 0.0d0
       DO j=1,NBF5
        Rd(j) = DSQRT(ROd(j))
        do k=1,nv
@@ -24752,29 +25053,30 @@
 
 ! OUTINITIALSr
       SUBROUTINE OUTINITIALSr(NV,GAMMA,COEF,RO,CJ12,CK12,               &
-                              DR,DCJ12r,DCK12r,QD,HCORE,QJ,QK,          &
-                              DIPN,ADIPx,ADIPy,ADIPz,DIPx,DIPy,DIPz,    &
-                              QUADN,AQUADxx,AQUADyy,AQUADzz,AQUADxy,    &
-                              AQUADxz,AQUADyz,QUADxx,QUADyy,QUADzz,     &
-                              QUADxy,QUADxz,QUADyz,OCTUN,AOCTxxx,       &
-                              AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz,AOCTxyy,  &
-                              AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz,OCTxxx,   &
-                              OCTyyy,OCTzzz,OCTxxy,OCTxxz,OCTxyy,OCTyyz,&
-                              OCTxzz,OCTyzz,OCTxyz,ATMNAME,ZNUC,LIMLOW, &
-                              LIMSUP,OVERLAP,IT,ITTOTAL,IPRINTOPT)
+                             DR,DCJ12r,DCK12r,QD,HCORE,QJ,QK,           &
+                             DIPN,ADIPx,ADIPy,ADIPz,DIPx,DIPy,DIPz,     &
+                             QUADN,AQUADxx,AQUADyy,AQUADzz,AQUADxy,     &
+                             AQUADxz,AQUADyz,QUADxx,QUADyy,QUADzz,      &
+                             QUADxy,QUADxz,QUADyz,OCTUN,AOCTxxx,        &
+                             AOCTyyy,AOCTzzz,AOCTxxy,AOCTxxz,AOCTxyy,   &
+                             AOCTyyz,AOCTxzz,AOCTyzz,AOCTxyz,OCTxxx,    &
+                             OCTyyy,OCTzzz,OCTxxy,OCTxxz,OCTxyy,OCTyyz, &
+                             OCTxzz,OCTyzz,OCTxyz,ATMNAME,ZNUC,LIMLOW,  &
+                             LIMSUP,OVERLAP,IT,ITTOTAL,IPRINTOPT,IRUNTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL EFIELDL,HighSpin,SCALING
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/ELPROP/IEMOM
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
+      INTEGER :: NV,IT,ITTOTAL,IPRINTOPT,IRUNTYP
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP
       DOUBLE PRECISION,DIMENSION(3)::DIPN
@@ -24801,7 +25103,6 @@
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NV)::DCJ12r,DCK12r
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::GRAD,EAHF,E
-      INTEGER::IPRINTOPT
 !
       DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
       DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
@@ -24836,7 +25137,7 @@
 !-----------------------------------------------------------------------
 !      Initial Values
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(NZEROS<=NZEROSm)WRITE(6,1)
+       IF(NZEROS<=NZEROSm .and. IRUNTYP/=3 )WRITE(6,1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      One-particle Energies
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -24903,6 +25204,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Energy Output
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(ICOEF==2)RETURN
        IF(IPRINTOPT==0)STOP
        IF(NZEROS<=NZEROSm)THEN
         WRITE(6,100)
@@ -24917,6 +25219,7 @@
         WRITE(6,105)IT,ITTOTAL
         WRITE(6,200)
        ENDIF
+       STOP       
 !-----------------------------------------------------------------------
       ENDIF
 !-----------------------------------------------------------------------
@@ -24973,7 +25276,6 @@
               /2X,'**************************************************', &
               /)
 !----------------------------------------------------------------------
-      STOP
       END
 
 ! GENOUTPUTr
@@ -25041,20 +25343,20 @@
                           ISH,ITYP,EX1,C1,C2,CS,CP,CD,CF,CG,CH,CI,      &
                           IFIRSTCALL,DIPS,IRUNTYP)                          
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
-      LOGICAL EFIELDL,RESTART,APSG,OIMP2,MBPT,HighSpin
+      LOGICAL EFIELDL,RESTART,APSG,OIMP2,HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG
-      COMMON/INPNOF_OIMP2/OIMP2,MBPT
+      COMMON/INPNOF_OIMP2/OIMP2
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
@@ -25224,9 +25526,9 @@
 !-----------------------------------------------------------------------       
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Non-Dynamic Correction if OIMP2 or MBPT
+!     Non-Dynamic Correction if OIMP2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
+      IF(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
 !-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'              &
             ,/1X,'========================================')             
@@ -25278,16 +25580,24 @@
 
 ! WRITEGCFr
       SUBROUTINE WRITEGCFr(NFILE,RO,SUMS,C,E,F,NSQ,NBF,NBF5,IT,EELEC,EN,&
-                        NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,CX0,CY0,CZ0,NAT)
+                           NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,CX0,CY0,CZ0, &
+                           NAT,IWRTRO)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DIMENSION RO(NBF5),C(NSQ),E(NBF),F(NBF)
       DOUBLE PRECISION,DIMENSION(NAT):: ZNUC,CX0,CY0,CZ0
       DOUBLE PRECISION,PARAMETER::BOHR = 0.52917724924D+00
 !-----------------------------------------------------------------------
       REWIND(NFILE)
-      DO I=1,NBF5
-       WRITE(NFILE,'(I6,F30.16)')I,RO(I)
-      ENDDO
+      if(IWRTRO==0)then  ! Don't write RO if RUNTYP=DYN (IRUNTYP==5)
+       DO I=1,NBF5
+        READ(NFILE,'(I6,F30.16)')II,RRII
+       ENDDO
+      else if(IWRTRO==1)then
+       DO I=1,NBF5
+        WRITE(NFILE,'(I6,F30.16)')I,RO(I)
+       ENDDO
+      endif
+!      
       DO I=NBF5+1,NBF
        WRITE(NFILE,'(I6,F30.16)')I,0.0d0
       ENDDO
@@ -25331,7 +25641,7 @@
                               DIPS,IPRINTOPT,IRUNTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL EFIELDL,CONVGDELAG,PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO
-      LOGICAL OIMP2,MBPT,HighSpin
+      LOGICAL OIMP2,HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
@@ -25340,14 +25650,14 @@
       COMMON/INPNOF_LAGRANGE/PRINTLAG,DIAGLAG
       COMMON/INPNOF_APSG/APSG,NTHAPSG,THAPSG 
       COMMON/INPNOF_ORTHOGONALITY/CHKORTHO,ORTHO
-      COMMON/INPNOF_OIMP2/OIMP2,MBPT
+      COMMON/INPNOF_OIMP2/OIMP2
       COMMON/INPNOF_EKT/IEKT
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/ELPROP/IEMOM      
@@ -25355,6 +25665,7 @@
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/CorrNonDynamic/ECnd,ECndl,ECndHF
 !
+      INTEGER :: IFIRSTCALL,IPRINTOPT,IRUNTYP
       CHARACTER*4,DIMENSION(NATOMS)::ATMNAME
       INTEGER,DIMENSION(NATOMS)::LIMLOW,LIMSUP,IZCORE,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL)::KSTART,KNG,KKMIN,KKMAX,KATOM,KTYPE,KLOC
@@ -25386,7 +25697,6 @@
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       DOUBLE PRECISION,DIMENSION(NIJKL)::XIJKL
       DOUBLE PRECISION,DIMENSION(3):: DIPS
-      INTEGER::IPRINTOPT
 !      
       DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
       DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
@@ -25460,6 +25770,11 @@
          CALL EXTKOOPMANSrc(ELAG,COEF,OVERLAP,AHCORE,IJKL,XIJKL,RO)
         END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       Quasi-particle Energies
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        IQE=0
+        IF(IQE==1.and.MSpin==0)CALL QUASIENEr(RO,HCORE,QJ,QK,CJ12,CK12)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Print Lagrange Multipliers (ELAG Matrix) on main output (6)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         IF(PRINTLAG)THEN
@@ -25469,7 +25784,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Diagonalization of Lagrange Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(DIAGLAG)CALL DIAGELAG(ELAG,COEF,RO,ELAGN,COEFN,RON)       
+        IF(DIAGLAG)THEN
+         CALL DIAGELAG(ELAG,COEF,RO,ELAGN,COEFN,RON)       
+         RON = RON/2.0d0         
+        ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Mulliken Population Analysis 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -25499,22 +25817,31 @@
 !      Bader's analysis:Write information into a wavefunction file (WFN) 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(IAIMPAC==1.and.MSpin==0)THEN
-        CALL AIMMEMrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KSTART,KNG,KKMIN,    &
-                      KKMAX,KATOM,KTYPE,RO,E,EX1,CS,CP,CD,CF,CG,CH,CI)
+        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+         CALL AIMMEMrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KSTART,KNG,KKMIN,  &
+                  KKMAX,KATOM,KTYPE,RON,ELAGN,EX1,CS,CP,CD,CF,CG,CH,CI)
+        else
+         CALL AIMMEMrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KSTART,KNG,KKMIN,   &
+                       KKMAX,KATOM,KTYPE,RO,E,EX1,CS,CP,CD,CF,CG,CH,CI)
+        endif                       
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Write information into formatted checkpoint file (FCHK) [Unit=19]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(IFCHK==1.and.MSpin==0)THEN
-        CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,       &
-                    RO,E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP)
+        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+         CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,     &
+                     RON,ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP)
+        else
+         CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,       &
+                     RO,E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP)
+        endif
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Write information into a file in Molden Format (MLD) [Unit=17]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(MOLDEN==1.and.MSpin==0)THEN
         if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         RON = RON/2.0d0
          CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
                        ISH,ITYP,EX1,C1,C2,RON,ELAGN,COEFN)               
         else                           ! Natural Orbitals                
@@ -25552,9 +25879,9 @@
 !-----------------------------------------------------------------------       
       END IF 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Non-Dynamic Correction if OIMP2 or MBPT
+!     Non-Dynamic Correction if OIMP2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)
+      if(OIMP2)CALL ECorrNonDyn(RO,QK,ECndl)
 !-----------------------------------------------------------------------
     1 FORMAT(//2X,'RESULTS OF THE OCCUPATION OPTIMIZATION'              &
             ,/1X,'========================================')
@@ -26160,6 +26487,128 @@
       RETURN
       END
 
+! QUASIENEr
+      SUBROUTINE QUASIENEr(RO,HCORE,QJ,QK,CJ12,CK12)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+!
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO,HCORE
+      DOUBLE PRECISION,DIMENSION(NBFT5)::QJ,QK
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12 
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EHFa,EQP
+!-----------------------------------------------------------------------
+!     EAHF: New HF energies
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE (EHFa(NBF5))
+      EHFa = 0.0d0
+      DO j=na+1,nbf5 
+       do i=1,j-1
+        ij = i + j*(j-1)/2
+        EHFa(j) = EHFa(j) + RO(i)*(2.0d0*QJ(ij)-QK(ij))
+       enddo
+       jj=j*(j+1)/2
+       EHFa(j) = EHFa(j) + RO(j)*QJ(jj)
+       do i=j+1,nbf5
+        ij = j + i*(i-1)/2
+        EHFa(j) = EHFa(j) + RO(i)*(2.0d0*QJ(ij)-QK(ij))
+       enddo
+       EHFa(j) = HCORE(j) + EHFa(j)/(1.0-RO(j))
+      ENDDO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     EQP: Quasi-particle energies
+!     MSpin=0 (Ms=0): Singlet States (S=0) & Multiplet States (S>0) 
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE (EQP(NBF5))
+      DO j=1,nb
+       jj=j*(j+1)/2
+       EQP(j) = HCORE(j) + QJ(jj) + (1.0d0/RO(j)) *                     &
+                ( PRODCWQWj(j,CJ12,QJ) - PRODCWQWj(j,CK12,QK) )
+      ENDDO        
+      DO j=nb+1,na  ! NSOC                                                    
+       EQP(j) = HCORE(j) + (1.0d0/RO(j))                                &
+              * ( PRODCWQWj(j,CJ12,QJ) - PRODCWQWj(j,CK12,QK) )           
+      ENDDO                                                             
+      DO j=na+1,nbf5                                                    
+       jj=j*(j+1)/2                                                     
+       EQP(j) = EHFa(j) - RO(j)*QJ(jj)/(1.0d0-RO(j))                    &
+           - (PRODCWQWj(j,CJ12,QJ)-PRODCWQWj(j,CK12,QK))/(1.0d0-RO(j))
+      ENDDO 
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL ORDEREQP(RO,EQP)
+      WRITE(6,1)
+      DO I=1,NBF5
+       WRITE(6,2)I,EQP(I),EQP(I)*27.2107
+      ENDDO
+!-----------------------------------------------------------------------
+    1 FORMAT(/2X,'--------------------------------------------------',  &
+             /2X,' Quasi Particle Energies                           ', &
+             /2X,'--------------------------------------------------',  &
+            //4X,'OM',14X,'(aU)',14X,'(eV)',/) 
+    2 FORMAT(2X,I4,4X,F15.3,4X,F15.3,10X,F7.3)            
+!-----------------------------------------------------------------------
+      DEALLOCATE (EHFa,EQP)
+      RETURN
+      END
+      
+! ORDEREQP
+      SUBROUTINE ORDEREQP(RO,EQP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0      
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF)::EQP
+!----------------------------------------------------------------------!
+!     Ordering by Occupation Numbers (NO1+1:NO1+NDOC)=(NO1+1:NB)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      do k=1,ndoc
+       kmini = k
+       im = NO1+k  ! im=no1+1,nb
+       MINI = im
+       DUM = RO(im)
+       do i=im,nb
+        IF(RO(i)>DUM)THEN
+         DUM = RO(i)
+         MINI = i  ! MINI -> MAXI
+         kmini = MINI - NO1
+        ENDIF
+       end do
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+       IF(MINI/=im)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       Occupancies
+        DUM1 = RO(im)
+        RO(im) = RO(MINI)
+        RO(MINI) = DUM1
+!       Energies
+        DUM2 = EQP(im)
+        EQP(im) = EQP(MINI)
+        EQP(MINI) = DUM2
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!       in = na+1,na+ncwo*ndoc         
+!- - - - - - - - - - - - - - - - - - - - - - - -
+        do iw=1,ncwo
+         in = na+ncwo*(ndoc-k)+iw
+         inmini = na+ncwo*(ndoc-kmini)+iw                  
+!        Occupancies         
+         DUM1 = RO(in)
+         RO(in) = RO(inmini)
+         RO(inmini) = DUM1
+!        Energies         
+         DUM2 = EQP(in)
+         EQP(in) = EQP(inmini)
+         EQP(inmini) = DUM2
+        end do
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       END IF
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+      end do
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      RETURN
+      END      
+      
 ! DYSONORB
       SUBROUTINE DYSONORB(OCCD,DYSON,COEF,RO,W,OVERLAP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
@@ -27095,7 +27544,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      DO j=1,NDNS
 !       jn = NO1+j      
-!       write(6,'(I6,2F19.6)')jn,CMIU(jn),CMIU(jn)*27.211399
+!       write(6,'(I6,2F19.6)')jn,CMIU(jn),CMIU(jn)*27.21138386
 !      ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CHEPOT = -1.0d10
@@ -27103,7 +27552,7 @@
        jn = NO1+j
        if(CMIU(jn)>CHEPOT)CHEPOT=CMIU(jn)
       ENDDO
-      write(6,1)CHEPOT,CHEPOT*27.211399             
+      write(6,1)CHEPOT,CHEPOT*27.21138386             
 !-----------------------------------------------------------------------
     1 FORMAT(/,3X,'Chemical Potential =',F10.4,2X,'(',F10.4,1X,'eV )')
       DEALLOCATE (CMIU,DCJ12DRO,DCK12DRO)
@@ -28400,11 +28849,11 @@
 ! ORTHONORMAL
       SUBROUTINE ORTHONORMAL(NV,NBF,NBFT,OVERLAP,COEF,ICHECK,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      INTEGER::NV,NBF,NBFT,ICHECK,IPRINTOPT      
       DOUBLE PRECISION,DIMENSION(NBF,NV)::COEF
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,AUXE,S
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AUX,W,COEFN
-      INTEGER::IPRINTOPT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Form Canonical Orthonormal Orbitals: Diagonalize the Overlap (AUX)
 !     W - eigenvectors, EVA - eigenvalues
@@ -28599,9 +29048,9 @@
 ! CHECKORTHO
       SUBROUTINE CHECKORTHO(COEF,OVERLAP,IVIOORTHO,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      INTEGER :: IVIOORTHO,IPRINTOPT      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       DIMENSION COEF(NBF,NBF),OVERLAP(NBF,NBF)
-      INTEGER::IPRINTOPT
 !-----------------------------------------------------------------------
       IVIOORTHO=0
       CSCMAX=0.0d0
@@ -28644,22 +29093,22 @@
 !                                                                      !
 !             Variables: MOs {Cvq}  (NVAR = NSQ = NBF*NBF)             !
 !                                                                      !
+!   OrbOpt: Minimize the energy with respect to the MOs {Cvq} = COEF   !
+!                                                                      !
 !   Method:                                                            !
 !                                                                      !
 !   1) OrbOptFMIUGr: Use a Generalized Fock Matrix; JCC 30, 2078, 2009 !
-!      MSpin=0 (Ms=0): Singlet States (S=0) & Multiplet States (S>0)   !
-!      MSpin>0 (Ms>0): High-Spin State (Restricted Open:ro)            !
 !                                                                      !
-!   2) OrbOptSQP: Use a Sequential Quadratic Program (SQP) Method      !
+!   2) OrbOptRot: Use a Unitary Tranformation -> Cn = C * exp(YM)      !
 !                                                                      !
-!   OrbOpt: Minimize the energy with respect to the MOs {Cvq} = COEF   !
+!   3) OrbOptSQP: Use a Sequential Quadratic Program (SQP) Method      !
 !                                                                      !
 !----------------------------------------------------------------------!
 
 ! OrbOpt
       SUBROUTINE OrbOpt(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux, &
                         QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,ADIPx,    &
-                        ADIPy,ADIPz,ILOOP,IPRINTOPT,IMethod)
+                        ADIPy,ADIPz,ILOOP,IPRINTOPT,IORBOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
@@ -28667,6 +29116,7 @@
       LOGICAL ERIACTIVATED
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
 !      
+      INTEGER :: ITCALL,ITLIM,ILOOP,IPRINTOPT,IORBOPT
       INTEGER,DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux 
@@ -28678,14 +29128,18 @@
       DOUBLE PRECISION,DIMENSION(3)::DIPN      
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz      
 !-----------------------------------------------------------------------
-      IF(IMethod==1)THEN
-       CALL OrbOptFMIUGr(ITCALL,ITLIM,AHCORE,IJKL,XIJKL,XIJKaux,        &
-                         QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,         &
-                         ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)      
-      ELSE IF(IMethod==2)THEN
+      IF(IORBOPT==1)THEN
+       CALL OrbOptFMIUGr(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,        &
+                         XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,      &
+                         DIPN,ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)      
+      ELSE IF(IORBOPT==2)THEN
+       CALL OrbOptRot(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF, &
+                      RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,ADIPz,ILOOP,   &
+                      IPRINTOPT)
+      ELSE IF(IORBOPT==3)THEN
        CALL OrbOptSQP(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
                       QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP)
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
       END IF
 !-----------------------------------------------------------------------
       RETURN
@@ -28722,21 +29176,22 @@
 !----------------------------------------------------------------------!
 
 ! OrbOptFMIUGr      
-      SUBROUTINE OrbOptFMIUGr(ITCALL,ITLIM,AHCORE,IJKL,XIJKL,XIJKaux,   &
-                              QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,    &
-                              ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      SUBROUTINE OrbOptFMIUGr(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,   &
+                              XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0, &
+                              DIPN,ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       LOGICAL CONVGDELAG,EFIELDL,SMCD,RESTART,SCALING
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD      
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER      
       COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
+      COMMON/INPNOF_STATIC/Ista      
       LOGICAL ERIACTIVATED,HighSpin
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
@@ -28751,13 +29206,13 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
-      INTEGER::IPRINTOPT
+      INTEGER :: ITCALL,ITLIM,ILOOP,IPRINTOPT
       INTEGER,DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(3)::DIPN
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
@@ -28766,7 +29221,8 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::DMP,DM,WRK1,WRK2,WRK3
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::FAO,FAO0,FAO1,FAO2
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::DEN,FMIUG,W
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::DEN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::FMIUG,W      
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::COEFNEW,BFM,G
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::FK      
 !-----------------------------------------------------------------------
@@ -28779,12 +29235,19 @@
        SUMDIF_OLD = 0.0d0
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Density Matrices (DEN)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(DEN(NBF,NBF))
+      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5)   ! Density Matrix                      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(G(NBF,NBF5))
       IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0             &
           .and. IERITYP==1 )THEN
+!AO          
+       OVERLAP(1,1) = OVERLAP(1,1) ! avoiding warning
+!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
       ELSE
        CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,                &
@@ -28811,10 +29274,13 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)         ! DUMEL
       PCONV=ABS(DIF_EELEC)                             ! PCONV
-      IF(IRUNTYP==5.and.ITCALL==1)PCONV=THRESHE+1.0d0  ! avoiding stop
-      IF(ITCALL==1.and.IPRINTOPT==1)THEN
-       WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
-      ENDIF      
+      IF(ITCALL==1)THEN
+       PCONV=THRESHE+1.0d0                             ! avoiding stop        
+       IF(IPRINTOPT==1)THEN
+        DIF_EELEC = EELEC-EELEC_OLD
+        WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+       ENDIF      
+      ENDIF
       IF( DUMEL<THRESHL .and. PCONV<THRESHE )THEN
        IF(ITCALL>1.and.IPRINTOPT==1)THEN
         WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL 
@@ -28957,6 +29423,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0            &
           .and. IERITYP==1 )THEN
+!AO     CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
        ELSE
         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
@@ -29035,7 +29502,7 @@
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
       INTEGER,DIMENSION(NSTORE)::IJKL
@@ -29461,8 +29928,8 @@
 !     Subroutines for the Orbital Optimization using Density Matrices  !
 !                        (PNOF5, PNOF7 and GNOF)                       !
 !                                                                      !
-!   ELAGr: Calculate the Lagrangian (ELAG)                             !
-!   DENMATg,0g: Calculate Density Matrix for a given subspace 'l'      !
+!   ELAGr:   Calculate the Lagrangian (ELAG)                           !
+!   DENMATg: Calculate Density Matrix for a given subspace 'l'         !
 !   HSTARK3: Determine three skeleton K from atomic integrals (AUX)    !
 !                                                                      !
 !----------------------------------------------------------------------!
@@ -29470,14 +29937,13 @@
 ! ELAGr (MSpin=0,IERITYP=1)
       SUBROUTINE ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HighSpin,EFIELDL
+      LOGICAL HighSpin
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE      
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_STATIC/Ista
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       INTEGER,DIMENSION(NSTORE) :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE) :: XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO
@@ -29755,7 +30221,6 @@
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: DMl,COEF
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO      
 !-----------------------------------------------------------------------
-      ig = NO1+l
       do m=1,NBF
        do n=m,NBF
         DMl(m,n) = 0.00
@@ -29879,6 +30344,566 @@
       END
 
 !----------------------------------------------------------------------!
+!   ELAGaor: Calculate the Lagrangian (ELAGao) in AO Basis             !
+!   FTERTRA: Interpair - Intrapair Components ( -Below-Below if GNOF)  !
+!   DENMATg,0g: Calculate Density Matrix for a given subspace 'l'      !
+!----------------------------------------------------------------------!
+
+! ELAGaor (MSpin=0,IERITYP=1)
+      SUBROUTINE ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL HighSpin
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR      
+      COMMON/INPNOF_STATIC/Ista      
+!
+      INTEGER,DIMENSION(NSTORE)           :: IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF5)    :: RO      
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: OVERLAP,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,DEN,ELAG
+!
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)   :: AA,FI,ROd,Rd      
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DM,DMS,WF,AUX 
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: ELAGao,COEFt
+!-----------------------------------------------------------------------!
+!                               P N O F 5                               !
+!-----------------------------------------------------------------------!
+      ALLOCATE(DM(NBF,NBF),DMS(NBF,NBF),WF(NBF,NBF))
+      ALLOCATE(AUX(NBF,NBF),ELAGao(NBF,NBF),COEFt(NBF,NBF))
+      COEFt = TRANSPOSE(COEF)     
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!                   Interpair Component: Fock Matrix                    
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DM = DEN                           ! DM
+      CALL FORM2JK(WF,DM,IJKL,XIJKL)     ! Skeleton of the Fockian (2JK)
+      AUX = AHCORE + WF                  ! Fockian (F=H+2JK)
+      DMS = MATMUL(DM,OVERLAP)           ! DM*S      
+      ELAGao = MATMUL(AUX,DMS)           ! Lagrangian Multipliers in AO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Eliminating the Intrapair Component: Sum_g [ (2JK)g * DMg * S ]
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DO lg=1,NDOC
+       CALL DENMATg(lg,DM,COEF,RO)       ! DMg 
+       CALL FORM2JK(WF,DM,IJKL,XIJKL)    ! (2JK)g
+       DMS = MATMUL(DM,OVERLAP)          ! DMg*S       
+       ELAGao = ELAGao - MATMUL(WF,DMS) 
+      END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Eliminating the Component associated to the Multiplet (MSpin=0)      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      if(NSOC>0)then      
+       CALL DENMATr(DM,COEF,RO,NBF,NB+1,NA) ! DM_op            
+       CALL HSTARK(WF,DM,IJKL,XIJKL)        ! K_op
+       DMS = MATMUL(DM,OVERLAP)             ! DM_op*S
+       ELAGao = ELAGao - MATMUL(WF,DMS)  
+      endif      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!              Intrapair Component: Sum_g [ Ka_g * Ag * S )             
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Natural Amplitudes    
+!- - - - - - - - - - - - - -
+      ALLOCATE(AA(NBF5))
+      AA = - DSQRT(RO)               
+      DO i=1,NB
+       AA(i) = DSQRT(RO(i))
+      END DO
+!- - - - - - - - - - - - - - - - - - - - -       
+      DO lg=1,NDOC
+       CALL DENMATg(lg,DM,COEF,AA)       ! Ag
+       CALL HSTARK(WF,DM,IJKL,XIJKL)     ! Ka_g
+       DMS = MATMUL(DM,OVERLAP)          ! Ag*S       
+       ELAGao = ELAGao + MATMUL(WF,DMS)  
+      END DO       
+!-----------------------------------------------------------------------!
+!                               P N O F 7                               !
+!-----------------------------------------------------------------------!
+      IF(IPNOF==7)THEN
+       ALLOCATE(FI(NBF5))      
+       if(Ista==0)then
+        FI = DSQRT(RO*(1.0d0-RO))
+       else
+        FI = 2.0d0*RO*(1.0d0-RO)
+       endif
+!      Interpair Component: - Sum (K*FI*FI)                 
+       CALL FTERTRA(-1.0,FI,COEF,DM,DMS,WF,IJKL,XIJKL,OVERLAP,ELAGao)
+      END IF
+!-----------------------------------------------------------------------!
+!                         P N O F 8 ( G N O F )                         !
+!-----------------------------------------------------------------------!
+      IF(IPNOF==8)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -!
+       ALLOCATE(FI(NBF5),ROd(NBF5),Rd(NBF5))      
+!       
+       FI = DSQRT(RO*(1.0d0-RO))
+!       
+       ROd = 0.0d0
+       Hcut = 0.02d0*DSQRT(2.0d0)
+       DO i=1,NDOC
+        in = NO1+i      !NO1+1:NB
+        HOLEin = 1.0d0-RO(in)
+        COC = HOLEin/Hcut       
+        Fin = DEXP(-COC*COC)            
+        ROd(in) = RO(in) * Fin
+        IF(NCWO>1)THEN !NA+1:NBF5
+         do iw=1,ncwo                                                                   
+          im = na+ncwo*(ndoc-i)+iw 
+          ROd(im) = RO(im) * Fin   
+         enddo
+        ELSE     !perfect-pairing                       
+         icf = na+ndoc-i+1
+         ROd(icf) = RO(icf) * Fin  
+        ENDIF
+       ENDDO
+!       
+       Rd = - DSQRT(ROd)       
+       DO i=1,NB
+        Rd(i) = DSQRT(ROd(i))
+       END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Interpair Component: - Sum (K*FI*FI)                             
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       CALL FTERTRA(-1.0,FI,COEF,DM,DMS,WF,IJKL,XIJKL,OVERLAP,ELAGao)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Interpair Dynamic Component: + Sum (K*ROd*ROd)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       CALL FTERTRA(1.0,ROd,COEF,DM,DMS,WF,IJKL,XIJKL,OVERLAP,ELAGao)
+!- - - - - - - - - - - - - - - - - - - - - - -
+!      Interpair Dynamic Component [ + Sum (K*Rd*Rd) ]
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       CALL FTERTRA(1.0,Rd,COEF,DM,DMS,WF,IJKL,XIJKL,OVERLAP,ELAGao)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ENDIF      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      ELAGao = ELAGao / 2.0d0              ! Since DMs are * 2.0d0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Lagrangian Multipliers in NO basis
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      AUX = MATMUL(ELAGao,COEF)
+      ELAG = MATMUL(COEFt,AUX)
+!-----------------------------------------------------------------------
+      DEALLOCATE(DM,DMS,WF,AUX,ELAGao,AA,COEFt)
+      IF(IPNOF==7)DEALLOCATE(FI)
+      IF(IPNOF==8)DEALLOCATE(FI,ROd,Rd)
+      RETURN                                     
+      END
+
+! FTERTRA
+      SUBROUTINE FTERTRA(SGN,FI,COEF,DM,DMS,WF,IJKL,XIJKL,OVERLAP,ELAGao)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL HighSpin      
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE 
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5 
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR      
+!
+      INTEGER,DIMENSION(NSTORE)           :: IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
+      DOUBLE PRECISION,DIMENSION(NBF5)    :: FI
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,DM,DMS
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: WF,OVERLAP,ELAGao       
+!-----------------------------------------------------------------------
+!     Interpair Component: - Sum (K*FI*FI)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL DENMATr(DM,COEF,FI,NBF,1,NBF5)     ! Dfi
+      CALL HSTARK(WF,DM,IJKL,XIJKL)           ! Kfi
+      DMS = MATMUL(DM,OVERLAP)                ! Dfi*S
+      ELAGao = ELAGao + SGN*MATMUL(WF,DMS)        
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Eliminating the Intrapair Component: Sum_g [ Kfi_g * Dfi_g * S ]
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DO lg=1,NDOC
+       CALL DENMATg(lg,DM,COEF,FI)            ! Dfi_g
+       CALL HSTARK(WF,DM,IJKL,XIJKL)          ! Kfi_g
+       DMS = MATMUL(DM,OVERLAP)               ! Dfi_g*S       
+       ELAGao = ELAGao - SGN*MATMUL(WF,DMS) 
+      END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Eliminating the Component associated to the Multiplet (MSpin=0)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      if(NSOC>0.and.IPNOF==8)stop ! needs change (1/2, see cjckd8) !!!
+      if(NSOC>0)then      
+       CALL DENMATr(DM,COEF,FI,NBF,NB+1,NA)   ! Dfi_op            
+       CALL HSTARK(WF,DM,IJKL,XIJKL)          ! Kfi_op
+       DMS = MATMUL(DM,OVERLAP)               ! DM_op*S
+       ELAGao = ELAGao - SGN*MATMUL(WF,DMS)  
+      endif
+!-----------------------------------------------------------------------
+      IF(IPNOF==8)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Eliminating the Below-Below Contribution (up to NB)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       CALL DENMATr(DM,COEF,FI,NBF,1,NB)       ! Dfi_nb
+       CALL HSTARK(WF,DM,IJKL,XIJKL)           ! Kfi_nb
+       DMS = MATMUL(DM,OVERLAP)                ! Dfi*S_nb
+       ELAGao = ELAGao - SGN*MATMUL(WF,DMS)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Eliminating the Intrapair Component
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       DO lg=1,NDOC
+        ig = NO1+lg
+        CALL DENMATj(ig,DM,COEF,NBF)           ! 2CCg
+        CALL HSTARK(WF,DM,IJKL,XIJKL)          ! Kg
+        DMS = MATMUL(DM,OVERLAP)               ! CCg*S       
+        ELAGao = ELAGao + SGN*FI(ig)*FI(ig)*MATMUL(WF,DMS) 
+       END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
+      END IF       
+!-----------------------------------------------------------------------      
+      RETURN
+      END
+
+!----------------------------------------------------------------------!
+!                                                                      !
+!    O R B I T A L   O P T I M I Z A T I O N   B Y  R O T A T I O N S  !
+!                                                                      !
+!   OrbOptRot:  Minimize w.r.t. antisymmetric matrix Y                 !
+!   CGORBSUMSL: Prepare for calling the subroutine SUMSL               !
+!   CALCORBE:   Compute energy for a given Y                           !
+!   CALCORBG:   Compute gradient (dE/dY)                               !
+!   RotOrb:     Rotate the NOs as Cn = C*U, U = exp(Y), Yij = -Yji     !
+!                                                                      !
+!----------------------------------------------------------------------!
+
+! OrbOptRot
+      SUBROUTINE OrbOptRot(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,    &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG      
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE 
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN      
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux       
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN      
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz      
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))  
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then      
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then      
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))  
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)                                    
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)                                          
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)      
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)            
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV))
+      Y = 0.0D0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Energy Minimization
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CGORBSUMSL(NV,IUSER,USER,Y,EELEC)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)            
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)    
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+! CGORBSUMSL
+      SUBROUTINE CGORBSUMSL(NV,IUSER,USER,Y,ENERGY)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE                  
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE       
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+!
+      INTEGER,DIMENSION(NSTORE) :: IUSER
+      DOUBLE PRECISION,DIMENSION(NV) :: Y
+      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IV
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: D,V      
+      EXTERNAL CALCORBE,CALCORBG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      LIV = 60
+      LV = 71+NV*(NV+15)/2
+      ALLOCATE(IV(LIV),D(NV),V(LV)) 
+      IV = 0
+      D(1:NV) = 1.0d-1       
+      CALL SUMSL(NV,D,Y,CALCORBE,CALCORBG,IV,LIV,LV,V,IUSER,USER)      
+      ENERGY = EELEC
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DEALLOCATE(IV,D,V)
+      RETURN
+      END
+      
+! CALCORBE      
+      SUBROUTINE CALCORBE(NV,Y,NF,ENERGYEL,IUSER,USER)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL EFIELDL,SMCD,HighSpin      
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE            
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE 
+      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
+      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN      
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
+!      
+      INTEGER,DIMENSION(NSTORE) :: IUSER
+      DOUBLE PRECISION,DIMENSION(NV) :: Y      
+      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
+!      
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COEF,DEN,G
+!-----------------------------------------------------------------------
+!     Avoiding warnings
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NF = NF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Copy USER(M1) to COEF (Orbitals without rotation)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(COEF(NBF,NBF))
+      CALL XtoX0(USER(M1),COEF,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Rotate Orbitals by COEF*EXP(YM) -> COEF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL RotOrb(NV,Y,COEF)      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Compute Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
+      CALL DENMATr(DEN,COEF,USER(M5),NBF,1,NBF5) ! Density Matrix 
+      IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0             &
+          .and. IERITYP==1 )THEN
+!AO    CALL ELAGaor(USER(M13),USER(M2),IUSER,USER(M3),COEF,             &
+!AO                 USER(M5),DEN,USER(M8))
+       CALL ELAGr(USER(M2),IUSER,USER(M3),COEF,USER(M5),DEN,            &
+                  USER(M8),G,IPNOF)
+      ELSE
+       CALL ELAG1r(USER(M2),IUSER,USER(M3),USER(M14),USER(M4),          &
+                   COEF,USER(M5),USER(M6),USER(M7),USER(M8),            &
+                   USER(M10),USER(M11),USER(M12),G)
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (ENERGYEL)       
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      ENERGYEL = TRACE(DEN,USER(M2),NBF)
+      DO iq=1,NBF5
+       iqiq = M8-1 + iq+(iq-1)*nbf  ! ELAG(iq,iq)
+       ENERGYEL = ENERGYEL + USER(iqiq)  
+      END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -    
+!     Include Nuclear Dipoles if electric field =/ 0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(EFIELDL)THEN
+       ENERGYEL_EF = EX * ( TRACE(DEN,USER(M10),NBF) - USER(M9) )       &
+                   + EY * ( TRACE(DEN,USER(M11),NBF) - USER(M9+1) )     &
+                   + EZ * ( TRACE(DEN,USER(M12),NBF) - USER(M9+2) )
+       ENERGYEL = ENERGYEL + ENERGYEL_EF
+      END IF
+!-----------------------------------------------------------------------
+      EELEC = ENERGYEL
+      DEALLOCATE(COEF,DEN,G)
+      RETURN
+      END
+
+! CALCORBG      
+      SUBROUTINE CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE 
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ      
+!      
+      INTEGER,DIMENSION(NSTORE) :: IUSER
+      DOUBLE PRECISION,DIMENSION(NV) :: Y,GRAD      
+      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
+!
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: ELAG
+!-----------------------------------------------------------------------
+!     Avoiding warnings
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NF = NF
+      IUSER(1) = IUSER(1)
+      Y(1) = Y(1)      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ELAG(NBF,NBF))
+      CALL XtoX0(USER(M8),ELAG,NSQ)      
+!      
+      GRAD = 0.0D0
+      K = 1
+      DO I=1,NBF-1
+       DO J=I+1,NBF
+        GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
+        K = K + 1
+       END DO
+      END DO
+!-----------------------------------------------------------------------      
+      DEALLOCATE(ELAG)
+      RETURN
+      END
+
+! RotOrb
+      SUBROUTINE RotOrb(NV,Y,COEF)
+!-----------------------------------------------------------------------
+!     This subroutine generate an unitary matrix U = exp(YM), with YM 
+!     an antisymmetric matrix [YM(I,J)=-YM(J,I)]. The variable Y store
+!     the upper triangular part of YM. The parameters of Y can be varied
+!     in a minimization procedure to optimize the natural orbitals via 
+!     the rotation COEFn = COEF * U.
+!-----------------------------------------------------------------------
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      DOUBLE PRECISION,DIMENSION(NV) :: Y
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF
+!
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IPIV
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: RWORK
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: U
+      COMPLEX,ALLOCATABLE,DIMENSION(:) :: W,WORK      
+      COMPLEX,ALLOCATABLE,DIMENSION(:,:) :: YM,VL,VR,VRinv
+!-----------------------------------------------------------------------
+!     Use Y to fill YM
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(YM(NBF,NBF))
+      YM = 0.0D0
+      N = 1
+      DO I=1,NBF-1
+       DO J=I+1,NBF
+        YM(I,J) =  Y(N)
+        YM(J,I) = -Y(N)
+        N = N + 1
+       END DO
+      END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Diagonalize antisymmetric matrix YM
+!     Find eigenvectors and eigenvalues of YM
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(W(NBF),VL(1,NBF),VR(NBF,NBF),VRinv(NBF,NBF))
+      ALLOCATE(WORK(2*NBF),RWORK(2*NBF),IPIV(NBF),U(NBF,NBF))
+      CALL ZGEEV("N","V",NBF,YM,NBF,W,VL,1,VR,NBF,WORK,2*NBF,RWORK,INFO)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Invert eigenvectors VR
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      VRinv = VR
+      CALL ZGETRF(NBF,NBF,VRinv,NBF,IPIV,INFO)
+      CALL ZGETRI(NBF,VRinv,NBF,IPIV,WORK,NBF,INFO)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Build the unitary transformation U = exp(YM)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      W = EXP(W)
+      DO I=1,NBF
+       DO J=1,NBF
+        VR(I,J) = VR(I,J)*W(J)
+       END DO
+      END DO
+      U = REAL(MATMUL(VR,VRinv))
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Rotate the orbials COEFn = COEF * U
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      COEF = MATMUL(COEF,U)
+!-----------------------------------------------------------------------
+      DEALLOCATE(YM,W,VL,VR,VRinv,WORK,RWORK,IPIV,U)
+      RETURN
+      END
+
+!----------------------------------------------------------------------!
 !                                                                      !
 !     O R B I T A L     O P T I M I Z A T I O N     B Y    S Q P       !
 !                                                                      !
@@ -29891,19 +30916,21 @@
 ! OrbOptSQP
       SUBROUTINE OrbOptSQP(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD, &
                            COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,     &
-                           ADIPz,ILOOP)
+                           ADIPz,ILOOP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
       LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG      
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD      
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/PUNTEROSSQP/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,MUSE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
       COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN      
-!      
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN 
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN      
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
       INTEGER,DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux       
@@ -29962,18 +30989,20 @@
       CALL XtoX0(OVERLAP,USER(M12),NSQ)
       if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M13),NSTOREaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)WRITE(6,1)
+!     First Call to OrbOptSQP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate Initial Electronic Energy (EELEC)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      EELEC_OLD = EELEC 
+      ALLOCATE (GRAD(NSQ))      
       CALL CoefEnergy(0,NSQ,COEF,EELEC,GRAD,1,IUSER,USER)
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-!     WRITE(6,2)ITCALL,EELEC,EELEC+EN,DIF_EELEC
 !-.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.-
-!     Energy Minimization
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                       Energy Minimization
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NV = NSQ
       NRES = NBFT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -29984,7 +31013,7 @@
       IFAIL  = -1
 !
       ALLOCATE (IWORK(3*NV+2*NRES),ISTATE(NV+NRES))
-      ALLOCATE (GRAD(NV),R(NV,NV),AAA(1,1))
+      ALLOCATE (R(NV,NV),AAA(1,1))            
       ALLOCATE (BL(NV+NRES),BU(NV+NRES),CONST(NRES))
       ALLOCATE (CJAC(NRES,NV),CLAMDA(NV+NRES))
       ALLOCATE (WORK(2*NV*NV+2*NV*NRES+20*NV+21*NRES))
@@ -30014,53 +31043,49 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -      
 !     Send output of E04DGF to CGM file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL X04ABF(1,2)      
+      CALL X04ABF(1,2)      
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Function Precision
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(THRESHEC >= 1.0d-8)THEN
-!nag       CALL E04UEF('Function Precision = 1.0d-8')
+       CALL E04UEF('Function Precision = 1.0d-8')
       ELSEIF(THRESHEC == 1.0d-9)THEN
-!nag       CALL E04UEF('Function Precision = 1.0d-9')      
+       CALL E04UEF('Function Precision = 1.0d-9')      
       ELSEIF(THRESHEC <= 1.0d-10)THEN
-!nag       CALL E04UEF('Function Precision = 1.0d-10')      
+       CALL E04UEF('Function Precision = 1.0d-10')      
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Major Print Level (0 = No output)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04UEF('Major Print Level = 0')
+      CALL E04UEF('Major Print Level = 0')
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 !                  =-1 no verifica nada   , 0 Cheap Test (default)
 !     Verify Level = 1 Objective Gradients, 2 Constraint Gradients
 !                  = 3 Verify all Gradients
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!nag      CALL E04UEF('Verify Level = -1')
+      CALL E04UEF('Verify Level = -1')
 !-----------------------------------------------------------------------
 !     MINIMIZATION PROCESS
 !-----------------------------------------------------------------------
-      EELEC_OLD = EELEC 
-      ILOOP = ILOOP ! avoiding warning
-!nag      CALL E04UCF(NV,0,NRES,1,NRES,NV,AAA,BL,BU,CoefConstr,CoefEnergy,  &
-!nag                  ILOOP,ISTATE,CONST,CJAC,CLAMDA,EELEC,GRAD,R,COEF,     &
-!nag                  IWORK,LIWORK,WORK,LWORK,IUSER,USER,IFAIL)
+      CALL E04UCF(NV,0,NRES,1,NRES,NV,AAA,BL,BU,CoefConstr,CoefEnergy,  &
+                  ILOOP,ISTATE,CONST,CJAC,CLAMDA,EELEC,GRAD,R,COEF,     &
+                  IWORK,LIWORK,WORK,LWORK,IUSER,USER,IFAIL)
       DIF_EELEC = EELEC - EELEC_OLD
-      PCONV=ABS(DIF_EELEC)      
+      EELEC_OLD = EELEC       
+      PCONV = ABS(DIF_EELEC)      
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Check for the Symmetry of Lagrangian (ELAG(IQJQ)-ELAG(JQIQ))
 !     for ITCALL>1 (do not stop in the first call)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL XtoX0(USER(M7),ELAG,NSQ)                                                
       CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      WRITE(6,2)ITCALL,EELEC,EELEC+EN,DIF_EELEC,DUMEL
-      IF(DUMEL<THRESHL .and. PCONV < THRESHE )THEN
-       CONVGDELAG=.TRUE.
-       RETURN
-      ENDIF      
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,EELEC+EN,DIF_EELEC,DUMEL
+      IF(DUMEL<THRESHL .and. PCONV<THRESHE)CONVGDELAG=.TRUE.
 !-----------------------------------------------------------------------
 !     FORMAT STATEMENTS
 !-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT SQP PROCEDURE'  &
-            ,/1X,'=================================================',&
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT SQP PROCEDURE'     &
+            ,/1X,'=================================================',   &
         //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
           3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
     2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)          
@@ -30076,7 +31101,7 @@
       LOGICAL EFIELDL,SMCD,HighSpin      
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IGEN,ISTAR,MIXSTATE,SMCD            
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD            
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE      
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin 
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
@@ -30086,12 +31111,12 @@
       DOUBLE PRECISION,DIMENSION(MUSE) :: USER
       DOUBLE PRECISION,DIMENSION(NV) :: GG
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: G,DEN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DEN,G
 !-----------------------------------------------------------------------
       NSTATE = NSTATE
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
       CALL DENMATr(DEN,COEF,USER(M4),NBF,1,NBF5) ! Density Matrix 
       IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0             &
@@ -30104,21 +31129,22 @@
                    USER(M10),USER(M11),G)
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
+!     Calculate Electronic Energy (ENERGYEL)       
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      EELEC = TRACE(DEN,USER(M1),NBF)
+      ENERGYEL = TRACE(DEN,USER(M1),NBF)
       DO iq=1,NBF5
        iqiq = M7-1 + iq+(iq-1)*nbf  ! ELAG(iq,iq)
-       EELEC = EELEC + USER(iqiq)  
+       ENERGYEL = ENERGYEL + USER(iqiq)  
       END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -    
 !     Include Nuclear Dipoles if electric field =/ 0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN, USER(M9),NBF) - USER(M8) )          &
-                + EY * ( TRACE(DEN,USER(M10),NBF) - USER(M8+1) )        &
-                + EZ * ( TRACE(DEN,USER(M11),NBF) - USER(M8+2) )
-       EELEC = EELEC + EELEC_EF
+       ENERGYEL_EF = EX * ( TRACE(DEN, USER(M9),NBF) - USER(M8) )       &
+                   + EY * ( TRACE(DEN,USER(M10),NBF) - USER(M8+1) )     &
+                   + EZ * ( TRACE(DEN,USER(M11),NBF) - USER(M8+2) )
+       ENERGYEL = ENERGYEL + ENERGYEL_EF
       END IF
-      ENERGYEL = EELEC  ! + EN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate GRADIENTS with respect to the Coefficients (COEF)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -30197,7 +31223,7 @@
 !-----------------------------------------------------------------------
       RETURN
       END
-            
+      
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 !                                                                      !
 !             Multipurpose-Product Functions used in DoNOF             !
@@ -31962,66 +32988,6 @@
       RETURN
       END
 
-! MBPT (RPA) (NOF-c-X)
-      SUBROUTINE MBPT_RPA(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,      &
-                           ADIPx,ADIPy,ADIPz)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HighSpin
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPFILE_NO1PT2/NO1PT2,NEX
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/CorrNonDynamic/ECnd,ECndl,ECndHF
-      COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
-      COMMON/NumLinIndOrb/NQMT
-!
-      INTEGER,DIMENSION(NIJKL) :: IERI
-      DOUBLE PRECISION,DIMENSION(NIJKL) :: ERI
-      DOUBLE PRECISION,DIMENSION(NBF5) :: RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5) :: CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: AHCORE,ADIPx,ADIPy,ADIPz
-      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: ELAG,COEF
-!      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCC,EIG,FI1,FI2,Tijab
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,FOCKm
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:) :: ERImol
-!-----------------------------------------------------------------------
-!     NO1:  Number of inactive doubly occupied orbitals (OCC=1)         
-!     NDOC: Number of strongly doubly occupied MOs                      
-!     NSOC: Number of strongly singly occupied MOs                      
-!     NDNS: Number of strongly occupied MOs (NDNS=NDOC+NSOC)                        
-!     NCWO: Number of coupled weakly occ. MOs per strongly doubly occ.
-!     NCWO*NDOC: Active orbitals in the virtual subspace                
-!     NO0:  Empty orbitals  (OCC=0)                                      
-!     NVIR: Number of weakly occupied MOs + empty MOs                   
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!           NO1 | NDOC  + NSOC  |   NCWO*NDOC + NO0  = NBF               
-!           NO1 |      NDNS     |          NVIR      = NBF 
-!               | -NAC- |       |  -   NAC  - |
-!                      NB      NA            NBF5
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                               !  CLOSED (NB=NA=NCO,NSOC=0)
-!     NDOC = NB - NO1           !  NDOC = NCO - NO1, NO1 <= NCO
-!     NDNS = NDOC + NSOC        !  NDNS = NDOC      
-!     NA   = NO1 + NDNS         !  NA = NB = NCO
-!     NVIR = NBF - NA           !  NBF - NCO
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-!     Calculation RPA corr energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL ERPA(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
-      WRITE(6,1)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
-    1 FORMAT(/3X,'           ECd =',F20.10,/,                           &
-              3X,'          ECnd =',F20.10,/,                           &
-              3X,'         ECorr =',F20.10,/,                           &
-              3X,'     E(NOFRPA) =',F20.10)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      END
-
 ! ORBINVMP2 (oiMP2)
       SUBROUTINE ORBINVMP2(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,      &
                            ADIPx,ADIPy,ADIPz)
@@ -32030,7 +32996,7 @@
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_GENERALINF/ICOEF,MAXIT,MAXIT21
+      COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
       COMMON/EHFEN/EHF,EN
       COMMON/INPFILE_NO1PT2/NO1PT2,NEX
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
@@ -32069,7 +33035,6 @@
 !     NDNS = NDOC + NSOC        !  NDNS = NDOC      
 !     NA   = NO1 + NDNS         !  NA = NB = NCO
 !     NVIR = NBF - NA           !  NBF - NCO
-!-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
 !     Calculation of the Matrix of Lagrange Multipliers if ICOEF=0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -32152,7 +33117,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NN1 = NOC*NOC*NVI*NVI
       NN2 = NOC*NVI
-      ALLOCATE (FI1(NORB),FI2(NORB))
+      ALLOCATE (Tijab(NN1),FI1(NORB),FI2(NORB))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !                              FI1 and FI2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -32171,33 +33136,22 @@
        FI2(i) = Ci*Ci
       ENDDO
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      Ecd = 0.0d0
-      ! Eliminate the occ <-> virt Fock elements
-      do i=1,NOC             ! runs over occ
-       do j=NOC+1,NORB       ! runs over vir
-        FOCKm(i,j) = 0.0d0
-        FOCKm(j,i) = 0.0d0
-       enddo
-      enddo
-      WRITE(6,2)EHFL+EN+ECndHF
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     Calculate Tijab amplitude solving Sparse Sym. Linear System
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      ALLOCATE (Tijab(NN1))
       CALL CALTijabIsym(NOCB,NOC,NVI,NORB,NN1,EIG,FOCKm,ERImol,Tijab,   &
                         FI1,FI2)                                         
       if(NOUTTijab==1)CALL OUTPUTTijab_rc(NOC,NVI,NN1,Tijab)             
       CALL ORBINVE2Totalsym(NOCB,NOC,NVI,NN1,NBF,NBFT,ERImol,           &
                             Tijab,ECd)
+      WRITE(6,2)EHFL+EN+ECndHF
       WRITE(6,3)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
-      DEALLOCATE(Tijab)
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol)
+      DEALLOCATE(OCC,VEC,FI1,FI2,EIG,FOCKm,ERImol,Tijab)
       RETURN
 !-----------------------------------------------------------------------
-    1 FORMAT(//,2X,'NOF-MP2 ',/1X,10('='),//,                &
+    1 FORMAT(//,2X,'NOF-MP2',/1X,9('='),//,                             &
                1X,'NUMBER OF CORE ORBITALS  (NO1PT2) =',I5,/,           &
-               1X,'NUMBER OF DOUBLY OCC. ORBS. (NOC) =',I5,/,           &
+               1X,'NUMBER OF Doubly OCC. ORBS. (NOC) =',I5,/,           &
                1X,'NUMBER OF VIRTUAL ORBS.     (NVI) =',I5,/,           &
                1X,'NUMBER OF LIN. IND. ORBS.  (NORB) =',I5)              
     2 FORMAT(/3X,'          Ehfc =',F20.10)                              
@@ -32523,8 +33477,8 @@
       ICOL(1) = ICOL(1)
       B(1) = B(1)
       Tijab(1) = Tijab(1)
-!nag      CALL F11JEF(METHOD,PRECON,NN,NNZ,A,IROW,ICOL,OMEGA,B,TOL,         &   
-!nag                  MAXITN,Tijab,RNORM,ITN,WORK,LWORK,IWORK,IFAIL)            
+      CALL F11JEF(METHOD,PRECON,NN,NNZ,A,IROW,ICOL,OMEGA,B,TOL,         &   !nag
+                  MAXITN,Tijab,RNORM,ITN,WORK,LWORK,IWORK,IFAIL)            !nag
       write(6,'(/,A8,E11.4,A7,I5)')' RNORM =',RNORM,', ITN =',ITN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE(WORK,IWORK)
@@ -34143,7 +35097,7 @@
 !   RYSASYNOF,RYSGWNOF,RYSDSNOF: Auxiliars for roots                   !
 !                                                                      !
 !   OEDHNDNOF: Set up pointers for 1e charge distribution              !
-!   OEDRDNOF: Set pointes to the ij or kl charge distributions         !
+!   OEDRDNOF:  Set pointes to the ij or kl charge distributions        !
 !   JKDATMNOF: Select centers for derivatives                          !
 !   JKDSHLNOF: Select indices for shell block                          !
 !   JKDNDXNOF: Select indices for shell block                          !
@@ -34605,7 +35559,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send output of E04DGF to CGM file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL X04ABF(1,2)                                           
+      CALL X04ABF(1,2)                                           !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
 !     Est. opt. function val.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -34613,29 +35567,29 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Function Precision (machine precision**0.9)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Function Precision = 1.0D-6')                
+      CALL E04DKF ('Function Precision = 1.0D-6')                !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Linesearch Tolerance (0<r<1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Linesearch Tolerance = 0.1')                 
+      CALL E04DKF ('Linesearch Tolerance = 0.1')                 !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Maximum Step Length (Default = 10**20))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Maximum Step Length  = 0.01')                
+      CALL E04DKF ('Maximum Step Length  = 0.01')                !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Optimality Tolerance (relative precision**0.8)
+!     Optimality Tolerance (deafult = relative precision**0.8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Optimality Tolerance = 1.0D-5')              
+      CALL E04DKF ('Optimality Tolerance = 1.0D-5')              !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Verify Level (-1 = No checks, 0 = cheap test, 1 = 0 + gradients)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Verify Level = -1')                          
+      CALL E04DKF ('Verify Level = -1')                          !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Print Level (0 = No output, 1 = The final solution only)
 !                 (5 = One line of summary output for each iteration)
 !                 (10 = The final solution and one line for each iter.)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!nag      CALL E04DKF ('Print Level = 0')                            
+      CALL E04DKF ('Print Level = 0')                            !nag
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calling to NAG Library for using the CG method
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -34643,8 +35597,8 @@
       IFAIL = 1
       EMINIMA = 1.0d6
       ALLOCATE(IWORK(NV+1),WORK(13*NV),GRADS(NV))
-!nag      CALL E04DGF(NV,ENERGYFUN,ITER_E04DGF,ENERGIA,GRADS,Cxyz,          &  
-!nag                  IWORK,WORK,IUSER,USER,IFAIL)                             
+      CALL E04DGF(NV,ENERGYFUN,ITER_E04DGF,ENERGIA,GRADS,Cxyz,          &  !nag
+                  IWORK,WORK,IUSER,USER,IFAIL)                             !nag
       IF(EMINIMA>ENERGIA)EMINIMA=ENERGIA
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Compute energy at solution to print data on the output file
@@ -34963,10 +35917,10 @@
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/USELIBRETA/ILIBRETA      
 !
+      INTEGER,INTENT(IN)::IPRINTOPT
       CHARACTER*4 ATMNAME(NATOMS)
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
-      INTEGER,INTENT(IN)::IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZNUC
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::EX1,CS,CP,CD,CF,CG
       DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::COEF
@@ -35115,6 +36069,7 @@
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 !     INPUT-OUTPUT VARIABLES OR ARGUMENTS
+      INTEGER,INTENT(IN)::IPRINTOPT
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF),INTENT(IN)::QD
@@ -35125,7 +36080,6 @@
       DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
       CHARACTER*4 ATMNAME(NATOMS)
       DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
-      INTEGER,INTENT(IN)::IPRINTOPT
 !     INTERMEDIATE VARIABLES
       INTEGER,DIMENSION(NBF)::IA
       INTEGER,DIMENSION(4,35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
@@ -35556,8 +36510,8 @@
       ALLOCATE(GINT(MAXNUM))
       ALLOCATE(FINT(MAXNUM))
 !     SET UP 1e CHARGE DISTRIBUTION
-      CALL OEDHNDNOF(DCHRG,NIJGDIM,NIJG,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG, &
-                  KATOM,IA,CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG)          
+      CALL OEDHNDNOF(DCHRG,NIJGDIM,NIJG,KTYPE,KLOC,KKMIN,KKMAX,KSTART,  &
+                     KNG,KATOM,IA,CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG)          
       ALLOCATE(P(NBF,NBFT))
       CALL SQUARETRIAN3(QD,P,NBF,NBFT)
       P=P*0.5D+00
@@ -37187,7 +38141,7 @@
 
 ! TVDERNOF
       SUBROUTINE TVDERNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,      &
-                      CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZAN,PM,DE)
+                          CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZAN,PM,DE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
@@ -37357,8 +38311,8 @@
         NJ =J
         DO I = 1,LITDER
           NI = I
-          CALL VINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ   &
-                        ,XINT,YINT,ZINT)
+          CALL VINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,              &
+                       XINT,YINT,ZINT)
           XS(I,J)=XINT*T
           YS(I,J)=YINT*T
           ZS(I,J)=ZINT*T
@@ -37376,14 +38330,14 @@
           JX=IJX(J)
           JY=IJY(J)
           JZ=IJZ(J)
-          DUMX=DXT(IX,JX)* YS(IY,JY)* ZS(IZ,JZ)    &
-              +DXS(IX,JX)* YT(IY,JY)* ZS(IZ,JZ)    &
-              +DXS(IX,JX)* YS(IY,JY)* ZT(IZ,JZ)
-          DUMY= XT(IX,JX)*DYS(IY,JY)* ZS(IZ,JZ)    &
-              + XS(IX,JX)*DYT(IY,JY)* ZS(IZ,JZ)    &
-              + XS(IX,JX)*DYS(IY,JY)* ZT(IZ,JZ)
-          DUMZ= XT(IX,JX)* YS(IY,JY)*DZS(IZ,JZ)    &
-              + XS(IX,JX)* YT(IY,JY)*DZS(IZ,JZ)    &
+          DUMX=DXT(IX,JX)* YS(IY,JY)* ZS(IZ,JZ)                         &
+              +DXS(IX,JX)* YT(IY,JY)* ZS(IZ,JZ)                         &
+              +DXS(IX,JX)* YS(IY,JY)* ZT(IZ,JZ)                         
+          DUMY= XT(IX,JX)*DYS(IY,JY)* ZS(IZ,JZ)                         &
+              + XS(IX,JX)*DYT(IY,JY)* ZS(IZ,JZ)                         &
+              + XS(IX,JX)*DYS(IY,JY)* ZT(IZ,JZ)                         
+          DUMZ= XT(IX,JX)* YS(IY,JY)*DZS(IZ,JZ)                         &
+              + XS(IX,JX)* YT(IY,JY)*DZS(IZ,JZ)                         &
               + XS(IX,JX)* YS(IY,JY)*DZT(IZ,JZ)
           IJ=IJ+1
           DE(1,IAT)=DE(1,IAT)+ DUMX*DIJ(IJ)
@@ -37421,15 +38375,15 @@
                NJ = J
                DO I = 1,LITDER
                   NI = I
-                  CALL VINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ &
-                        ,XINT,YINT,ZINT)
+                  CALL VINTNOF(NI,NJ,T,X0,Y0,Z0,XI,YI,ZI,XJ,YJ,ZJ,      &
+                               XINT,YINT,ZINT)
                   XV(I,J,K) = XINT
                   YV(I,J,K) = YINT
                   ZV(I,J,K) = ZINT*WW
                ENDDO
             ENDDO
-            CALL DERINOF(DXV(1,1,K),DYV(1,1,K),DZV(1,1,K),    &
-                      XV(1,1,K), YV(1,1,K), ZV(1,1,K),LIT,LJT,AI)
+            CALL DERINOF(DXV(1,1,K),DYV(1,1,K),DZV(1,1,K),              &
+                          XV(1,1,K), YV(1,1,K), ZV(1,1,K),LIT,LJT,AI)
          ENDDO
          IJ=0
          DO I=MINI,MAXI
@@ -37701,15 +38655,15 @@
        NG,NMAX,MMAX,NIMAX,NJMAX,NKMAX,NLMAX,DIJ,DKL,EXPNDI,EXPNDK)
 !
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL,INTENT(IN)::EXPNDI,EXPNDK
-      INTEGER,INTENT(IN)::NG,NMAX,MMAX,NIMAX,NJMAX,NKMAX,NLMAX
-      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NJMAX,NIMAX),INTENT(OUT)::GIJKL
-      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NJMAX,NIMAX),INTENT(OUT)::HIJKL
-      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX,NMAX),INTENT(OUT)::GNKL
-      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NMAX),INTENT(IN)::HNKL
-      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NMAX),INTENT(IN)::FNKL
-      DOUBLE PRECISION,DIMENSION(NG,NMAX,MMAX),INTENT(INOUT)::GNM
-      DOUBLE PRECISION,DIMENSION(NG),INTENT(IN)::DIJ,DKL
+      LOGICAL::EXPNDI,EXPNDK
+      INTEGER::NG,NMAX,MMAX,NIMAX,NJMAX,NKMAX,NLMAX
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NJMAX,NIMAX)::GIJKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NJMAX,NIMAX)::HIJKL
+      DOUBLE PRECISION,DIMENSION(NG,NLMAX,NKMAX,NMAX)::GNKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX,NMAX)::HNKL
+      DOUBLE PRECISION,DIMENSION(NG*NLMAX*NKMAX*NMAX)::FNKL
+      DOUBLE PRECISION,DIMENSION(NG,NMAX,MMAX)::GNM
+      DOUBLE PRECISION,DIMENSION(NG)::DIJ,DKL
 !
 !     ----- G(N,K,L) -----
 !
@@ -38586,14 +39540,14 @@
        DO IJ=1,NBFT
         DO LP=1,NBF5
          if(LP<=NB.or.LP>NA)DAAUX(LP,IJ)=DAAUX(LP,IJ)+RO(LP)*DA(LP,IJ)
-          DO LQ=1,LP-1
-            DAAUX(LQ,IJ) = DAAUX(LQ,IJ) + CJ12(LP,LQ)*DA(LP,IJ)
-            DAAUX2(LQ,IJ) = DAAUX2(LQ,IJ) + CK12(LP,LQ)*DA(LP,IJ)
-          ENDDO
-          DO LQ=LP+1,NBF5
-            DAAUX(LQ,IJ) = DAAUX(LQ,IJ) + CJ12(LP,LQ)*DA(LP,IJ)
-            DAAUX2(LQ,IJ) = DAAUX2(LQ,IJ) + CK12(LP,LQ)*DA(LP,IJ)
-          ENDDO
+         DO LQ=1,LP-1
+           DAAUX(LQ,IJ) = DAAUX(LQ,IJ) + CJ12(LP,LQ)*DA(LP,IJ)
+           DAAUX2(LQ,IJ) = DAAUX2(LQ,IJ) + CK12(LP,LQ)*DA(LP,IJ)
+         ENDDO
+         DO LQ=LP+1,NBF5
+           DAAUX(LQ,IJ) = DAAUX(LQ,IJ) + CJ12(LP,LQ)*DA(LP,IJ)
+           DAAUX2(LQ,IJ) = DAAUX2(LQ,IJ) + CK12(LP,LQ)*DA(LP,IJ)
+         ENDDO
         ENDDO
        ENDDO
 !-----------------------------------------------------------------------
@@ -38998,17 +39952,17 @@
 ! DERINOF
       SUBROUTINE DERINOF(DXDI,DYDI,DZDI,X,Y,Z,LIT,LJT,AI)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      INTEGER,INTENT(IN)::LIT,LJT      
-      DOUBLE PRECISION,DIMENSION(5,LJT),INTENT(OUT)::DXDI,DYDI,DZDI
-      DOUBLE PRECISION,DIMENSION(6,LJT),INTENT(IN)::X,Y,Z
-      DOUBLE PRECISION,INTENT(IN)::AI
+      INTEGER :: LIT,LJT      
+      DOUBLE PRECISION,DIMENSION(5,LJT) :: DXDI,DYDI,DZDI
+      DOUBLE PRECISION,DIMENSION(6,LJT) :: X,Y,Z
+      DOUBLE PRECISION :: AI
 !
 !     ----- DXDI ... -----
 !
       DO J=1,LJT
-        DXDI(1,J)=X(2,J)*(AI+AI)
-        DYDI(1,J)=Y(2,J)*(AI+AI)
-        DZDI(1,J)=Z(2,J)*(AI+AI)
+       DXDI(1,J)=X(2,J)*(AI+AI)
+       DYDI(1,J)=Y(2,J)*(AI+AI)
+       DZDI(1,J)=Z(2,J)*(AI+AI)
       ENDDO
 !
       IF(LIT.EQ.1) RETURN
@@ -42259,7 +43213,7 @@
       COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
                   KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
 !
-      CHARACTER*2 LETI,IBLANK
+      CHARACTER*8 LETI,IBLANK
       CHARACTER*4 CLAB(3)
       DOUBLE PRECISION :: LAB(9)
       DOUBLE PRECISION,DIMENSION(NC1),INTENT(IN) :: Cxyz !NC1=3*NATOMS
@@ -43089,6 +44043,834 @@
   150 CONTINUE                                                          
       RETURN                                                            
       END
+
+!======================================================================!
+!                                                                      !
+!                         NOF-BO-MD SUBROUTINES                        !
+!                                                                      !
+!             2021  Module implemented by Alejandro Rivero             !
+!                                                                      !
+!   MOLDYN: Molecular Dynamics routine                                 !
+!   BEEVER: Propagator routine                                         !
+!   PES   : Potential Energy Surface                                   !
+!   XYZWRITER: Write to xyz trajectory files                           !
+!                                                                      !
+!======================================================================!
+
+! MOLDYN
+SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
+                  ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,KLOC, &
+                  INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG, &
+                  CH,CI,GRADS,IRUNTYP,DIPS)
+
+ IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+!-----------------------------------------------------------------------
+! interface  
+!-----------------------------------------------------------------------
+ LOGICAL EnergyFileExists
+ INTEGER :: NINTEG,IDONTW,IEMOM,NAT,IRUNTYP,NBF,NBFaux,NSHELL,NPRIMI
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
+ INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
+ DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS 
+ DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+ DOUBLE PRECISION,DIMENSION(NPRIMI):: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+ DOUBLE PRECISION,DIMENSION(3):: DIPS
+ DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
+!
+ CHARACTER(LEN=1) :: dflag
+ COMMON/INPDYN_FLAGS/dflag(3,101)
+ DOUBLE PRECISION :: Vxyz
+ COMMON/INPDYN_VELOCITY/Vxyz(3,101) 
+ COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+ COMMON/EHFEN/EHF,EN
+ COMMON/INPNOF_GENERALINF/ICOEF,IORBOPT,MAXIT,MAXIT21
+ COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),                   &
+             KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+!-----------------------------------------------------------------------
+! internal variables  
+!-----------------------------------------------------------------------
+ INTEGER :: iatom, init, ngcf
+ INTEGER, parameter :: ifstopdyn = 24
+ DOUBLE PRECISION,DIMENSION(NAT)  :: mass
+ DOUBLE PRECISION,DIMENSION(3,NAT) :: r0,v0,a0,r1,v1,a1
+ DOUBLE PRECISION :: t, tres, dt, tmax
+ DOUBLE PRECISION :: Epot, Ekin, Etot
+ CHARACTER(LEN=1) :: resflag,velflag
+ CHARACTER(LEN=50) :: line
+ CHARACTER(LEN=2) :: atom
+!-----------------------------------------------------------------------
+! Constants for transformation units
+!-----------------------------------------------------------------------
+ real(kind=8),parameter :: amtoau = 1.d0/0.52917720859d0 
+ real(kind=8),parameter :: fstoau = 41.341373336561364d0
+ real(kind=8),parameter :: amutoau = 1822.888485540950d0
+ real(kind=8),parameter :: evtoau = 1.0d0/27.211608d0
+ real(kind=8),parameter :: evau = 27.2113845  !! 1au = evau eV 
+!-----------------------------------------------------------------------
+! Welcome message
+!-----------------------------------------------------------------------
+ write(6,'(/1X,32A)')' Molecular Dynamics Calculation ' 
+ write(6,'(1X,32(1H*),/)')
+!-----------------------------------------------------------------------
+! read dynamics setup
+!-----------------------------------------------------------------------
+ call NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
+!-----------------------------------------------------------------------
+! restart molecular dynamics calculation (file 31)
+!-----------------------------------------------------------------------
+ if (resflag == 'T') then
+  rewind(31)          
+  open(31,FILE='DYNl.xyz',STATUS='OLD',                                 &
+          FORM='FORMATTED',ACCESS='SEQUENTIAL')
+  read(31,*) line
+  read(31,*) tres
+  do iatom=1,nat
+   read(31,*) atom,Cxyz(1,iatom), Cxyz(2,iatom), Cxyz(3,iatom),         &
+                   Vxyz(1,iatom), Vxyz(2,iatom), Vxyz(3,iatom)                 
+  enddo
+  close(31)
+! restart message
+  write(6,*)'Note: t0, Cxyz & Vxyz are redefined according to DYNl.xyz'
+  Cxyz = Cxyz*amtoau
+ endif 
+!-----------------------------------------------------------------------
+ Vxyz=Vxyz*(amtoau/fstoau) ! Velocity in au/au
+ dt=dt*fstoau ! dt in au
+ tmax=tmax*fstoau ! tmax in au
+!-----------------------------------------------------------------------
+! init variables for the integrator
+!-----------------------------------------------------------------------
+ init=0
+ distmax0 = 10.0d0*amtoau   ! Maximum internuclear distance
+ mass=ZMASS*amutoau
+
+ r0=Cxyz
+ do i=1,nat
+  do j=1,3
+   v0(j,i)=Vxyz(j,i)  
+  enddo
+ enddo 
+ a0=0.d0
+
+ r1=0.d0
+ v1=0.d0
+ a1=0.d0 
+
+ t=0.d0
+ epot=0.d0
+
+ if (resflag == 'T') t = tres*fstoau
+!-----------------------------------------------------------------------
+! init integrator message
+!-----------------------------------------------------------------------
+ write(6,*)
+ write(6,*) '-------------------------------------------------------'
+ write(6,*) 'Init integrator, time = ', t/fstoau , ' fs'
+ write(6,*) '-------------------------------------------------------'
+!-----------------------------------------------------------------------
+! init integrator
+!-----------------------------------------------------------------------
+ ICOEFORI = ICOEF
+ ICOEF = 21 ! Keep the initial occupancies of GCF file until IT=20
+ call beever(init,NAT,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,   &
+             NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN, &
+             IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
+             C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+ ICOEF = ICOEFORI             
+!-----------------------------------------------------------------------
+! compute potential energy (au) in t + dt
+!-----------------------------------------------------------------------
+ Epot = EELEC + EN
+!-----------------------------------------------------------------------
+! compute kinetic energy of the system in t + dt
+!-----------------------------------------------------------------------
+ Ekin = 0.d0
+
+ do i=1,nat
+  Ekin = Ekin + 0.5d0*mass(i)                                           &
+       * ( v1(1,i)*v1(1,i)+v1(2,i)*v1(2,i)+v1(3,i)*v1(3,i) )
+ enddo
+!-----------------------------------------------------------------------
+! compute total energy of the system
+!-----------------------------------------------------------------------
+ Etot = Epot + Ekin
+!-----------------------------------------------------------------------
+! write information of propagation in file xyz
+!-----------------------------------------------------------------------
+ call XYZWRITER(init,nat,zan,izcore,t,r1,v1,Epot,Ekin,Etot)
+!-----------------------------------------------------------------------
+! write information obout energy conservation in dynamics
+!-----------------------------------------------------------------------
+ inquire(FILE='endyn.dat',EXIST=EnergyFileExists)
+ if(EnergyFileExists)then  
+  OPEN(32,FILE='endyn.dat',STATUS='OLD',POSITION='APPEND',              &
+          ACTION='WRITE',FORM='FORMATTED',ACCESS='SEQUENTIAL')
+ else
+  OPEN(32,FILE='endyn.dat',STATUS='NEW',ACTION='WRITE',                 &
+          FORM='FORMATTED',ACCESS='SEQUENTIAL')
+ end if 
+ write(32,'(4(2x,f14.8))') t/fstoau,Epot,Ekin,Etot
+ close(32)
+!-----------------------------------------------------------------------
+! begin propagation
+!-----------------------------------------------------------------------            
+ init = 1
+
+ do while (abs(t) < tmax)
+!-----------------------------------------------------------------------
+! Propagation time message
+!-----------------------------------------------------------------------
+  write(6,*)
+  write(6,*) '---------------------------------------------------'
+  write(6,*) ' Propagation time = ', t/fstoau + dt/fstoau, ' fs'
+  write(6,*) '---------------------------------------------------'
+!----------------------------------------------------------------------- 
+  call beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,  &
+              NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN,&
+              IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,&
+              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+!-----------------------------------------------------------------------
+!  compute potential energy (au)
+!-----------------------------------------------------------------------
+   Epot = EELEC + EN
+!-----------------------------------------------------------------------
+!  compute kinetic energy of the system
+!-----------------------------------------------------------------------
+   Ekin = 0.d0
+   do i=1,nat
+    Ekin = Ekin + 0.5d0*mass(i)*( v1(1,i)*v1(1,i) &
+                + v1(2,i)*v1(2,i)+v1(3,i)*v1(3,i) )
+   enddo
+!-----------------------------------------------------------------------
+!  compute total energy of the system
+!-----------------------------------------------------------------------
+   Etot = Epot + Ekin
+!-----------------------------------------------------------------------
+!  write information of propagation in file xyz
+!-----------------------------------------------------------------------
+   trealpart = t/fstoau - int(t/fstoau+1.0d-03)
+   if ( trealpart < 0.1*dt/fstoau )  &  ! write trayectory each 1 fs
+   call XYZWRITER(init,nat,zan,izcore,t,r1,v1,Epot,Ekin,Etot)      
+!-----------------------------------------------------------------------
+!  write information about energy conservation in dynamics
+!-----------------------------------------------------------------------
+   OPEN(32,FILE='endyn.dat',STATUS='OLD',POSITION='APPEND',             &
+           ACTION='WRITE',FORM='FORMATTED',ACCESS='SEQUENTIAL')
+   write(32,'(4(2x,f14.8))') t/fstoau,Epot,Ekin,Etot
+   close(32)
+!-----------------------------------------------------------------------
+!  stop dynamics if Maximum internuclear distance > 10 Ang
+!-----------------------------------------------------------------------
+   if(t>0.1*tmax)then
+    call MAXNUCDIST(nat,r1,distmax)
+    if(distmax>distmax0)then
+     write(6,*)'Stop: Maximum internuclear distance > 10 Ang'
+     return
+    end if 
+   end if
+!-----------------------------------------------------------------------  
+ enddo
+!-----------------------------------------------------------------------            
+end SUBROUTINE MOLDYN
+
+! MAXNUCDIST
+SUBROUTINE MAXNUCDIST(nat,Cxyz,distmax)
+ IMPLICIT NONE
+ INTEGER,INTENT(IN) :: NAT
+ DOUBLE PRECISION,INTENT(OUT) :: distmax
+ DOUBLE PRECISION,DIMENSION(3,NAT),INTENT(IN) :: Cxyz
+ INTEGER :: I,J
+ DOUBLE PRECISION :: RR 
+!-----------------------------------------------------------------------
+ distmax = 0.0d0
+ do I = 1,NAT
+  do J = I+1,NAT
+   RR = (Cxyz(1,I)-Cxyz(1,J))**2 + (Cxyz(2,I)-Cxyz(2,J))**2 +           &                       
+        (Cxyz(3,I)-Cxyz(3,J))**2
+   RR = DSQRT(RR)
+   if(RR>distmax) distmax = RR
+  end do
+ end do
+!-----------------------------------------------------------------------
+ RETURN
+END SUBROUTINE MAXNUCDIST
+
+! NAMELIST_DYNINP                                                     
+SUBROUTINE NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
+ IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+ INTEGER :: nat,ngcf
+ CHARACTER(LEN=1) :: dflag,resflag,velflag,snapshot
+ DOUBLE PRECISION :: dt,tmax,Vxyz
+ COMMON/INPDYN_FLAGS/dflag(3,101)
+ COMMON/INPDYN_VELOCITY/Vxyz(3,101)
+ COMMON/INPDYN_NSHOT/snapshot
+!----------------------------------------------------------------------!
+!                   --- DYNINP NAMELIST VARIABLES ---                  !
+!----------------------------------------------------------------------!
+!                             
+!...... velflag               Flag to make constant velocity dynamics
+!                      = F    (Default)
+!                             
+!...... dt                    Time step in fs
+!                      = 1    (Default)
+!                             
+!...... tmax                  Propagation time in fs
+!                      = 100  (Default)
+!                             
+!...... ngcf                  number of GCF files to use in calculation
+!                      = 1    (Default)
+!
+!...... Vxyz           = 0.0  Initial velocities per atom
+!
+!...... resflag               Restart MD calculation
+!                      = F    (Default)
+!
+!...... snapshot              Save MLD file in snapshot-t.mld
+!                      = F    (Default)
+!                             
+!-----------------------------------------------------------------------
+      NAMELIST/INPDYN/velflag,dt,tmax,ngcf,Vxyz,resflag,snapshot
+!----------------------------------------------------------------------!
+      dflag(1:3,1:nat) = 'T'  ! Flags for selective dynamics
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                      
+!     Preset values to namelist variables
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      velflag = 'F'
+      dt = 1.0d0    
+      tmax = 100.0d0  
+      ngcf = 1 
+      Vxyz(1:3,1:nat) = 0.0d0
+      resflag = 'F'
+      snapshot = 'F'
+!-----------------------------------------------------------------------
+!                            Read Namelist
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+#ifdef MPI
+      CONTINUE
+#else
+      REWIND(5)
+#endif
+      READ(5,INPDYN,ERR=1,END=1)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!               Write NAMELIST parameters on the Output file
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      WRITE(6,3)
+      if(velflag=='T')then
+       WRITE(6,6)
+      else
+       WRITE(6,7)      
+      endif
+      WRITE(6,8)dt 
+      WRITE(6,9)tmax 
+      WRITE(6,10)ngcf
+      do i=1,nat
+       do j=1,3
+        if(Vxyz(j,i)/=0.0)WRITE(6,11)j,i,Vxyz(j,i)
+       enddo
+      enddo
+      if(resflag=='T')then
+       WRITE(6,4)
+      else
+       WRITE(6,5)      
+      endif
+      if(snapshot=='T')then
+       WRITE(6,12)
+      else
+       WRITE(6,13)      
+      endif
+!      
+      RETURN
+!-----------------------------------------------------------------------
+!     Namelist Stop errors
+!-----------------------------------------------------------------------
+    1 WRITE(6,2)
+      STOP
+!-----------------------------------------------------------------------
+!     Format definitions
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    2 FORMAT(/2X,'**********************************************'       &
+             /2X,'*                                            *'       &
+             /2X,'* SORRY, ERROR IN INPDYN NAMELIST PARAMETERS *'       &
+             /2X,'*                                            *'       &
+             /2X,'**********************************************')
+    3 FORMAT(' Input DYN Options',/,                                    &
+             ' -----------------')                                     
+    4 FORMAT( ' Restart MD calculation:               (resflag)',9X,'T')    
+    5 FORMAT( ' Restart MD calculation:               (resflag)',9X,'F')    
+    6 FORMAT( ' Flag constant velocity dynamics:      (velflag)',9X,'T')
+    7 FORMAT( ' Flag constant velocity dynamics:      (velflag)',9X,'F') 
+    8 FORMAT( ' Time step in fs:                           (dt)',5X,F5.2) 
+    9 FORMAT( ' Propagation time in fs:                  (tmax)',F10.2)    
+   10 FORMAT( ' Number of GCF files in calculation:      (ngcf)',5X,I5)    
+   11 FORMAT( ' Initial velocities per atom:',8X,'Vxyz(',I2,',',I2,')', &
+                                                             4X,F6.3)
+   12 FORMAT( ' Save MLD file in snapshot-t.mld:     (snapshot)',9X,'T')
+   13 FORMAT( ' Save MLD file in snapshot-t.mld:     (snapshot)',9X,'F')
+!-----------------------------------------------------------------------
+END SUBROUTINE NAMELIST_DYNINP
+
+! BEEVER
+subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
+                  velflag,NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI, &
+                  ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
+                  KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,     &
+                  GRADS,IRUNTYP,DIPS)  
+!-----------------------------------------------------------------------
+! init: flag to init propagator (in)
+! nat: number of atoms in the system (in)
+! mass: mass of the atoms of the system (in)
+! dt : time step
+! t : time of the trajectory         
+! r0: position at time t-dt (in, not used), and at time t (out)
+! v0: velocity at time t-dt (in, not used), and at time t (out)
+! a0: acceleration at time t-dt (in), and at time t (out)
+! r1: position at time t (in), and at time t+dt (out)
+! v1: velocity at time t (in), and at time t+dt (out)
+! a1: acceleration at time t (in), and at time t+dt (out)
+! epot: potential energy at time t+dt (out)
+!-----------------------------------------------------------------------
+ IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+!-----------------------------------------------------------------------
+! interface  
+!-----------------------------------------------------------------------
+ INTEGER, intent(in) :: init, nat, ngcf
+ INTEGER :: NINTEG,IDONTW,IEMOM,IRUNTYP
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
+ INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
+ CHARACTER(LEN=1), dimension (3,nat), intent(in) :: dflag
+ CHARACTER(LEN=1), intent(in) :: velflag
+ DOUBLE PRECISION, dimension (nat), intent(in) :: mass
+ DOUBLE PRECISION, dimension (3,nat), intent(inout) :: r0,v0,a0,r1,v1,a1
+ DOUBLE PRECISION, intent(in)  :: dt
+ DOUBLE PRECISION, intent(inout)  :: t
+ DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
+ DOUBLE PRECISION,DIMENSION(NPRIMI)::C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+ DOUBLE PRECISION,DIMENSION(3,NAT):: GRADS
+ DOUBLE PRECISION,DIMENSION(3) :: DIPS
+!-----------------------------------------------------------------------
+! internal variables  
+!-----------------------------------------------------------------------
+ INTEGER :: i
+ DOUBLE PRECISION, dimension (3,NAT) :: r2,v2,a2,forces
+ real(kind=8), parameter :: fstoau = 41.341373336561364d0   
+!-----------------------------------------------------------------------
+! init or propagation
+!-----------------------------------------------------------------------
+ select case (init)
+!-----------------------------------------------------------------------
+! init integrator
+!-----------------------------------------------------------------------  
+  case (0)
+!-----------------------------------------------------------------------
+! compute forces at initial positions r0 (t)
+!-----------------------------------------------------------------------
+   CALL PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
+           r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
+           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+   forces=-GRADS
+
+   if (dt == 0) then
+    goto 10  ! special case to not allow double calculation
+   endif
+!-----------------------------------------------------------------------
+! compute initial acceleration a0 at initial positions r0 (t)
+!-----------------------------------------------------------------------
+   do i=1,nat
+    a0(:,i)=forces(:,i)/mass(i)
+   enddo
+!-----------------------------------------------------------------------
+! position r1 at t + dt (Verlet algorithm)
+!-----------------------------------------------------------------------
+   do i=1,nat
+    r1(:,i)=r0(:,i) + dt*v0(:,i) + 0.5d0*dt*dt*a0(:,i)
+   enddo
+!-----------------------------------------------------------------------
+! compute forces at r1 (position at t + dt) 
+!-----------------------------------------------------------------------
+  write(6,*)
+  write(6,*) '---------------------------------------------------'
+  write(6,*) ' Propagation time = ', t/fstoau + dt/fstoau, ' fs'
+  write(6,*) '---------------------------------------------------'
+
+   CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
+            ZAN,r1,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,&
+        KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+   
+   forces=-GRADS
+!-----------------------------------------------------------------------
+! compute acceleration a1 at t + dt
+!-----------------------------------------------------------------------
+   do i=1,nat
+    a1(:,i)=forces(:,i)/mass(i)
+   enddo
+!-----------------------------------------------------------------------
+! compute velocity v1 at t + dt (Verlet algorithm)
+!-----------------------------------------------------------------------
+   do i=1,nat
+    v1(:,i)=v0(:,i) + 0.5d0*dt*(a0(:,i) + a1(:,i))
+   enddo
+!-----------------------------------------------------------------------
+! check dynamics flags for selective dynamics
+!-----------------------------------------------------------------------
+   do i=1,nat
+    
+    if (dflag(1,i) == 'F') then 
+     a0(1,i) = 0.d0
+     v0(1,i) = 0.d0
+     a1(1,i) = 0.d0
+     v1(1,i) = 0.d0
+     r1(1,i) = r0(1,i)
+    endif 
+    
+    if (dflag(2,i) == 'F') then
+     a0(2,i) = 0.d0
+     v0(2,i) = 0.d0
+     a1(2,i) = 0.d0
+     v1(2,i) = 0.d0
+     r1(2,i) = r0(2,i)
+    endif 
+    
+    if (dflag(3,i) == 'F') then
+     a0(3,i) = 0.d0
+     v0(3,i) = 0.d0
+     a1(3,i) = 0.d0
+     v1(3,i) = 0.d0
+     r1(3,i) = r0(3,i)
+    endif
+
+    if (velflag == 'T') then
+     v1=v0
+     a0=0.d0
+     a1=0.d0
+    endif 
+   
+   enddo
+!-----------------------------------------------------------------------
+! increase time in dt
+!-----------------------------------------------------------------------
+   t = t + dt
+
+  case default
+!-----------------------------------------------------------------------
+! Equation of motion integration .....
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!  new positions r2 at t + dt (Beeman algorithm)
+!----------------------------------------------------------------------- 
+   do i=1,nat
+    r2(:,i)=r1(:,i) + dt*v1(:,i) + dt*dt*(4.0d0*a1(:,i) - a0(:,i))/6.0d0
+   enddo
+!-----------------------------------------------------------------------
+! compute forces at r2 (position at t + dt) 
+!-----------------------------------------------------------------------
+   CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
+           r2,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
+           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+   
+   forces=-GRADS
+!-----------------------------------------------------------------------
+! compute acceleration a2 at t + dt
+!-----------------------------------------------------------------------
+   do i=1,nat
+    a2(:,i)=forces(:,i)/mass(i)
+   enddo
+!-----------------------------------------------------------------------
+! compute velocity v2 at t + dt (Beeman algorithm)
+!-----------------------------------------------------------------------
+  do i=1,nat
+   v2(:,i) = v1(:,i) + dt*(2.0d0*a2(:,i)+5.0d0*a1(:,i)-a0(:,i))/6.0d0
+  enddo
+!-----------------------------------------------------------------------
+! compute velocity v2 at t + dt (second order Adams–Moulton method)
+!-----------------------------------------------------------------------
+! do i=1,nat
+!  v2(:,i) = v1(:,i) + dt*(5.0d0*a2(:,i)+8.0d0*a1(:,i)-a0(:,i))/12.0d0
+! enddo
+!-----------------------------------------------------------------------
+! store values of r,v and a for the next step
+!-----------------------------------------------------------------------
+   r0=r1
+   v0=v1
+   a0=a1
+
+   r1=r2 
+   v1=v2
+   a1=a2
+!-----------------------------------------------------------------------
+! check dynamics flags for selective dynamics
+!-----------------------------------------------------------------------
+   do i=1,nat
+    
+    if (dflag(1,i) == 'F') then 
+     a0(1,i) = 0.d0
+     v0(1,i) = 0.d0
+     a1(1,i) = 0.d0
+     v1(1,i) = 0.d0
+     r1(1,i) = r0(1,i)
+    endif 
+    
+    if (dflag(2,i) == 'F') then
+     a0(2,i) = 0.d0
+     v0(2,i) = 0.d0
+     a1(2,i) = 0.d0
+     v1(2,i) = 0.d0
+     r1(2,i) = r0(2,i)
+    endif 
+    
+    if (dflag(3,i) == 'F') then
+     a0(3,i) = 0.d0
+     v0(3,i) = 0.d0
+     a1(3,i) = 0.d0
+     v1(3,i) = 0.d0
+     r1(3,i) = r0(3,i)
+    endif
+
+    if (velflag == 'T') then
+     v1=v0
+     a0=0.d0
+     a1=0.d0
+    endif 
+   
+   enddo  
+!-----------------------------------------------------------------------
+!   increase time in dt 
+!-----------------------------------------------------------------------   
+    t = t + dt
+
+10 end select
+
+end subroutine beever
+
+! PES
+subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
+               ZAN,r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
+               KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,        &
+               GRADS,IRUNTYP,DIPS)
+ IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+!-----------------------------------------------------------------------
+! interface
+!-----------------------------------------------------------------------
+ INTEGER ::ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,IRUNTYP
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
+ INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
+ DOUBLE PRECISION, intent(in)  :: t 
+ DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
+ DOUBLE PRECISION,DIMENSION(NPRIMI)::C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
+ DOUBLE PRECISION,DIMENSION(3,NAT):: r0,GRADS 
+ DOUBLE PRECISION,DIMENSION(3) :: DIPS
+!
+ CHARACTER(LEN=1) :: snapshot
+ COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+ COMMON/EHFEN/EHF,EN
+ COMMON/WRTGCF/IWRTGCF
+ COMMON/INPDYN_NSHOT/snapshot
+ COMMON/INPNOF_MOLDEN/MOLDEN
+!-----------------------------------------------------------------------
+! internal variables
+!-----------------------------------------------------------------------
+ character (4), parameter :: seedname='GCF-'
+ character (2)  :: str
+ character (len=10) :: fileIn
+ character (len=20) :: MLD_FILE
+ character (len=6) :: str1
+
+ INTEGER :: i,igcfmin(1)
+ DOUBLE PRECISION,DIMENSION(ngcf,3,NAT):: GRADS_temp
+ DOUBLE PRECISION, dimension (ngcf) :: Epot, EELEC_temp, EN_temp
+ real(kind=8), parameter :: fstoau = 41.341373336561364d0  
+!-----------------------------------------------------------------------
+! init var
+!-----------------------------------------------------------------------
+ Epot(:) = 0.d0
+!
+ if(snapshot=='T')then
+  MOLDEN = 1
+  write(str1,'(F6.2)')t/fstoau
+ endif 
+!-----------------------------------------------------------------------
+! begin loop over GCF guess
+!-----------------------------------------------------------------------
+ do i=1,ngcf
+!-----------------------------------------------------------------------    
+! Save MLD file in snapshot-t.mld
+!-----------------------------------------------------------------------
+  IF(snapshot=='T')THEN
+   if(ngcf==1)then
+    MLD_FILE = 'snapshot-'//trim(adjustl(str1))//".mld"
+   else
+    MLD_FILE = 'snapshot-'//trim(adjustl(str1))//'-'//char(i)//".mld"
+   end if
+   OPEN(17,FILE=MLD_FILE,STATUS='UNKNOWN',FORM='FORMATTED',             &
+           ACCESS='SEQUENTIAL') 
+  END IF
+!-----------------------------------------------------------------------
+! Previous GCF file is not used in BO-MD for GCF-i /= GCF-1
+!-----------------------------------------------------------------------
+!useGCF  if(i==1)then
+!useGCF   IWRTGCF=1
+!useGCF  else
+!useGCF   IWRTGCF=0
+!useGCF  end if
+!-----------------------------------------------------------------------
+! assign name to the variable fileIn
+!-----------------------------------------------------------------------
+  write (str,'(i2)') i
+  fileIn = trim(seedname)//trim(adjustl(str))
+!-----------------------------------------------------------------------
+! open GCF-i in unit 3
+!-----------------------------------------------------------------------
+  OPEN(3,FILE=fileIn,FORM='FORMATTED',ACCESS='SEQUENTIAL')
+  write(6,*)
+  write(6,*)'Using GCF-',i
+!-----------------------------------------------------------------------
+! compute Energy and Gradients
+!-----------------------------------------------------------------------
+  CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,r0,&
+                IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,   &
+                KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,      &
+                IRUNTYP,DIPS,0,1)    ! ,0) short print on output file
+!-----------------------------------------------------------------------
+! store temporal variables
+!-----------------------------------------------------------------------
+  GRADS_temp(i,:,:) = GRADS
+  EELEC_temp(i) = EELEC
+  EN_temp(i) = EN
+  Epot(i) = EELEC + EN
+  CLOSE(3)
+  IF(snapshot=='T')CLOSE(17)
+ enddo
+!-----------------------------------------------------------------------
+! index of minimun energy solution
+!-----------------------------------------------------------------------
+ igcfmin = minloc(Epot)
+ write(6,*)
+ write(6,*)'Epot min with GCF-',igcfmin(1)
+!-----------------------------------------------------------------------
+! energy information multiples GCF
+!-----------------------------------------------------------------------
+! write(34,'(16f14.8)') t/fstoau,(Epot(j), j=1,ngcf)
+!-----------------------------------------------------------------------
+! passing minumun values to global variables
+!-----------------------------------------------------------------------
+ 
+ GRADS=GRADS_temp(igcfmin(1),:,:) 
+ EELEC=EELEC_temp(igcfmin(1))
+ EN=EN_temp(igcfmin(1))
+ 
+end subroutine PES
+
+! XYZWRITER
+subroutine XYZWRITER(init,nat,zan,izcore,tau,rau,vau,Epot,Ekin,Etot)
+ implicit none
+!-----------------------------------------------------------------------
+ logical DynFileExists,DynlFileExists
+ integer,intent(in) :: init,nat
+ integer,dimension (nat),intent(in) :: izcore
+ real(kind=8),dimension (nat),intent(in) :: zan
+ real(kind=8),intent(in) :: tau
+ real(kind=8),dimension (3,nat),intent(in) :: rau,vau
+ real(kind=8),intent(in) :: Epot,Ekin,Etot
+!-----------------------------------------------------------------------
+ character(len=4),dimension(106) :: ATMLAB
+ DATA ATMLAB/'H   ','HE  ','LI  ','BE  ','B   ','C   ',                 &
+             'N   ','O   ','F   ','NE  ','NA  ','MG  ',                 &
+             'AL  ','SI  ','P   ','S   ','CL  ','AR  ',                 &
+             'K   ','CA  ','SC  ','TI  ','V   ','CR  ',                 &
+             'MN  ','FE  ','CO  ','NI  ','CU  ','ZN  ',                 &
+             'GA  ','GE  ','AS  ','SE  ','BR  ','KR  ',                 &
+             'RB  ','SR  ','Y   ','ZR  ','NB  ','MO  ',                 &
+             'TC  ','RU  ','RH  ','PD  ','AG  ','CD  ',                 &
+             'IN  ','SN  ','SB  ','TE  ','I   ','XE  ',                 &
+             'CS  ','BA  ','LA  ','CE  ','PR  ','ND  ',                 &
+             'PM  ','SM  ','EU  ','GD  ','TB  ','DY  ',                 &
+             'HO  ','ER  ','TM  ','YB  ','LU  ','HF  ',                 &
+             'TA  ','W   ','RE  ','OS  ','IR  ','PT  ',                 &
+             'AU  ','HG  ','TL  ','PB  ','BI  ','PO  ',                 &
+             'AT  ','RN  ','FR  ','RA  ','AC  ','TH  ',                 &
+             'PA  ','U   ','NP  ','PU  ','AM  ','CM  ',                 &
+             'BK  ','CF  ','ES  ','FM  ','MD  ','NO  ',                 &
+             'LR  ','RF  ','X   ','BQ  '/
+!-----------------------------------------------------------------------
+ integer :: i,iznuc
+ real(kind=8) :: tfs
+ real(kind=8),dimension (3,nat) :: ram,vam
+!-----------------------------------------------------------------------
+! Constants for transformation units
+!-----------------------------------------------------------------------
+ real(kind=8),parameter :: amtoau=1.d0/0.52917720859d0 
+ real(kind=8),parameter :: fstoau=41.341373336561364d0
+ real(kind=8),parameter :: amutoau=1822.888485540950d0
+ real(kind=8),parameter :: evtoau=1.0d0/27.211608d0 
+!-----------------------------------------------------------------------
+ inquire(FILE='DYN.xyz',EXIST=DynFileExists)
+ if(DynFileExists)then 
+  OPEN(30,FILE='DYN.xyz',STATUS='OLD',POSITION='APPEND',ACTION='WRITE', &
+          FORM='FORMATTED',ACCESS='SEQUENTIAL')
+ else
+  OPEN(30,FILE='DYN.xyz',STATUS='NEW',ACTION='WRITE',                   &
+          FORM='FORMATTED',ACCESS='SEQUENTIAL')
+ end if
+!
+ inquire(FILE='DYNl.xyz',EXIST=DynlFileExists)
+ if (DynlFileExists)OPEN(31,FILE='DYNl.xyz',STATUS='OLD',               &
+                            FORM='FORMATTED',ACCESS='SEQUENTIAL')
+!-----------------------------------------------------------------------
+ select case(init)
+
+  case(0)
+  
+!-----------------------------------------------------------------------
+!  write to xyz trajectory file
+!-----------------------------------------------------------------------
+   tfs = tau/fstoau    
+   write(30,*) nat
+   write(30,'(4(a6),4(f14.8))') 't,','Epot,','Ekin,','Etot,',           &
+                                tfs,Epot,Ekin,Etot
+   do i=1,nat
+    ram(:,i)=rau(:,i)/amtoau
+    vam(:,i)=vau(:,i)*(fstoau/amtoau)
+    iznuc = int(zan(i)) + izcore(i)
+    write(30,'(a4, 6(1x,f14.8))')ATMLAB(iznuc),ram(:,i),vam(:,i)
+   enddo
+
+  case default
+
+    tfs=tau/fstoau 
+    write(30,*) nat
+    write(30,'(4(a6),4(f14.8))') 't,','Epot,','Ekin,','Etot,',          &
+                                 tfs,Epot,Ekin,Etot
+    do i=1,nat
+     ram(:,i)=rau(:,i)/amtoau
+     vam(:,i)=vau(:,i)*(fstoau/amtoau) 
+     iznuc = int(zan(i)) + izcore(i)
+     write(30,'(a4, 6(1x,f14.8))')ATMLAB(iznuc),ram(:,i),vam(:,i)
+    enddo
+!-----------------------------------------------------------------------
+!   write the last xyz backup file (DYNl.xyz)
+!-----------------------------------------------------------------------
+    rewind 31
+    write(31,*) nat
+    write(31,*) tfs
+    do i=1,nat
+     ram(:,i)=rau(:,i)/amtoau
+     vam(:,i)=vau(:,i)*(fstoau/amtoau)
+     iznuc = int(zan(i)) + izcore(i)     
+     write(31,'(a4, 6(1x,f14.8))')ATMLAB(iznuc),ram(:,i),vam(:,i)
+    enddo
+    
+  end select 
+  
+  close(30) 
+  close(31)
+
+end subroutine XYZWRITER
 
 !======================================================================!
 !**********************************************************************!
