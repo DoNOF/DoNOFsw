@@ -26435,7 +26435,7 @@
       RETURN
       END
 
-! FCHKrc
+! FCHKrc      
       SUBROUTINE FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,   &
                         RO,E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP)
 !-----------------------------------------------------------------------
@@ -26465,8 +26465,18 @@
       INTEGER,ALLOCATABLE,DIMENSION(:) :: NUMPRIMi,IZNUC,ISHELLTYP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DMs
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DM
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: TMP !Fix: JFHLewYee
       CHARACTER(6),DIMENSION(4) :: RUNTYP
       DATA RUNTYP/'ENERGY','GRAD  ','OPTGEO','HESS  '/
+      INTEGER,DIMENSION(10) :: FORD
+      DATA FORD / 1,2,3,6,4,5,8,9,7,10/                 
+      INTEGER,DIMENSION(15) :: GORD
+      DATA GORD / 3,9,12,7,2,8,15,14,6,11,13,10,5,4,1/
+      INTEGER,DIMENSION(21) :: HORD
+      DATA HORD / 3,9,15,13,7,2,8,18,21,17,6,14,20,19,12,11,16,10,5,4,1/                 
+      INTEGER,DIMENSION(28) :: IORD
+      DATA IORD / 3,9,15,21,13,7,2,8,18,27,25,17,6,14,26,28,24,12,20,  &
+                  23,22,19,11,16,10,5,4,1/
 !----------------------------------------------------------------------- 
       REWIND(19)
       WRITE(19,1)TITLE
@@ -26510,21 +26520,19 @@
 !
       WRITE(19,14)NPRIMI
       WRITE(19,15)Virial
-      WRITE(19,16)Etot    
-      WRITE(19,17)EELEC + EN
-!     Atomic numbers & Nuclear charges
       ALLOCATE(IZNUC(NATOMS))
       DO i=1,NATOMS
        IZNUC(i) = INT(ZNUC(i))+IZCORE(i)
       END DO
-      WRITE(19,18)NATOMS
-      WRITE(19,19)(IZNUC(i),i=1,NATOMS)
+      WRITE(19,16)NATOMS
+      WRITE(19,17)(IZNUC(i),i=1,NATOMS)
       DEALLOCATE(IZNUC)
-      WRITE(19,20)NATOMS
-      WRITE(19,21)(ZNUC(i)+IZCORE(i),i=1,NATOMS)
-      WRITE(19,22)3*NATOMS
-      WRITE(19,21)(CX0(i),CY0(i),CZ0(i),i=1,NATOMS)
-      WRITE(19,23)NSHELL
+      WRITE(19,18)NATOMS
+      WRITE(19,19)(ZNUC(i)+IZCORE(i),i=1,NATOMS)
+      WRITE(19,20)3*NATOMS
+      WRITE(19,19)(CX0(i),CY0(i),CZ0(i),i=1,NATOMS)
+      WRITE(19,21)EELEC + EN
+      WRITE(19,22)NSHELL
       ALLOCATE(ISHELLTYP(NSHELL))
 !     Shell Types (KTYPE-1) 
       LSHELL = 0
@@ -26536,33 +26544,87 @@
         LSHELL = 1
        end if
       END DO
-      WRITE(19,19)(ISHELLTYP(i),i=1,NSHELL)
+      WRITE(19,17)(ISHELLTYP(i),i=1,NSHELL)
+
+      !Start - block fix JFHLewYee
+      ALLOCATE(TMP(NBF,NBF))
+      TMP = COEF
+      LOC = 0
+      DO I=1,NSHELL
+       IF(ISHELLTYP(I).EQ.3) THEN
+        !           1   2   3   4   5   6   7   8   9   10 
+        ! DoNOF:    XXX,YYY,ZZZ,XXY,XXZ,YYX,YYZ,ZZX,ZZY,XYZ
+        !           1   2   3   6   4   5   8   9   7   10 
+        ! Gaussian: XXX,YYY,ZZZ,XYY,XXY,XXZ,XZZ,YZZ,YYZ,XYZ
+        DO J=1,10
+         COEF(LOC+J,:) = TMP(LOC+FORD(J),:)
+        END DO
+       ELSE IF(ISHELLTYP(I).EQ.4) THEN
+        !           1    2    3    4    5    6    7    8    9    10   11   12   13   14   15
+        ! DoNOF:    XXXX,YYYY,ZZZZ,XXXY,XXXZ,YYYX,YYYZ,ZZZX,ZZZY,XXYY,XXZZ,YYZZ,XXYZ,YYXZ,ZZXY                    
+        !           3    9    12   7    2    8    15   14   6    11   13   10   5    4    1
+        ! Gaussian: ZZZZ,YZZZ,YYZZ,YYYZ,YYYY,XZZZ,XYZZ,XYYZ,XYYY,XXZZ,XXYZ,XXYY,XXXZ,XXXY,XXXX
+        DO J=1,15
+         COEF(LOC+J,:) = TMP(LOC+GORD(J),:)
+        END DO
+       ELSE IF(ISHELLTYP(I).EQ.5) THEN
+        !           1     2     3     4     5     6     7     8     9     10    11    12   
+        ! DoNOF:    XXXXX,YYYYY,ZZZZZ,XXXXY,XXXXZ,YYYYX,YYYYZ,ZZZZX,ZZZZY,XXXYY,XXXZZ,YYYXX
+        !           13    14    15    16    17    18    19    20    21
+        ! DoNOF:    YYYZZ,ZZZXX,ZZZYY,XXXYZ,YYYXZ,ZZZXY,XXYYZ,XXZZY,YYZZX
+        !           3     9     15    13    7     2     8     18    21    17    6     14   
+        ! Gaussian: ZZZZZ,YZZZZ,YYZZZ,YYYZZ,YYYYZ,YYYYY,XZZZZ,XYZZZ,XYYZZ,XYYYZ,XYYYY,XXZZZ
+        !           20    19    12    11    16    10    5     4     1
+        ! Gaussian: XXYZZ,XXYYZ,XXYYY,XXXZZ,XXXYZ,XXXYY,XXXXZ,XXXXY,XXXXX
+        DO J=1,21
+         COEF(LOC+J,:) = TMP(LOC+HORD(J),:)
+        END DO
+       ELSE IF(ISHELLTYP(I).EQ.6) THEN
+        !           1      2      3      4      5      6      7      8      9      10     11       
+        ! DoNOF:    X6,    Y6,    Z6,    X5Y,   X5Z,   Y5X,   Y5Z,   Z5X,   Z5Y,   X4Y2,  X4Z2
+        !           12     13     14     15     16     17     18     19     20     21     22   
+        ! DoNOF:    Y4X2,  Y4Z2,  Z4X2,  Z4Y2,  X4YZ,  Y4XZ,  Z4XY,  X3Y3,  X3Z3,  Y3Z3,  X3Y2Z  
+        !           23     24     25     26     27     28
+        ! DoNOF:    X3Z2Y, Y3X2Z, Y3Z2X, Z3X2Y, Z3Y2X, X2Y2Z2       
+        !           3      9      15     21     13     7      2      8      18     27     25      
+        ! Gaussian: ZZZZZZ,YZZZZZ,YYZZZZ,YYYZZZ,YYYYZZ,YYYYYZ,YYYYYY,XZZZZZ,XYZZZZ,XYYZZZ,XYYYZZ
+        !           17     6      14     26     28     24     12     20     23     22     19    
+        ! Gaussian: XYYYYZ,XYYYYY,XXZZZZ,XXYZZZ,XXYYZZ,XXYYYZ,XXYYYY,XXXZZZ,XXXYZZ,XXXYYZ,XXXYYY
+        !           11     16     10     5      4      1
+        ! Gaussian: XXXXZZ,XXXXYZ,XXXXYY,XXXXXZ,XXXXXY,XXXXXX
+        DO J=1,28
+         COEF(LOC+J,:) = TMP(LOC+IORD(J),:)
+        END DO
+       END IF
+       LOC = LOC + (ISHELLTYP(i)+1)*(ISHELLTYP(i)+2)/2 
+      END DO
+      DEALLOCATE(TMP)
+      !End - block fix JFHLewYee
+
       DEALLOCATE(ISHELLTYP)
 !
+      WRITE(19,23)NSHELL
+      WRITE(19,17)(KNG(i),i=1,NSHELL)
       WRITE(19,24)NSHELL
-      WRITE(19,19)(KNG(i),i=1,NSHELL)
-      WRITE(19,25)NSHELL
-      WRITE(19,19)(KATOM(i),i=1,NSHELL)
-      WRITE(19,26)3*NSHELL
-      WRITE(19,21)(CX0(KATOM(i)),CY0(KATOM(i)),CZ0(KATOM(i)),i=1,NSHELL)
+      WRITE(19,17)(KATOM(i),i=1,NSHELL)
+      WRITE(19,25)3*NSHELL
+      WRITE(19,19)(CX0(KATOM(i)),CY0(KATOM(i)),CZ0(KATOM(i)),i=1,NSHELL)
+      WRITE(19,26)NPRIMI
+      WRITE(19,19)(EX1(i),i=1,NPRIMI)
       WRITE(19,27)NPRIMI
-      WRITE(19,21)(EX1(i),i=1,NPRIMI)
-      WRITE(19,28)NPRIMI
-      WRITE(19,21)(C1(i),i=1,NPRIMI)
+      WRITE(19,19)(C1(i),i=1,NPRIMI)
       if(LSHELL==1)then
-       WRITE(19,29)NPRIMI
-       WRITE(19,21)(C2(i),i=1,NPRIMI)
+       WRITE(19,28)NPRIMI
+       WRITE(19,19)(C2(i),i=1,NPRIMI)
       end if
-      WRITE(19,30)NBF
-      WRITE(19,21)(E(i),i=1,NBF)
-      WRITE(19,31)NBF
-      WRITE(19,21)(E(i),i=1,NBF)
-      WRITE(19,32)NSQ
-      WRITE(19,21)((COEF(i,j),i=1,NBF),j=1,NBF)
-      WRITE(19,33)NSQ
-      WRITE(19,21)((COEF(i,j),i=1,NBF),j=1,NBF)
+      
+      WRITE(19,29)NBF5
+      WRITE(19,19)(E(i),i=1,NBF5)
+      WRITE(19,30)NBF*NBF5
+      WRITE(19,19)((COEF(i,j),i=1,NBF),j=1,NBF5)
+
 !     Total SCF Density  
-      WRITE(19,34)NBFT
+      WRITE(19,31)NBFT
       ALLOCATE (DM(NBF,NBF),DMs(NBFT))
       CALL DENMATr(DM,COEF,RO,NBF,1,NBF5)
       NZ=0
@@ -26572,12 +26634,12 @@
         DMs(NZ)=DM(I,J)
        ENDDO
       ENDDO
-      WRITE(19,21)(DMs(i),i=1,NBFT)
+      WRITE(19,19)(DMs(i),i=1,NBFT)
       DEALLOCATE (DM,DMs)
-      WRITE(19,35)NBF5
-      WRITE(19,21)(RO(i),i=1,NBF5)
-      WRITE(19,36)
-      WRITE(19,21)(DIPS(i),i=1,3)
+      WRITE(19,32)NBF5
+      WRITE(19,19)(RO(i),i=1,NBF5)
+      WRITE(19,33)
+      WRITE(19,19)(DIPS(i),i=1,3)
 !-----------------------------------------------------------------------
     1 FORMAT(A80)
     2 FORMAT(A6,4X,'PNOF',I1,4X,A80)
@@ -26588,33 +26650,30 @@
     7 FORMAT('Number of alpha electrons      ',12X,'I',5X,I12)
     8 FORMAT('Number of beta electrons       ',12X,'I',5X,I12)
     9 FORMAT('Number of basis functions      ',12X,'I',5X,I12)
-   10 FORMAT('Number of independant functions',12X,'I',5X,I12)
+   10 FORMAT('Number of independent functions',12X,'I',5X,I12)
    11 FORMAT('Number of contracted shells    ',12X,'I',5X,I12)
    12 FORMAT('Highest angular momentum       ',12X,'I',5X,I12)
    13 FORMAT('Largest degree of contraction  ',12X,'I',5X,I12)
    14 FORMAT('Number of primitive shells     ',12X,'I',5X,I12)
    15 FORMAT('Virial Ratio                   ',12X,'R',5X,ES22.15)
-   16 FORMAT('SCF Energy                     ',12X,'R',5X,ES22.15)
-   17 FORMAT('Total Energy                   ',12X,'R',5X,ES22.15)
-   18 FORMAT('Atomic numbers                 ',12X,'I   N=',I12)
-   19 FORMAT(6I12) 
-   20 FORMAT('Nuclear charges                ',12X,'R   N=',I12)
-   21 FORMAT(5ES22.15)
-   22 FORMAT('Current cartesian coordinates  ',12X,'R   N=',I12)
-   23 FORMAT('Shell types                    ',12X,'I   N=',I12)
-   24 FORMAT('Number of primitives per shell ',12X,'I   N=',I12)
-   25 FORMAT('Shell to atom map              ',12X,'I   N=',I12)
-   26 FORMAT('Coordinates of each shell      ',12X,'R   N=',I12)
-   27 FORMAT('Primitive exponents            ',12X,'R   N=',I12)            
-   28 FORMAT('Contraction coefficients       ',12X,'R   N=',I12)
-   29 FORMAT('P(S=P) Contraction coefficients',12X,'R   N=',I12)
-   30 FORMAT('Alpha Orbital Energies         ',12X,'R   N=',I12)
-   31 FORMAT('Beta Orbital Energies          ',12X,'R   N=',I12)
-   32 FORMAT('Alpha MO coefficients          ',12X,'R   N=',I12)
-   33 FORMAT('Beta MO coefficients           ',12X,'R   N=',I12)
-   34 FORMAT('Total SCF Density              ',12X,'R   N=',I12)
-   35 FORMAT('Natural orbital occupancies    ',12X,'R   N=',I12)
-   36 FORMAT('Dipole Moment                  ',12X,'R   N=',11X,'3')
+   16 FORMAT('Atomic numbers                 ',12X,'I   N=',I12)
+   17 FORMAT(6I12) 
+   18 FORMAT('Nuclear charges                ',12X,'R   N=',I12)
+   19 FORMAT(5ES16.8)   
+   20 FORMAT('Current cartesian coordinates  ',12X,'R   N=',I12)
+   21 FORMAT('Total Energy                   ',12X,'R',5X,ES22.15)
+   22 FORMAT('Shell types                    ',12X,'I   N=',I12)
+   23 FORMAT('Number of primitives per shell ',12X,'I   N=',I12)
+   24 FORMAT('Shell to atom map              ',12X,'I   N=',I12)
+   25 FORMAT('Coordinates of each shell      ',12X,'R   N=',I12)
+   26 FORMAT('Primitive exponents            ',12X,'R   N=',I12)            
+   27 FORMAT('Contraction coefficients       ',12X,'R   N=',I12)
+   28 FORMAT('P(S=P) Contraction coefficients',12X,'R   N=',I12)
+   29 FORMAT('Alpha Orbital Energies         ',12X,'R   N=',I12)
+   30 FORMAT('Alpha MO coefficients          ',12X,'R   N=',I12)
+   31 FORMAT('Total SCF Density              ',12X,'R   N=',I12)
+   32 FORMAT('Natural orbital occupancies    ',12X,'R   N=',I12)
+   33 FORMAT('Dipole Moment                  ',12X,'R   N=',11X,'3')
 !-----------------------------------------------------------------------              
       RETURN
       END
