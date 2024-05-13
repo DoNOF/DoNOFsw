@@ -7,10 +7,6 @@ DoNOF can perform computational chemistry calculations based on the Natural Orbi
 
 The solution is established optimizing the energy functional with respect to the occupation numbers (ONs) and to the natural orbitals (NOs), separately. The constrained nonlinear programming problem for the ONs is treated under pairing restrictions as an unconstrained minimization, while the orbital optimization is carried out by a self-consistent procedure which yields the NOs automatically orthogonal. To achieve convergence, the direct inversion of the iterative subspace (DIIS) extrapolation technique is used, and a variable scale factor balances the symmetric matrix subject to the iterative diagonalizations.
 
-The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
-
-The online manual is available through the links: https://donof-documentation.readthedocs.io/, https://donof.readthedocs.io/
-
 You can contact us by e-mail to DoNOFsw@gmail.com
 
 ## Installation
@@ -64,3 +60,20 @@ Other options for execution are:
 ./run_donof     < filename  # ifort serial
 ./run_donofmpi  < filename  # ifort mpi
 ~~~
+
+## Capabilities
+
+The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
+
+The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example, INPOF=7 indicates to use PNOF7. GNOF is indicated with IPNOF=8.
+
+Current capabilities include:
+**IRUNTYP = 1** - Single-point Energy (Default)
+**IRUNTYP = 2** - Energy + Gradients with respect to nuclear coord
+**IRUNTYP = 3** - Geometry Optimization
+**IRUNTYP = 4** - Numerical Hessian
+**IRUNTYP = 5** - Born-Oppenheimer on-the-fly molecular dynamics
+
+Other common options include excited states calculation (**ERPA=T**) and NOF-MBPT calculations (**MBPT=T**).
+
+A complete list of the variables can be found in the online manual through the links: https://donof-documentation.readthedocs.io/, https://donof.readthedocs.io/
