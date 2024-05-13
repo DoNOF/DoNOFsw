@@ -27,7 +27,7 @@ Go inside the DoNOFsw folder (`cd DoNOFsw`) and compile with `make [option]`. Fo
 make serialg # gfortran serial -> /exe/DoNOFg.x
 ~~~
 
-Other alternatives are:
+Other options are:
 ~~~
 make mpig    # gfortran mpi    -> /exe/DoNOFmpig.x
 make mping   # gfortran mpi (for recent linux versions)
@@ -58,7 +58,7 @@ If the input is placed in a file called filename.inp, it can be executed with
 ~~~
 the output will be placed in filename.out.
 
-Other alternatives for execution are:
+Other options for execution are:
 ~~~
 ./run_donofmpig < filename  # gfortran mpi
 ./run_donof     < filename  # ifort serial
