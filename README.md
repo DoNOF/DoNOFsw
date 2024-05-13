@@ -13,12 +13,12 @@ You can contact us by e-mail to DoNOFsw@gmail.com
 
 **Requisites.** You need a FORTRAN compiler, either gfortran or ifort. Optionally, you may want to install OpenMPI for parallel execution.
 
-Clone the code with
+1. Clone the code with
 ~~~
 git clone https://github.com/DoNOF/DoNOFsw
 ~~~
 
-Go inside the DoNOFsw folder (`cd DoNOFsw`) and compile with `make [option]`. For example:
+2. Go inside the DoNOFsw folder (`cd DoNOFsw`) and compile with `make [option]`. For example:
 ~~~
 make serialg # gfortran serial -> /exe/DoNOFg.x
 ~~~
@@ -31,7 +31,7 @@ make serial  # ifort serial    -> /exe/DoNOF.x
 make mpi     # ifort mpi       -> /exe/DoNOFmpi.x
 ~~~
 
-The executable will be placed inside /exe
+3. The executable will be placed inside /exe
 
 ## Execution
 
