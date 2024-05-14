@@ -50,15 +50,15 @@ H  1.0  0.0000    -0.7572   -0.4692
 
 If the input is placed in a file called filename.inp, it can be executed with
 ~~~
-./run_donofg < filename     # gfortran serial
+./run_donofg filename     # gfortran serial
 ~~~
 the output will be placed in filename.out.
 
 Other options for execution are:
 ~~~
-./run_donofmpig < filename  # gfortran mpi
-./run_donof     < filename  # ifort serial
-./run_donofmpi  < filename  # ifort mpi
+./run_donofmpig filename  # gfortran mpi
+./run_donof     filename  # ifort serial
+./run_donofmpi  filename  # ifort mpi
 ~~~
 
 ## Capabilities
