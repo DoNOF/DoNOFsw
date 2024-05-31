@@ -1,6 +1,8 @@
 # DoNOFsw
 Donostia Natural Orbital Functional Software
 
+![DoNOF](https://github.com/DoNOF/DoNOF-Documentation/blob/master/Logo-DoNOF.jpeg)
+
 DoNOF is a computational chemistry software program that stands for Donostia Natural Orbital Functional. The original code started on January 21, 2009 as PNOFID. It will run on essentially any machine with a FORTRAN 90 compiler for 64 bit processing.
 
 DoNOF can perform computational chemistry calculations based on the Natural Orbital Functional Theory (NOFT), including PNOF5, PNOF6, PNOF7 and GNOF. Correlation corrections after PNOF calculations can be estimated by second order perturbation theories. The total spin is conserved, not just the spin projection.
