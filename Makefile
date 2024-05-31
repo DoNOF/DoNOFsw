@@ -12,7 +12,7 @@ SFLAGS  = -i8 -r8 -fpp -O2
 F90     = ifort          $(SFLAGS)
 MPIF90  = mpiifort -DMPI $(SFLAGS)
 #
-SFLAGSg = -fdefault-integer-8 -fdefault-real-8 -fdefault-double-8 -cpp -ffpe-summary=none -O1
+SFLAGSg = -fdefault-integer-8 -fdefault-real-8 -fdefault-double-8 -cpp -ffpe-summary=none -O2
 F90g    = gfortran     $(SFLAGSg)
 MPIF90g = mpif90 -DMPI $(SFLAGSg)
 #for new versions of gnumpi:
