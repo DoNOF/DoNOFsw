@@ -1,6 +1,6 @@
 # DoNOFsw
 
-![Donostia Natural Orbital Functional Software]([https://github.com/DoNOF/DoNOF-Documentation/blob/master/Logo-DoNOF.jpeg](https://github.com/DoNOF/DoNOF-Documentation/blob/master/docs/Logo-DoNOF.jpeg))
+![Donostia Natural Orbital Functional Software](https://github.com/DoNOF/DoNOF-Documentation/blob/master/docs/Logo-DoNOF.jpeg)
 
 **DoNOF** is a computational chemistry software program that stands for **Donostia Natural Orbital Functional**. The original code started on January 21, 2009 as PNOFID. It will run on essentially any machine with a FORTRAN 90 compiler for 64 bit processing.
 
