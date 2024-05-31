@@ -9,6 +9,8 @@ The solution is established optimizing the energy functional with respect to the
 
 You can contact us by e-mail to DoNOFsw@gmail.com
 
+Documentation: https://donof-documentation.readthedocs.io/
+
 ## Installation
 
 **Requisites.** You need a FORTRAN compiler, either gfortran or ifort. Optionally, you may want to install OpenMPI for parallel execution.
@@ -75,5 +77,3 @@ Current capabilities include:
 - **RUNTYP = DYN** - Born-Oppenheimer on-the-fly molecular dynamics
 
 Other common options include excited states calculation (**ERPA=T**) and NOF-MBPT calculations (**MBPT=T**).
-
-A complete list of the variables can be found in the online manual through the links: https://donof-documentation.readthedocs.io/, https://donof.readthedocs.io/
