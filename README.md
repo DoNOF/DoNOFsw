@@ -8,7 +8,7 @@ The solution is established optimizing the energy functional with respect to the
 
 You can contact us by e-mail to DoNOFsw@gmail.com
 
-Documentation: https://donof-documentation.readthedocs.io/
+**Documentation:** https://donof-documentation.readthedocs.io/
 
 ## Installation
 
