@@ -456,7 +456,6 @@
 !                               (Default)
 !                      = 2      By unitary tranformations (OrbOptRot)
 !                      = 3      Sequential Quadratic Program (OrbOptSQP)
-!                      = 4      Adaptative Momentum (ADAM)             
 !
 !.......... IEINI               Calculate only the initial energy
 !                      = 0      (Default)
@@ -1476,8 +1475,6 @@
           WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==3)THEN
           WRITE(6,58)IORBOPT       
-        ELSE IF(IORBOPT==4)THEN
-          WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==5)THEN
           WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==6)THEN
