@@ -715,3 +715,4 @@ subroutine XYZWRITER(init,nat,zan,izcore,tau,rau,vau,Epot,Ekin,Etot)
   close(31)
 
 end
+
