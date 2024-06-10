@@ -1,6 +1,6 @@
 # ![Donostia Natural Orbital Functional Software](https://github.com/DoNOF/DoNOF-Documentation/blob/master/docs/Logo-DoNOF.jpeg)
 
-|📨 **Contact us:**    | DoNOFsw@gmail.com                         |
+|📫 **Contact us:**    | DoNOFsw@gmail.com                         |
 |:------------------|-------------------------------------------|
 |📖 **Documentation:** | https://donof-documentation.readthedocs.io|
 
