@@ -550,12 +550,14 @@
 !      HYDROGENS GETS SEPARATE STORAGE OF ITS EXPONENTS/CONTRACTION     
 !      COEFFICIENTS (STORED AT DIFFERENT -KSTART- VALUES).              
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
-       NSHELL = NSHELL + 1                                               
-       IF(NSHELL>600)THEN
-        WRITE(6,'(1X,A30,I6,A16)')                                      &
-         'Stop: No more than NSHELLmax (',NSHELLmax,') shells allowed'                                   
-        CALL ABRT                                                        
-       ENDIF                                                         
+       NSHELL = NSHELL + 1
+       if(IECP>0.or.ILIBRETA==1)then
+        IF(NSHELL>600)THEN
+         WRITE(6,'(1X,A30,I6,A16)')                                      &
+          'Stop: No more than NSHELLmax (',NSHELLmax,') shells allowed'
+         CALL ABRT
+        ENDIF
+       end if
 !                                                                        
        KMIN(NSHELL)  = MINF(ITYP)                                          
        KMAX(NSHELL)  = MAXF(ITYP)                                          
@@ -1938,8 +1940,9 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INTOPT/ISCHWZ,IECP,NECP
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                                    
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/ECPDIM/NCOEF1,NCOEF2,J1LEN,J2LEN,LLIM,NLIM,NTLIM,J4LEN      
       CHARACTER(80) ::  BASIS_FILE
       COMMON/BASIS_FILE/BASIS_FILE

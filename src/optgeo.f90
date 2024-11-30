@@ -315,8 +315,9 @@
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
                          NIU24,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,NU7,     &
                          NU8,NU9,NU10,NU11,NU12,NU13,NULAST
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
       INTEGER,DIMENSION(NIULAST)         :: IUSER 
       DOUBLE PRECISION,DIMENSION(NV)     :: Cxyz
@@ -628,8 +629,9 @@
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
       COMMON/USELIBRETA/ILIBRETA
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
       INTEGER,DIMENSION(*) :: IUSER
       DOUBLE PRECISION,DIMENSION(*) :: USER

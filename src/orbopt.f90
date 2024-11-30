@@ -15,13 +15,14 @@
 !   2) OrbOptRot: Use a Unitary Tranformation -> Cn = C * exp(YM)      !
 !                                                                      !
 !   3) OrbOptSQP: Use a Sequential Quadratic Program (SQP) Method      !
-!                                                                      !!                                                                      !
+!                                                                      !
+!                                                                      !
 !======================================================================!
 
 ! OrbOpt
       SUBROUTINE OrbOpt(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux, &
                         QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,ADIPx,    &
-                        ADIPy,ADIPz,ILOOP,IPRINTOPT,IORBOPT)
+                        ADIPy,ADIPz,ILOOP,IORBOPT,OCCTIME,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
@@ -51,6 +52,38 @@
                       IPRINTOPT)
       ELSE IF(IORBOPT==3)THEN
        CALL OrbOptSQP(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==4)THEN
+       CALL ADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,              &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,OCCTIME,IPRINTOPT)
+      ELSE IF(IORBOPT==5)THEN
+       CALL GD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,                &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==6)THEN
+       CALL MOMENTUMGD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,        &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==7)THEN
+       CALL NGD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,               &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==8)THEN
+       CALL RMSProp(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,           &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==9)THEN
+       CALL ADADELTA(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,          &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==10)THEN
+       CALL ADAGRAD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,           &
+                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
+                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+      ELSE IF(IORBOPT==11)THEN
+       CALL DEMON(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,             &
                       QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
                       ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
       END IF
@@ -519,73 +552,122 @@
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
-!
+#include "mpip.h"
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK,F
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::FF
+      INTEGER LL,UL,EQPART,UNEQPART
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Wake up the nodes for the task
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#ifdef MPI
+      DO I=1,NPROCS-1
+       NOPT=6
+       CALL MPI_SEND(NOPT,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NBF,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
+      ENDDO
+      CALL MPI_BCAST(NBF5,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(DJ,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(DK,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(CJ12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(CK12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(RO,NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(H,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NA,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NB,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NO1,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NSOC,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(EFIELDL,1,MPI_LOGICAL,MASTER,MPI_COMM_WORLD,IERR)
+      IF(EFIELDL) THEN
+        CALL MPI_BCAST(ADIPX,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+        CALL MPI_BCAST(ADIPY,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+        CALL MPI_BCAST(ADIPZ,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      END IF
+      ALLOCATE(FF(NSQ,NBF5))
+      F = 0.0D0
+      FF=0.0D0
+      EQPART = INT(NBF*NBF/NPROCS)
+      UNEQPART = NBF*NBF - NPROCS*EQPART
+      LL = 1
+      UL = LL + EQPART - 1
+      IF(0<UNEQPART) UL = UL + 1
+#else
+      LL = 1
+      UL = NBF*NBF
+#endif
 !-----------------------------------------------------------------------
 !     Calculate Fj(m,n)
 !-----------------------------------------------------------------------
       IF(NO1>1)THEN
-       do i=1,nbf
-        do k=1,nbf
-         ik=i+(k-1)*nbf
-         F(ik,1) = H(i,k) + PRODWCWij(ik,DJ,CJ12)-PRODWCWij(ik,DK,CK12)
-         DO J=NO1+1,NB
-          F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)  
-         ENDDO                                                           
-         if(NSOC>0)then                                                  
-          DO J=NB+1,NA                                                   
-           F(ik,J) = RO(J) * H(i,k)                                     &
-                   + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
-          ENDDO                                                          
-         end if                                                          
-         DO J=NA+1,NBF5                                                  
-          F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
-         ENDDO
-        enddo
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+       do ik=LL,UL
+        i = INT((ik-1)/nbf) + 1
+        k = MOD(ik-1,nbf) + 1
+        F(ik,1) = H(i,k) + PRODWCWij(ik,DJ,CJ12)-PRODWCWij(ik,DK,CK12)
+        DO J=NO1+1,NB
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)  
+        ENDDO                                                           
+        if(NSOC>0)then                                                  
+         DO J=NB+1,NA                                                   
+          F(ik,J) = RO(J) * H(i,k)                                     &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
+         ENDDO                                                          
+        end if                                                          
+        DO J=NA+1,NBF5                                                  
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+        ENDDO
        enddo
+       !$OMP END PARALLEL DO
        DO J=2,NO1
         F(1:NSQ,J) = F(1:NSQ,1)
        ENDDO
       ELSE
-       do i=1,nbf
-        do k=1,nbf
-         ik=i+(k-1)*nbf
-         DO J=1,NB
-          F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)  
-         ENDDO                                                           
-         if(NSOC>0)then                                                  
-          DO J=NB+1,NA                                                   
-           F(ik,J) = RO(J) * H(i,k)                                     &
-                   + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
-          ENDDO                                                          
-         end if                                                          
-         DO J=NA+1,NBF5                                                  
-          F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
-         ENDDO
-        enddo
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+       do ik=LL,UL
+        i = INT((ik-1)/nbf) + 1
+        k = MOD(ik-1,nbf) + 1
+        DO J=1,NB
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+        ENDDO                                                           
+        if(NSOC>0)then                                                  
+         DO J=NB+1,NA                                                   
+          F(ik,J) = RO(J) * H(i,k)                                     &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
+         ENDDO                                                          
+        end if                                                          
+        DO J=NA+1,NBF5                                                  
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+        ENDDO
        enddo
+       !$OMP END PARALLEL DO
       ENDIF
 !-----------------------------------------------------------------------
 !     Including Electric Field ( Note: FEikj is constant )
 !-----------------------------------------------------------------------
       IF(EFIELDL)THEN
-       DO J=1,NBF5
-        do i=1,nbf
-        do k=1,nbf
-         ik=i+(k-1)*nbf
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J,FEikj)
+       do ik=LL,UL
+        i = INT((ik-1)/nbf) + 1
+        k = MOD(ik-1,nbf) + 1
+        DO J=1,NBF5
          FEikj = RO(J)*(EX*ADIPx(i,k)+EY*ADIPy(i,k)+EZ*ADIPz(i,k))
          F(ik,J) = F(ik,J) + FEikj
-        enddo
-        enddo
-       ENDDO
+        ENDDO
+       enddo
+       !$OMP END PARALLEL DO
       ENDIF
+#ifdef MPI
+      CALL MPI_REDUCE(F,FF,NSQ*NBF5,MPI_REAL8,MPI_SUM,MASTER,           &
+                      MPI_COMM_WORLD,IERR)
+      F = FF
+      DEALLOCATE(FF)
+#endif
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -899,7 +981,8 @@
         G(i,ig) = G(i,ig) + BETA(ig)*FC(i,ig,WF1,COEF)                  &
                           - RO(ig) * FC(i,ig,WF2,COEF)
        enddo
-       do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+       !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+       do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
         ip = NO1+j
         do i=1,nbf
          G(i,ip) = G(i,ip) + BETA(ip)*FC(i,ip,WF1,COEF)                 &
@@ -950,7 +1033,8 @@
         do i=1,nbf
          G(i,ig) = G(i,ig) + FIs(ig) * FC(i,ig,WF1,COEF)
         enddo
-        do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          ip = NO1+j
          do i=1,nbf
           G(i,ip) = G(i,ip) + FIs(ip) * FC(i,ip,WF1,COEF)         
@@ -990,7 +1074,8 @@
         ROd(in) = RO(in) * Fin
         IF(NCWO>1)THEN  !NA+1:NBF5
          do iw=1,ncwo                                                                   
-          im = na+ncwo*(ndoc-i)+iw 
+          !im = na+ncwo*(ndoc-i)+iw         !old-sort
+          im = no1+(na-nb)+ndoc*(iw+1)-i+1  !new-sort    
           ROd(im) = RO(im) * Fin   
          enddo
         ELSE      !perfect-pairing                       
@@ -1039,7 +1124,8 @@
         CALL DENMATg(l,DM2,COEF,ROd)       
         CALL DENMATg(l,DM3,COEF,Rd)
         CALL HSTARK3(WF1,DM1,WF2,DM2,WF3,DM3,IJKL,XIJKL) ! WFi(l)        
-        do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          ip = NO1+j
          do i=1,nbf
           G(i,ip) = G(i,ip) + FIs(ip) * FC(i,ip,WF1,COEF)               &
@@ -1111,7 +1197,8 @@
       do m=1,NBF
        do n=m,NBF
         DMl(m,n) = RO(ig)*COEF(m,ig)*COEF(n,ig)
-        do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          ip = NO1+i
          DMl(m,n)= DMl(m,n) + RO(ip)*COEF(m,ip)*COEF(n,ip)
         end do
@@ -1137,7 +1224,8 @@
       do m=1,NBF
        do n=m,NBF
         DMl(m,n) = 0.00
-        do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          ip = NO1+i
          DMl(m,n)= DMl(m,n) + RO(ip)*COEF(m,ip)*COEF(n,ip)
         end do
@@ -1190,6 +1278,7 @@
       CALL MPI_BCAST(P2,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P3,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)      
 #endif
+      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK)  REDUCTION(+:F1,F2,F3)
       DO M=1,NINTCR
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
@@ -1229,6 +1318,7 @@
         ENDIF         
        ENDIF
       ENDDO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1364,7 +1454,8 @@
         ROd(in) = RO(in) * Fin
         IF(NCWO>1)THEN !NA+1:NBF5
          do iw=1,ncwo                                                                   
-          im = na+ncwo*(ndoc-i)+iw 
+          !im = na+ncwo*(ndoc-i)+iw         !old-sort
+          im = no1+(na-nb)+ndoc*(iw+1)-i+1  !new-sort    
           ROd(im) = RO(im) * Fin   
          enddo
         ELSE     !perfect-pairing                       
@@ -1473,6 +1564,1513 @@
       END
 
 !----------------------------------------------------------------------!
+
+!----------------------------------------------------------------------!
+!                                                                      !
+!  E X P E R I M E N T A L   O R B I T A L   O P T I M I Z A T I O N   !
+!                         B Y  R O T A T I O N S                       ! 
+!             D E E P   L E A R N I N G   O P T I M I Z E R S          !
+!                                                                      !
+!----------------------------------------------------------------------!
+!                                                                      !
+!   IORBOPT = 4       ADAM: Adaptative Momentum                        !
+!   IORBOPT = 5         GD: Gradient Descent                           !
+!   IORBOPT = 6 MOMENTUMGD: Momentum Gradient Descent                  !
+!   IORBOPT = 7        NGD: Nesterov Gradient Descent                  !
+!   IORBOPT = 8    RMSProp: Root Mean Square Propagation               !
+!   IORBOPT = 9   ADADELTA: Adaptative Learning Rate                   !
+!   IORBOPT = 10   ADAGRAD: Adaptative Subgradient                     !
+!   IORBOPT = 11     DEMON: Decaying Momentum                          !
+!                                                                      !
+!----------------------------------------------------------------------!
+
+! GD
+      SUBROUTINE GD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,           &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: LR
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV), GRAD(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      LR = 0.001
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+
+      WRITE(*,*) MAXLOOP
+      DO I=1, MAXLOOP
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+        Y = -LR*GRAD
+        
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF
+      END DO
+      
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD)
+      
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+! MOMENTUMGD
+      SUBROUTINE MOMENTUMGD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,   &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD,B
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: M, LR
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV), GRAD(NV),B(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      LR = 0.001
+      M = 0.99
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+      WRITE(*,*) MAXLOOP
+      
+      DO I=1, MAXLOOP
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+        IF (I>1) THEN
+          B = M*B + (1.0D0-M)*GRAD
+        ELSE
+          B = GRAD
+        END IF
+        GRAD = B
+        Y = -LR*GRAD
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF        
+      END DO
+
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD,B)
+
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+! NGD
+      SUBROUTINE NGD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,          &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD,B
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: M, LR
+!----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV), GRAD(NV),B(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      LR = 0.001
+      M = 0.99
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+      WRITE(*,*) MAXLOOP
+      
+      DO I=1, MAXLOOP
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+        IF (I>1) THEN
+          B = M*B + (1.0D0-M)*GRAD
+        ELSE
+          B = GRAD
+        END IF
+        GRAD = GRAD + M*B
+        Y = -LR*GRAD
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF        
+      END DO
+
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD,B)
+
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+
+! RMSProp
+      SUBROUTINE RMSProp(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,      &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: V, B
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: ALPHA, M, LR
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV), GRAD(NV), V(NV), B(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      V = 0.0D0
+      B = 0.0D0
+
+      LR = 0.01
+      ALPHA = 0.99
+      M = 0.99
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+      CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+
+      WRITE(*,*) MAXLOOP
+      DO I=1, MAXLOOP
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+        DO J=1,NV
+          V(J) = ALPHA * V(J) + (1.0D0-ALPHA) * GRAD(J)**2
+          B(J) = M*B(J) + GRAD(J)/(SQRT(V(J)) + 10D-8)
+          Y(J) = -LR*B(J)
+        END DO
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF
+      END DO
+
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD, V, B)
+
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+! ADADELTA
+      SUBROUTINE ADADELTA(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,     &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD,dY,U
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: V
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: LR,RHO
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(V(NV))
+      ALLOCATE(Y(NV), GRAD(NV), dY(NV), U(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      V = 0.0D0
+      dY = 0.0D0
+
+      LR = 1.0
+      RHO = 0.9
+      U = 0.0D0
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+      WRITE(*,*) MAXLOOP
+
+      DO I=1, MAXLOOP
+
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+
+        DO J=1,NV
+          V(J) = RHO*V(J) + (1.0D0 - RHO)*GRAD(J)**2
+          dY(J) = SQRT(U(J)+10D-6)/SQRT(V(J)+10D-6)*GRAD(J)
+          U(J) = RHO*U(J) + (1.0D0-RHO)*dY(J)**2 
+        END DO
+
+        DO J=1,NV
+          Y(J) = -LR*dY(J)
+        END DO
+
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF
+
+      END DO
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD, dY, U, V)
+
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+      
+! ADAGRAD
+      SUBROUTINE ADAGRAD(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,      &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: STATE, LR, ETA, LR_HAT
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(Y(NV), GRAD(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      ETA = 0.0D0
+
+      LR = 0.01
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+      CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+      WRITE(*,*) MAXLOOP
+
+
+      DO I=1, MAXLOOP
+
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+
+        LR_HAT = LR/(1.0D0+(I-1)*ETA)
+        STATE = 0.0D0
+        DO J=1,NV
+          STATE = STATE + GRAD(J)**2
+        END DO
+
+        Y = -LR_HAT*GRAD/(SQRT(STATE)+10D-10)
+
+        CALL RotOrb(NV,Y,COEF)
+        Y = 0.0D0
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = E
+          BEST_COEF = COEF
+        END IF
+
+      END DO
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD)
+
+      IF (.NOT. IMPROVED) THEN
+        MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
+          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
+
+! ADAM
+      SUBROUTINE ADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,OCCTIME,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,EFIELDL,SMCD,ERIACTIVATED,AUTOLR
+      COMMON/INPADAM/LR,AUTOLR,FACT,BETA1,BETA2
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+!
+      INTEGER :: NIT
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::M,V,MHAT,VHAT,VHATMAX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BEST_COEF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,DEN
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION LR, FACT, BETA1, BETA2
+      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
+      DOUBLE PRECISION :: RATE
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(TIMESTART)
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Density Matrices (DEN)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(G(NBF,NBF5))
+      ALLOCATE(DEN(NBF,NBF))
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+      IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0            &
+        .and. IERITYP==1 )THEN
+!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+      ELSE
+       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
+                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC)       
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+      EELEC = TRACE(DEN,AHCORE,NBF)
+      DO iq=1,NBF5
+       EELEC = EELEC + ELAG(iq,iq)
+      END DO
+!     Include Nuclear Dipoles if electric field =/ 0
+      IF(EFIELDL)THEN
+       EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
+                + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
+                + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
+       EELEC = EELEC + EELEC_EF
+      END IF
+      Etot = EELEC + EN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Check for the Symmetry of Lagrangian & Energy
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
+      PCONV=ABS(DIF_EELEC)                            ! PCONV
+      IF( DUMEL<THRESHL .and. PCONV<THRESHE)THEN
+       CALL SYSTEM_CLOCK(TIMEFINISH)
+       ORBTIME = (TIMEFINISH - TIMESTART)/RATE
+       IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,   &
+                                 Etot,DIF_EELEC,DUMEL
+       CONVGDELAG = .TRUE.
+       AUTOLR=.TRUE.
+       LR=0.01D0
+       MAXLOOP=10
+       RETURN
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOpt
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(M(NV), V(NV))
+      ALLOCATE(Y(NV), GRAD(NV), MHAT(NV), VHAT(NV), VHATMAX(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      M = 0.0D0
+      V = 0.0D0
+      MHAT = 0.0D0
+      VHAT = 0.0D0
+      VHATMAX = 0.0D0
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_E = EELEC
+      BEST_COEF = COEF
+!-----------------------------------------------------------------------
+!                       START SCF-ITERATION CYCLE
+!-----------------------------------------------------------------------
+      DELE = 1.0D20
+      ILOOP = 0
+      !DO WHILE( ILOOP<MAXLOOP .and. DABS(DELE)>THRESHEC )
+      DO WHILE( ILOOP<MAXLOOP.and.DUMEL>THRESHEL)
+        ILOOP = ILOOP+1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient from Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        GRAD = 0.0D0
+        K = 1
+        DO I=1,NBF-1
+         DO J=I+1,NBF
+          GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
+          K = K + 1
+         END DO
+        END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Rotate Oribtals with adaptative momentum step
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        DO J=1,NV
+          M(J) = BETA1 * M(J) + (1.0D0-BETA1) * GRAD(J)
+          V(J) = BETA2 * V(J) + (1.0D0-BETA2) * GRAD(J)**2
+          MHAT(J) = M(J) / (1.0D0-BETA1**ILOOP)
+          VHAT(J) = V(J) / (1.0D0-BETA2**ILOOP)
+          VHATMAX(J) = MAX(VHATMAX(J), VHAT(J))
+          Y(J) = -LR*MHAT(J)/(SQRT(VHATMAX(J)) + 10D-16)
+        END DO
+        CALL RotOrb(NV,Y,COEF)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+        IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0            &
+          .and. IERITYP==1 )THEN
+!AO     CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+        ELSE
+         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
+                    CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
+        ENDIF
+        CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC)       
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+        EELEC0 = EELEC
+        EELEC = TRACE(DEN,AHCORE,NBF)
+        DO iq=1,NBF5
+         EELEC = EELEC + ELAG(iq,iq)
+        END DO
+        IF(EFIELDL)THEN
+         EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
+                  + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
+                  + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
+         EELEC = EELEC + EELEC_EF
+        END IF
+        DELE = EELEC - EELEC0
+        Etot = EELEC + EN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
+!     Store best energy and its orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = EELEC
+          BEST_COEF = COEF
+        END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
+!      Intermediate Output of the internal iteration (Nprint=2)         
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        IF(NPRINT==2.AND.IPRINTOPT==1)WRITE(6,3)ILOOP,EELEC,Etot,DELE
+!-----------------------------------------------------------------------
+!                       LOOP-END OF SCF-ITERATION
+!-----------------------------------------------------------------------
+      END DO
+      DEALLOCATE(GRAD, M, V, MHAT, VHAT, VHATMAX, Y)
+      IF(AUTOLR) THEN
+        IF(.NOT. IMPROVED) THEN
+          EELEC = BEST_E
+          COEF = BEST_COEF
+        ELSE
+          AUTOLR = .FALSE.
+        END IF
+      END IF
+      DEALLOCATE(BEST_COEF)
+
+      IF (.NOT. IMPROVED) THEN
+        LR = FACT*LR
+        MAXLOOP = MAXLOOP+10
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+      IF( (IPNOF==5.or.IPNOF==7.or.IPNOF==8) .and. MSpin==0            &
+        .and. IERITYP==1 )THEN
+!AO   CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+      ELSE
+       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
+                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
+      ENDIF     
+      DEALLOCATE(G,DEN)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      CALL SYSTEM_CLOCK(TIMEFINISH)
+      ORBTIME = (TIMEFINISH - TIMESTART)/RATE
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL) THEN
+       CONVGDELAG=.TRUE.
+       AUTOLR=.TRUE.
+       LR=0.01D0
+       MAXLOOP=10
+      END IF
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Ex It',2X'Occ Time',2X'Orb Time',2X,'Orb It',3X,          &
+        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
+        4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,3X,ES8.1,2X,ES8.1,3X,I5,1X,F18.10,1X,F19.10,2X,F15.10,  &
+            8X,F11.6)
+    3 FORMAT(2X,I3,'.',3X,F17.8,4X,F15.8,6X,F11.6)
+!-----------------------------------------------------------------------
+      RETURN
+      END
+
+! DEMON
+      SUBROUTINE DEMON(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,        &
+                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
+                           ADIPz,ILOOP,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
+                         M14,MUSE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER,DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
+!      
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: M,V,VHAT,VHATMAX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION :: LR, BETA1, BETA2, RATE, BINIT
+!-----------------------------------------------------------------------
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     IUSER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(IUSER(NSTORE))
+      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     USER
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
+      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
+      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
+      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
+      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
+      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
+      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
+      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
+      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
+      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
+      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
+      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
+      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
+      if(IERITYP==1)then
+       MUSE = M13 - M1 + NSQ
+      else if(IERITYP==2 .or. IERITYP==3)then
+       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
+       MUSE = M14 - M1 + NSTOREaux
+      end if
+      ALLOCATE (USER(MUSE))
+!
+      CALL XtoX0(   COEF,USER(M1),NSQ)
+      CALL XtoX0( AHCORE,USER(M2),NSQ)
+      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
+      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
+      CALL XtoX0(     RO,USER(M5),NBF5)
+      CALL XtoX0(   CJ12,USER(M6),NSQ5)
+      CALL XtoX0(   CK12,USER(M7),NSQ5)
+      CALL XtoX0(   ELAG,USER(M8),NSQ)
+      CALL XtoX0(   DIPN,USER(M9),3)
+      CALL XtoX0(  ADIPx,USER(M10),NSQ)
+      CALL XtoX0(  ADIPy,USER(M11),NSQ)
+      CALL XtoX0(  ADIPz,USER(M12),NSQ)
+      CALL XtoX0(OVERLAP,USER(M13),NSQ)
+      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables for Y
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(M(NV), V(NV))
+      ALLOCATE(Y(NV), GRAD(NV), VHAT(NV), VHATMAX(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      M = 0.0D0
+      V = 0.0D0
+      VHAT = 0.0D0
+      VHATMAX = 0.0D0
+
+      LR = 0.02 !0.001
+      BETA1 = 0.7 !0.9
+      BETA2 = 0.9
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptRot
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       IF(IPRINTOPT==1)WRITE(6,1)
+       EELEC_OLD = EELEC
+      ENDIF
+      BEST_E = EELEC
+
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_COEF = COEF
+
+      BINIT = BETA1
+
+      NIT = 0
+      DO I=1, MAXLOOP
+        NIT = NIT + 1
+        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
+        IF(NORM2(GRAD) < 10E-3 .AND. IMPROVED) EXIT
+
+        RATE = 1.0D0*(I-1)/(MAXLOOP-1)
+        BETA1 = BINIT*(1.0D0 - RATE)/((1.0D0-BINIT)+BINIT*(1.0D0 - RATE))
+        DO J=1,NV
+          M(J) = BETA1 * M(J) + GRAD(J)
+          V(J) = BETA2 * V(J) + (1.0D0-BETA2) * GRAD(J)**2
+          Y(J) = -LR*M(J)/(SQRT(V(J) + 10D-8))
+        END DO
+
+        CALL RotOrb(NV,Y,COEF)
+        CALL XtoX0(   COEF,USER(M1),NSQ)
+        Y = 0.0D0
+        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+        !WRITE(*,*) I, EELEC, EELEC - BEST_E
+        IF(EELEC < BEST_E) THEN
+          IMPROVED = .TRUE.
+          BEST_E = EELEC
+          BEST_COEF = COEF
+        END IF
+
+      END DO
+      COEF = BEST_COEF
+      EELEC = BEST_E
+      DEALLOCATE(BEST_COEF)
+      DEALLOCATE(GRAD, M, V, VHAT, VHATMAX)
+
+      IF (.NOT. IMPROVED) THEN
+          LR = LR/2
+          MAXLOOP = MIN(300,MAXLOOP+30)
+      END IF
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      CALL RotOrb(NV,Y,COEF)
+      CALL XtoX0(COEF,USER(M1),NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC) for new Orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Y = 0.0D0
+      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
+!     Update QD and ELAG
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL XtoX0(USER(M4),QD,NBF*NSQ)
+      CALL XtoX0(USER(M8),ELAG,NSQ)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!     Check for the Symmetry of Lagrangian (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,NIT,EELEC,Etot,DIF_EELEC,DUMEL
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Ex It',2X,'Orb It',4X,'Electronic Energy',5X,           &
+        'Total Energy',3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,3X,I5,1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
+!-----------------------------------------------------------------------
+      DEALLOCATE (IUSER,USER,Y)
+      RETURN
+      END
 
 !----------------------------------------------------------------------!
 !                                                                      !

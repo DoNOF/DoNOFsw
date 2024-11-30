@@ -24,7 +24,7 @@
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
-!                           Date: April 2024                           !
+!                           Date: November 2024                        !
 !                                                                      !
 !    Program to compute the ground state properties of a molecule      !
 !    in the gas phase using PNOF5 - GNOF + perturbation corrections    !
@@ -58,14 +58,27 @@
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: GRADS      
       DOUBLE PRECISION,DIMENSION(3) :: EVEC,DIPS
+      INTEGER :: INTTYPE
+      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
+      DOUBLE PRECISION :: RATE
 !-----------------------------------------------------------------------
 !     MPI initialization
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL INIMPI()
+#ifdef MPI
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MY_ID,IERR)
+      IF(MY_ID > 0) GOTO 10
+#endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       call date_and_time(date,time,zone,val)
       write(6,1)val(5),val(6),val(2),val(3),val(1)
-      call cpu_time(timestart)
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(TIMESTART)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Header on the output file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -236,15 +249,23 @@
       end if
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
-      call cpu_time(timefinish)
-      DELTATIME = timefinish - timestart
+      CALL SYSTEM_CLOCK(TIMEFINISH)
+      DELTATIME = (TIMEFINISH - TIMESTART)/RATE
       WRITE(6,3)DELTATIME
-!-----------------------------------------------------------------------
-      call gitversion(sha)
-      WRITE(6,'(a,a)')'  Git sha : ',sha
 !-----------------------------------------------------------------------
       call date_and_time(date,time,zone,val)
       write(6,4)val(5),val(6),val(2),val(3),val(1)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     MPI finalization
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#ifdef MPI
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MY_ID,IERR)
+      IF(MY_ID == 0) THEN
+        INTTYPE = 3
+        CALL MPI_BCAST(INTTYPE,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      END IF
+  10  CALL MPI_FINALIZE(ierror)
+#endif
 !-----------------------------------------------------------------------
 !     Format definitions
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -265,7 +286,7 @@
       /4X,'!                                                         !',& 
       /4X,'!          GNU General Public License version 3           !',&                                                                     
       /4X,'!                                                         !',&                                                                     
-      /4X,'!                  VERSION: Mayo 2024                     !',&
+      /4X,'!                  VERSION: November 2024                 !',&
       /4X,'!                                                         !',&
       /4X,'===========================================================')
     3 FORMAT(/,'  Elapsed real time :',F10.2,'  (Seconds)')

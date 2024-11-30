@@ -77,11 +77,13 @@
 !      
       DO l=1,NDOC
        ln = NO1+l
-       DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
         in = NO1+i
         CK12nd(ln,in) = BETA(ln)*BETA(in)
         CK12nd(in,ln) = BETA(in)*BETA(ln)
-        DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          jn = NO1+j
          CK12nd(jn,in) = - BETA(jn)*BETA(in)         
         ENDDO
@@ -99,7 +101,8 @@
         in = no1+i
         ENonDEnergy = ENonDEnergy - PRODCWQWj(in,CK12nd,QK)
         do iw=1,ncwo
-         in = na+ncwo*(ndoc-i)+iw
+         !in = na+ncwo*(ndoc-i)+iw              !old-sort                        
+         in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
          ENonDEnergy = ENonDEnergy -PRODCWQWj(in,CK12nd,QK)
         enddo
        enddo
@@ -118,7 +121,8 @@
         in = no1+i
         ENonDEnergy = ENonDEnergy - PRODCWQWj1(in,CK12nd,QK)
         do iw=1,ncwo
-         in = na+ncwo*(ndoc-i)+iw
+         !in = na+ncwo*(ndoc-i)+iw              !old-sort                        
+         in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
          ENonDEnergy = ENonDEnergy -PRODCWQWj2(in,CK12nd,QK)
         enddo
        enddo
@@ -324,7 +328,8 @@
       ALLOCATE(npair(nvi))
       do i=1,nocb
        do iw=1,ncwo
-        k = ncwo*(nocb-i) + iw
+        !k = ncwo*(nocb-i) + iw    !old-sort
+        k = nocb-i+1 + nocb*(iw-1) !new-sort
         npair(k) = i
        end do
       end do
@@ -435,7 +440,6 @@
         end do      
        end do
       end do
-      DEALLOCATE(NPAIR)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Tijab: Initial approximation for the vector Tijab
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -457,8 +461,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(B(NN))
       do i=1,noc
-       lmin_i = noc+ncwo*(noc-i)+1
-       lmax_i = noc+ncwo*(noc-i)+ncwo
+       !lmin_i = noc+ncwo*(noc-i)+1             !old-sort 
+       !lmax_i = noc+ncwo*(noc-i)+ncwo          !old-sort
        do j=1,noc
         if(j==i)then
 !--------------------------------------------------------------------
@@ -469,8 +473,9 @@
           kn = k + noc
           do l=1,nvi
            ln = l + noc
-           if(      (lmin_i<=kn.and.kn<=lmax_i)                         &
-              .and. (lmin_i<=ln.and.ln<=lmax_i) )then
+           !if(      (lmin_i<=kn.and.kn<=lmax_i)                         &
+           !   .and. (lmin_i<=ln.and.ln<=lmax_i) )then !old-sort
+           if(npair(k).eq.i .and. npair(l).eq.i) then  !new-sort
             Ciikl = FI1(kn)*FI1(ln)*FI1(i)*FI1(i)
            else
             Ciikl = FI2(kn)*FI2(ln)*FI2(i)*FI2(i)
@@ -496,6 +501,7 @@
         endif
        enddo
       enddo
+      DEALLOCATE(NPAIR)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Solving the Sparse Linear System AT=B using the CG method
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

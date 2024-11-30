@@ -24,6 +24,8 @@
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      LOGICAL HFID
+      COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
 !      
       INTEGER :: NPRIMI,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm
       INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT
@@ -45,15 +47,18 @@
 !     IRHFTYP=2: Restricted Open HF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(RHF)THEN
-       if(IERITYP==2)then
-        WRITE(6,*)'Sorry: RHF is not possible yet with ERITYP=RI'
-        CALL ABRT
-       end if
        IF(NA==NB)THEN
         IRHFTYP=1
        ELSE IF(NA>NB)THEN
         IRHFTYP=2
        END IF
+       if(IERITYP==2)then
+        WRITE(6,*)'Sorry: RHF is not possible yet with ERITYP=RI'
+        WRITE(6,*)'       Changing to HFID'
+        HFID = .TRUE.
+        IRHFTYP=0
+        !CALL ABRT
+       end if
       ELSE
        IRHFTYP=0      
       END IF

@@ -39,14 +39,15 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
  DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
 !
  CHARACTER(LEN=1) :: dflag
- COMMON/INPDYN_FLAGS/dflag(3,101)
+ COMMON/INPDYN_FLAGS/dflag(3,1001)
  DOUBLE PRECISION :: Vxyz
- COMMON/INPDYN_VELOCITY/Vxyz(3,101) 
+ COMMON/INPDYN_VELOCITY/Vxyz(3,1001) 
  COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
  COMMON/EHFEN/EHF,EN
  COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
- COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),                   &
-             KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+ COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),               &
+             KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !-----------------------------------------------------------------------
 ! internal variables  
 !-----------------------------------------------------------------------

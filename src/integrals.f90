@@ -21,12 +21,20 @@
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz                                                         
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN    
       DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
+      INTEGER :: CR, CM, timestartoneE, timefinishoneE
+      DOUBLE PRECISION :: RATE
 !-----------------------------------------------------------------------
       IF(IPRINTOPT==1)WRITE(6,'(/1X,A13/,1X,13(1H-))')'1e- integrals'
-      call cpu_time(timestartoneE)
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(timestartoneE)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
 !     H, S & T integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -55,8 +63,8 @@
        CALL ElecFieldInt(H,DInteg,NBFT)              
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      call cpu_time(timefinishoneE)
-      DeltaToneE = timefinishoneE - timestartoneE 
+      CALL SYSTEM_CLOCK(timefinishoneE)
+      DeltaToneE = (timefinishoneE - timestartoneE)/RATE
       IF(IPRINTOPT==1)                                                  &
        WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE                                                                                                    
 !-----------------------------------------------------------------------
@@ -138,10 +146,18 @@
 !
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IX
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFP,GHONDOLIB
-!-----------------------------------------------------------------------                                                                       
-!     Driver for 2e integrals 
+      INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
+      DOUBLE PRECISION :: RATE
 !-----------------------------------------------------------------------
-      call cpu_time(timestarttwoE)
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(timestarttwoE)
+!----------------------------------------------------------------------- 
+!     Driver for 2e integrals 
+!----------------------------------------------------------------------
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
       MAXG = 4**4                                                                                  
       IF(LMAXIMA==2)MAXG =  6**4                                                                                  
@@ -179,8 +195,8 @@
       DEALLOCATE(BUFP,IX,GHONDOLIB)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NRECO = NREC
-      call cpu_time(timefinishtwoE)
-      DeltaTtwoE = timefinishtwoE - timestarttwoE                                          
+      CALL SYSTEM_CLOCK(timefinishtwoE)
+      DeltaTtwoE = (timefinishtwoE - timestarttwoE)/RATE
       IF(IPRINTOPT==1)                                                  &
        WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
 !-----------------------------------------------------------------------
@@ -563,12 +579,13 @@
       ID=MY_ID
       K=MASTER
    10 CALL MPI_BCAST(INTTYPE,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_RECV(NINTCR,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
 !HUB      CALL MPI_RECV(IHUB,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
       IF(INTTYPE==1) THEN
+        CALL MPI_RECV(NINTCR,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
         Call SlvInt(NINTCR)
         GOTO 10
       ELSE IF(INTTYPE==2) THEN
+        CALL MPI_RECV(NINTCR,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
         Call SlvIntRI(NINTCR)
         GOTO 10
       ELSE IF(INTTYPE==3) THEN
@@ -606,8 +623,8 @@
       IF (NOPT==0) THEN
        CALL MPI_RECV(NOPTCG,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,         &
                      STATUS,IERR)
-       IF (NOPTCG==0) GOTO 30   
-       CALL MPI_FINALIZE(IERR)
+       IF (NOPTCG==0) GOTO 30  
+       RETURN 
       ELSE IF (NOPT==1) THEN
        CALL MPI_RECV(N,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
        CALL SLVHSTJ(N,JJ-1,IERI,ERI)
@@ -623,6 +640,9 @@
       ELSE IF (NOPT==5) THEN
        CALL MPI_RECV(N,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
        CALL SLVHSTARK3(N,JJ-1,IERI,ERI)
+      ELSE IF (NOPT==6) THEN
+       CALL MPI_RECV(N,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
+       CALL SLVFFJMN1rc(N)
       ELSE
        Call Abortx ("I do not know this MPI option!")
       ENDIF    
@@ -659,11 +679,14 @@
        CALL MPI_RECV(NOPTCG,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,         &
                      STATUS,IERR)
        IF (NOPTCG==0) GOTO 30
-       CALL MPI_FINALIZE(IERR)
+       RETURN 
       ELSE IF (NOPT==1) THEN
        CALL SLVHSTJKRI(NBF,IAUXDIM,ERIaux)
       ELSE IF (NOPT==2) THEN
        CALL SLVQJKMATmRI(NBF,NBF5,IAUXDIM,ERIaux)
+      ELSE IF (NOPT==6) THEN
+       CALL MPI_RECV(NBF,1,MPI_INTEGER8,K,ID,MPI_COMM_WORLD,STATUS,IERR)
+       CALL SLVFFJMN1rc(NBF)
       ELSE
        Call Abortx ("I do not know this MPI option!")
       ENDIF
@@ -695,6 +718,7 @@
       FFJ = 0.0d0
       FFK = 0.0d0
 
+      !$OMP PARALLEL DO PRIVATE(M, N, MN, B_II, B_IN) REDUCTION(+:FJ, FK)
       DO K=1,IAUXDIM
         B_IN(1:NBF) = 0.0d0
         B_II = 0.0d0
@@ -725,6 +749,7 @@
           END DO
         END DO
       END DO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -758,6 +783,7 @@
       QQJ = 0.0d0
       QQK = 0.0d0
 
+      !$OMP PARALLEL DO PRIVATE(M, N, MN, I, J, IJ, B_IN, B_IJ) REDUCTION(+:QJ,QK) 
       DO K=1,IAUXDIM
 
         B_IN(1:NBF5,1:NBF) = 0.0d0
@@ -795,6 +821,7 @@
         END DO
 
       END DO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -824,6 +851,7 @@
 !
       F  = 0.0d0
       FF = 0.0d0
+      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, NIJ, NKL) REDUCTION(+:F)
       DO M=1,NN
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
@@ -834,6 +862,7 @@
                    F(NIJ)=F(NIJ)+0.5d0*P(NKL)*XJ
        IF(NIJ/=NKL)F(NKL)=F(NKL)+0.5d0*P(NIJ)*XJ
       ENDDO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -864,7 +893,9 @@
       F = 0.0d0
       FF = 0.0d0
 
-      DO 1 M=1,NN
+      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
+      DO M=1,NN
+      !DO 1 M=1,NN
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
        XJ = ERI(M)
@@ -880,13 +911,16 @@
        IF(I==K.OR.J==L)XK=XK+XK
                        F(NIK)=F(NIK)+P(NJL)*XK
        IF(NIK/=NJL)    F(NJL)=F(NJL)+P(NIK)*XK
-       IF(I==J.OR.K==L)GOTO 1
+       !IF(I==J.OR.K==L)GOTO 1
+       IF(I==J.OR.K==L)CYCLE
        NIL = I*(I-1)/2 + L
        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
        IF(I==L.OR.J==K)XJ=XJ+XJ
                        F(NIL)=F(NIL)+P(NJK)*XJ
        IF(NIL/=NJK)    F(NJK)=F(NJK)+P(NIL)*XJ
-    1 CONTINUE
+    !1 CONTINUE
+      END DO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -917,6 +951,7 @@
       F = 0.0d0
       FF = 0.0d0
 
+      !$OMP PARALLEL DO PRIVATE(LABEL, XJ, XK, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
       DO M=1,NN
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
@@ -947,6 +982,7 @@
         IF(NIL/=NJK)       F(NJK)=F(NJK)-P(NIL)*XJ
        ENDIF
       ENDDO
+      !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1045,7 +1081,9 @@
       F3 = 0.0d0
       FF3 = 0.0d0
 
-      DO 1 M=1,NN
+      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK)  REDUCTION(+:F1,F2,F3)
+      DO M=1,NN
+      !DO 1 M=1,NN
        LABEL = IERI(M)
        CALL LABELIJKL(LABEL,I,J,K,L)
        XJ = ERI(M)
@@ -1070,7 +1108,8 @@
         F3(NJL)=F3(NJL)+P3(NIK)*XK        
        ENDIF
        
-       IF(I==J.OR.K==L)GOTO 1
+       !IF(I==J.OR.K==L)GOTO 1
+       IF(I==J.OR.K==L)CYCLE
        NIL = I*(I-1)/2 + L
        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
        IF(I==L.OR.J==K)XJ=XJ+XJ
@@ -1085,7 +1124,10 @@
         F3(NJK)=F3(NJK)+P3(NIL)*XJ        
        ENDIF
        
-    1 CONTINUE
+    !1 CONTINUE
+      END DO
+      !$OMP END PARALLEL DO
+
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Send pieces to master
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1097,6 +1139,180 @@
      &                IERR)
 !-----------------------------------------------------------------------
       DEALLOCATE(FF1,P1,F1,FF2,P2,F2,FF3,P3,F3)
+      RETURN
+      END
+
+! SLVFFJMN1rc
+      SUBROUTINE SLVFFJMN1rc(NBF)
+!     FFJMN1rc adapted for Slaves 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+#include "mpip.h"
+      LOGICAL EFIELDL
+      INTEGER NBF,NBF5,NSQ
+      INTEGER NA,NB,NO1,NSOC
+      INTEGER LL,UL,EQPART,UNEQPART
+      INTEGER i,k,ik
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::DJ,DK,F,FF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CJ12,CK12
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::RO
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::H,ADIPX,ADIPY,ADIPZ
+
+      NSQ = NBF*NBF
+
+      CALL MPI_BCAST(NBF5,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+
+      ALLOCATE(DJ(NSQ,NBF5), DK(NSQ,NBF5), F(NSQ,NBF5), FF(NSQ,NBF5))
+      ALLOCATE(CJ12(NBF5,NBF5), CK12(NBF5,NBF5))
+      ALLOCATE(H(NBF,NBF))
+      ALLOCATE(RO(NBF5))
+
+      CALL MPI_BCAST(DJ,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(DK,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(CJ12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(CK12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(RO,NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(H,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NA,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NB,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NO1,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NSOC,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(EFIELDL,1,MPI_LOGICAL,MASTER,MPI_COMM_WORLD,IERR)
+      IF(EFIELDL) THEN
+          ALLOCATE(ADIPX(NBF,NBF), ADIPY(NBF,NBF), ADIPZ(NBF,NBF))
+          CALL MPI_BCAST(ADIPX,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+          CALL MPI_BCAST(ADIPY,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+          CALL MPI_BCAST(ADIPZ,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      END IF
+
+      CALL MPI_COMM_RANK (MPI_COMM_WORLD,MY_ID,IERR)
+      CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NPROCS,IERR)
+
+      F = 0.0D0
+      FF = 0.0D0
+      EQPART = INT(NBF*NBF/NPROCS)
+      UNEQPART = NBF*NBF - NPROCS*EQPART
+      LL = MY_ID * EQPART + 1 + MIN(MY_ID,UNEQPART)
+      UL = LL + EQPART - 1
+      IF(MY_ID<UNEQPART) UL = UL + 1
+!-----------------------------------------------------------------------
+!     Calculate Fj(m,n)
+!-----------------------------------------------------------------------
+      IF(NO1>1)THEN
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+       do ik=LL,UL
+        i = INT((ik-1)/nbf) + 1
+        k = MOD(ik-1,nbf) + 1
+        F(ik,1) = H(i,k) + SLVPRODWCWij(ik,DJ,CJ12,NBF5,NSQ)           &
+                         - SLVPRODWCWij(ik,DK,CK12,NBF5,NSQ)
+        DO J=NO1+1,NB
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)                &
+                 - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ)  
+        ENDDO                                                           
+        if(NSOC>0)then                                                  
+         DO J=NB+1,NA                                                   
+          F(ik,J) = RO(J) * H(i,k)                                     &
+                  + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)               & 
+                  - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ) 
+         ENDDO                                                          
+        end if                                                          
+        DO J=NA+1,NBF5                                                  
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)                & 
+                 - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ)
+        ENDDO
+       enddo
+       !$OMP END PARALLEL DO
+       DO J=2,NO1
+        F(1:NSQ,J) = F(1:NSQ,1)
+       ENDDO
+      ELSE
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+       do ik=LL,UL
+        i = INT((ik-1)/NBF) + 1
+        k = MOD(ik-1,NBF) + 1
+        DO J=1,NB
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)                &
+                 - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ)  
+        ENDDO                                                           
+        if(NSOC>0)then                                                  
+         DO J=NB+1,NA                                                   
+          F(ik,J) = RO(J) * H(i,k)                                     &
+                  + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)               &
+                  - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ)  
+         ENDDO                                                          
+        end if                                                          
+        DO J=NA+1,NBF5                                                  
+         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                 + SLVPRODWCWijq(ik,J,DJ,CJ12,NBF5,NSQ)                &
+                 - SLVPRODWCWijq(ik,J,DK,CK12,NBF5,NSQ)  
+        ENDDO
+       enddo
+       !$OMP END PARALLEL DO
+      ENDIF
+!-----------------------------------------------------------------------
+!     Including Electric Field ( Note: FEikj is constant )
+!-----------------------------------------------------------------------
+      IF(EFIELDL)THEN
+       !$OMP PARALLEL DO PRIVATE(i,k,ik,J,FEikj)
+       do ik=LL,UL
+        i = INT((ik-1)/NBF) + 1
+        k = MOD(ik-1,NBF) + 1
+        DO J=1,NBF5
+         FEikj = RO(J)*(EX*ADIPx(i,k)+EY*ADIPy(i,k)+EZ*ADIPz(i,k))
+         F(ik,J) = F(ik,J) + FEikj
+        ENDDO
+       enddo
+       !$OMP END PARALLEL DO
+       DEALLOCATE(ADIPX, ADIPY, ADIPZ)
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Send pieces to master
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL MPI_REDUCE(F,FF,NSQ*NBF5,MPI_REAL8,MPI_SUM,MASTER,           &
+                      MPI_COMM_WORLD,IERR)
+!-----------------------------------------------------------------------
+      DEALLOCATE(DJ, DK, F, FF)
+      DEALLOCATE(CJ12, CK12)
+      DEALLOCATE(H)
+      DEALLOCATE(RO)
+!-----------------------------------------------------------------------
+      RETURN
+      END
+
+! SLVPRODWCWijq
+      FUNCTION SLVPRODWCWijq(ij,IQ,W,CW12,NBF5,NSQ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
+!-----------------------------------------------------------------------
+!     Sum W*CW12(IQ,*) by IQP, IQ is not considered
+!-----------------------------------------------------------------------
+      SLVPRODWCWijq = 0.0d0
+      DO IQP=1,IQ-1
+       SLVPRODWCWijq = SLVPRODWCWijq + W(ij,IQP)*CW12(IQ,IQP)
+      ENDDO
+      DO IQP=IQ+1,NBF5
+       SLVPRODWCWijq = SLVPRODWCWijq + W(ij,IQP)*CW12(IQ,IQP)
+      ENDDO
+!-----------------------------------------------------------------------
+      RETURN
+      END
+
+! SLVPRODWCWij
+      FUNCTION SLVPRODWCWij(ij,W,CW12,NBF5,NSQ)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CW12
+      DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::W
+!-----------------------------------------------------------------------
+!     Sum W*CW12(1,*) by IQP
+!-----------------------------------------------------------------------
+      SLVPRODWCWij = 0.0d0
+      DO IQP=1,NBF5
+       SLVPRODWCWij = SLVPRODWCWij + W(ij,IQP)*CW12(1,IQP)
+      ENDDO
+!-----------------------------------------------------------------------
       RETURN
       END
 
@@ -5543,8 +5759,9 @@
       COMMON/ECP1/X01,CAX,CAY,CAZ,CA,XCA,YCA,ZCA,                       &
                   X02,BAX,BAY,BAZ,BA,XBA,YBA,ZBA,                       &
                   PHASE,DAX,DAY,DAZ,DA,XDA,YDA,ZDA,XINT,KCNTR  
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       LOGICAL                         CANDB                            
       COMMON/ECP4/P12(3,2),R12,ACO(3),CANDB                            
       LOGICAL                                  IANDJ,NORM,NORMI,NORMJ    
@@ -8037,8 +8254,9 @@
       COMMON /ECP1  / X01,CAX,CAY,CAZ,CA,XCA,YCA,ZCA,                   &
                       X02,BAX,BAY,BAZ,BA,XBA,YBA,ZBA,                   &
                       PHASE,DAX,DAY,DAZ,DA,XDA,YDA,ZDA,XINT,KCNTR        
-      COMMON /ECP2  / CLP(404),ZLP(404),NLP(404),KFRST(101,6),          &
-                      KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON /ECP2  / CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),      &
+                      KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON /ECPDIM/ NCOEF1,NCOEF2,J1LEN,J2LEN,LLIM,NLIM,NTLIM,J4LEN
       LOGICAL IANDJ,NORM,NORMI,NORMJ
       COMMON /ECPIDX/ Q2,IAMIN,IAMAX,JAMIN,JAMAX,IPMIN,IPMAX,JPMIN,     &
@@ -8130,8 +8348,9 @@
       COMMON /ECP1  / X01,CAX,CAY,CAZ,CA,XCA,YCA,ZCA,                   &
                       X02,BAX,BAY,BAZ,BA,XBA,YBA,ZBA,                   &
                       PHASE,DAX,DAY,DAZ,DA,XDA,YDA,ZDA,XINT,KCNTR        
-      COMMON /ECP2  / CLP(404),ZLP(404),NLP(404),KFRST(101,6),          &
-                      KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)                                        
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON /ECP2  / CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),      &
+                      KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)                                        
       COMMON /ECP3  / ACX(7),ACY(7),ACZ(7),ABX(7),ABY(7),ABZ(7)          
       COMMON /ECPDIM/ NCOEF1,NCOEF2,J1LEN,J2LEN,LLIM,NLIM,NTLIM,J4LEN    
       LOGICAL IANDJ,NORM,NORMI,NORMJ                                     
@@ -8339,8 +8558,9 @@
       COMMON /ECP1  / X01,CAX,CAY,CAZ,CA,XCA,YCA,ZCA,                   &
                       X02,BAX,BAY,BAZ,BA,XBA,YBA,ZBA,                   &
                       PHASE,DAX,DAY,DAZ,DA,XDA,YDA,ZDA,XINT,KCNTR        
-      COMMON /ECP2  / CLP(404),ZLP(404),NLP(404),KFRST(101,6),          &
-                      KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)                                        
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON /ECP2  / CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),      &
+                      KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)                                        
       COMMON /ECP3  / ACX(7),ACY(7),ACZ(7),ABX(7),ABY(7),ABZ(7)          
       LOGICAL CANDB                                                      
       COMMON /ECP4  / P12(3,2),R12,ACO(3),CANDB                          
@@ -9775,8 +9995,8 @@
       TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
       COMMON/LIBRETA/BASLIB
       COMMON/LIBRETAaux/AUXLIB
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       INTEGER :: I,IATOM
 !-----------------------------------------------------------------------      
 !     Update coordinates of shells
@@ -9811,8 +10031,8 @@
 ! AUXREAD
       SUBROUTINE AUXREAD(NAT,NSHELLaux,NUMaux,NATmax,ANAM)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
       COMMON/BASIS_FILE/BASIS_FILE
       LOGICAL :: FILE_EXISTS
@@ -9982,8 +10202,8 @@
       SUBROUTINE AUXGEN(NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,NUMaux,     &
                         IGEN,ISTAR,EX,ZAN)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                         
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       INTEGER::IGEN,N
@@ -10109,9 +10329,9 @@
       COMMON/LIBRETAaux/AUXLIB
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
-!      
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
+!
       INTEGER,DIMENSION(NAT)::LMAX
       DOUBLE PRECISION,DIMENSION(NAT)::EXMAX,EXMIN
       INTEGER::IAT,N,MINI,MAXI,lbmax,nblock,iblock,nauxis,ifa,L
@@ -10187,15 +10407,23 @@
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Gaux
+      INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
+      DOUBLE PRECISION :: RATE
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !-----------------------------------------------------------------------
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(timestarttwoE)
 !-----------------------------------------------------------------------
 !     Driver for 2e integrals
 !-----------------------------------------------------------------------
-      call cpu_time(timestarttwoE)
       CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Debut
@@ -10226,8 +10454,8 @@
       END IF
       DEALLOCATE(Gaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      call cpu_time(timefinishtwoE)
-      DeltaTtwoE = timefinishtwoE - timestarttwoE
+      CALL SYSTEM_CLOCK(timefinishtwoE)
+      DeltaTtwoE = (timefinishtwoE - timestarttwoE)/RATE
       IF(IPRINTOPT==1)                                                  &
        WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
 !-----------------------------------------------------------------------
@@ -10240,8 +10468,8 @@
                         KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/RESTAR/NREC,IST,JST,KST,LST
       COMMON/SHLNOS1/QQ4,IJKL
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
@@ -10352,9 +10580,9 @@
       COMMON/RESTAR/NREC,IST,JST,KST,LST                 
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
-!      
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
+!
       TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
       COMMON/LIBRETA/BASLIB
       COMMON/LIBRETAaux/AUXLIB
@@ -10429,8 +10657,8 @@
                                Cxyz,NAT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/RESTAR/NREC,IST,JST,KST,LST
       COMMON/SHLNOS1/QQ4,IJKL
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
@@ -10726,8 +10954,8 @@
       SUBROUTINE METRICmat(GMAT,GHONDO,MAXG,Cxyz,NAT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
       COMMON/RESTAR/NREC,IST,JST,KST,LST   
       COMMON/SHLNOS1/QQ4,IJKL
@@ -10825,8 +11053,8 @@
                     NIJ,IJ,KL                                          
       COMMON/SHLNOS1/QQ4,IJKL                                           
 !      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       DIMENSION IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
@@ -11160,8 +11388,8 @@
                     NIJ,IJ,KL                                          
       COMMON/SHLNOS1/QQ4,IJKL
 !      
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
       COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       LOGICAL FLIP
@@ -11483,10 +11711,10 @@
       SUBROUTINE PDPT_msqrt(GMAT,N,IPRINTOPT)
       INTEGER :: N,IPRINTOPT,I,J,NTRUNC
       DOUBLE PRECISION :: GMAT(N,N),TOL
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,AUX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,AUX,AUX2
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EIG,W
 
-      ALLOCATE(VEC(N,N),AUX(N,N))
+      ALLOCATE(VEC(N,N),AUX(N,N),AUX2(N,N))
       ALLOCATE(EIG(N),W(N))
 !
       TOL = 1.0d-10
@@ -11498,7 +11726,7 @@
       DO I=1,N
        IF (EIG(I)<=TOL) THEN
         NTRUNC = NTRUNC + 1
-        EIG(I) = 0.0d0
+        EIG(I) = 0.0D0
         DO J=1,N
          VEC(J,I) = 0.0d0
         END DO
@@ -11512,8 +11740,9 @@
       END IF
 
       DEALLOCATE(EIG,W)
-      GMAT = MATMUL(MATMUL(VEC,AUX),TRANSPOSE(VEC))
-      DEALLOCATE(VEC,AUX)
+      CALL DGEMM("N","N",N,N,N,1.0D0,VEC,N,AUX,N,0.0D0,AUX2,N)
+      CALL DGEMM("N","T",N,N,N,1.0D0,AUX2,N,VEC,N,0.0D0,GMAT,N)
+      DEALLOCATE(VEC,AUX,AUX2)
 
       END
 
@@ -11526,8 +11755,8 @@
       COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
                     NIJ,IJ,KL                                          
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
 !
       DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux) :: GMAT
       DOUBLE PRECISION,DIMENSION(MAXG) :: GHONDO
@@ -11570,8 +11799,8 @@
       LOGICAL IANDJ,KANDL,SAME
       COMMON/MISC/IANDJ,KANDL,SAME                                  
       COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL           
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
 !
       INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
@@ -11632,8 +11861,8 @@
       LOGICAL IANDJ,KANDL,SAME
       COMMON/MISC/IANDJ,KANDL,SAME
       COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL
-      COMMON/NSHELaux/KATOMaux(600),KTYPEaux(600),KLOCaux(600),         &
-                    KSTARTaux(600),KNGaux(600)
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
 !
       INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2

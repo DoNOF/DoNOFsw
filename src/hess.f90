@@ -98,8 +98,9 @@
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/ELPROP/IEMOM      
       COMMON/USELIBRETA/ILIBRETA 
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !     ARGUMENTS
       INTEGER,INTENT(IN) :: NC1,NINTEG,IDONTW
       DOUBLE PRECISION,DIMENSION(NC1,NC1),INTENT(OUT) :: FCM
@@ -421,8 +422,9 @@
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_INICON/INICOND
       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200)
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-                  KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
       CHARACTER*8 LETI,IBLANK
       CHARACTER*4 CLAB(3)
@@ -870,7 +872,7 @@
              /1X,'IR INTENSITIES IN DEBYE**2/AMU-ANGSTROM**2',          &
              /1X,'REDUCED MASSES IN AMU.')                               
  9060 FORMAT(1X)                                                         
- 9070 FORMAT(5X'END OF NORMAL MODES',/)
+ 9070 FORMAT(5X,'END OF NORMAL MODES',/)
  9080 FORMAT(/1X,'INITIAL CONDITIONS ACCORDING TO NORMAL MODES',        &
              //17X,'Equilibrium Geometry (Ang)',                        &
                13X,'Zero Point Energy Velocities (Ang/fs)',/)

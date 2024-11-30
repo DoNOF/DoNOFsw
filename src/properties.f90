@@ -505,8 +505,10 @@
 !       in = na+1,na+ncwo*ndoc         
 !- - - - - - - - - - - - - - - - - - - - - - - -
         do iw=1,ncwo
-         in = na+ncwo*(ndoc-k)+iw
-         inmini = na+ncwo*(ndoc-kmini)+iw                  
+         !in = na+ncwo*(ndoc-k)+iw                 !old-sort
+         !inmini = na+ncwo*(ndoc-kmini)+iw         !old-sort         
+         in = no1+(na-nb)+ndoc*(iw+1)-k+1          !new-sort
+         inmini = no1+(na-nb)+ndoc*(iw+1)-kmini+1  !new-sort
 !        Occupancies         
          DUM1 = RO(in)
          RO(in) = RO(inmini)
@@ -674,7 +676,8 @@
       SUMA = SUMA + D0*D0
 
       do i=NO1+1,NCO
-       do j=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
+       !do j=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)  !old-sort
+       do j=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO !new-sort
         BB(i,j) = DSQRT(RO(j)/RO(i))
        enddo
       enddo
@@ -704,7 +707,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,NCO
-       do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
+       !do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)  !old-sort
+       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO !new-sort
         IOCU(i)=ip
         Di = -DD*BB(i,ip)
         IF(DABS(Di)>THAPSG)THEN
@@ -726,7 +730,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,I2-2
-       do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
+       !do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)  !old-sort
+       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO !new-sort
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         CALL EvenNCO(i,I2,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,Di,THAPSG)
@@ -744,7 +749,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,I2-1
-       do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)
+       !do ip=NCO+NCWO*(NCO-i)+1,NCO+NCWO*(NCO-i+1)  !old-sort
+       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO !new-sort
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         if(I2==NCO)then
@@ -832,7 +838,8 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO j=1,NDOC
        jn = NO1+j
-       DO i=NDNS+NCWO*(NDOC-j)+1,NDNS+NCWO*(NDOC-j+1)
+       !DO i=NDNS+NCWO*(NDOC-j)+1,NDNS+NCWO*(NDOC-j+1) !old-sort
+       DO i=NCO+NCO-j+1,NCO+NCO-j+1+(NCO-1)*NCO,NCO   !new-sort
         in = NO1+i
         DCJ12DRO(jn,in) = 0.0d0
         DCJ12DRO(in,jn) = 0.0d0
@@ -852,9 +859,11 @@
 !     above-above Fermi level interaction for each geminal 'l'
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO l=1,NDOC
-       DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+       !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)!old-sort
+       DO j=NCO+NCO-l+1,NCO+NCO-l+1+(NCO-1)*NCO,NCO   !new-sort
         jn = NO1+j
-        DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)!old-sort
+        DO i=NCO+NCO-l+1,NCO+NCO-l+1+(NCO-1)*NCO,NCO   !new-sort
          in = NO1+i
          DCJ12DRO(jn,in) = 0.0d0
          IF(RO(jn)/=0.0d0)THEN
@@ -976,7 +985,8 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        DO j=1,NDOC
         jn = NO1+j
-        DO i=NDOC+NCWO*(NDOC-j)+1,NDOC+NCWO*(NDOC-j+1)
+        !DO i=NDOC+NCWO*(NDOC-j)+1,NDOC+NCWO*(NDOC-j+1)!old-sort
+        DO i=NCO+NCO-j+1,NCO+NCO-j+1+(NCO-1)*NCO,NCO   !new-sort
          in = NO1+i
          CK12nd(jn,in) = BETA(jn)*BETA(in)
          CK12nd(in,jn) = BETA(in)*BETA(jn)
@@ -986,9 +996,11 @@
 !      above-above Fermi level interaction for each geminal 'l'
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        DO l=1,NDOC
-        DO j=NDOC+NCWO*(NDOC-l)+1,NDOC+NCWO*(NDOC-l+1)
+        !DO j=NDOC+NCWO*(NDOC-l)+1,NDOC+NCWO*(NDOC-l+1)!old-sort
+        DO j=NCO+NCO-l+1,NCO+NCO-l+1+(NCO-1)*NCO,NCO   !new-sort
          jn = NO1+j
-         DO i=NDOC+NCWO*(NDOC-l)+1,NDOC+NCWO*(NDOC-l+1)
+         !DO i=NDOC+NCWO*(NDOC-l)+1,NDOC+NCWO*(NDOC-l+1)!old-sort
+         DO i=NCO+NCO-l+1,NCO+NCO-l+1+(NCO-1)*NCO,NCO   !new-sort
           in = NO1+i
           CK12nd(jn,in) = - BETA(jn)*BETA(in)
          ENDDO
@@ -1122,25 +1134,36 @@
 !-----------------------------------------------------------------------
 !     1DM
 !-----------------------------------------------------------------------
+      IHAODE = 1
+      HAODE = 0.0d0
       IF( NOUTRDM==1 .or. NOUTRDM==3 )THEN
        DO IETA=1,NBF
         DO IMIU=1,NBF
          RDM1 = SUMDL(IETA,IMIU,RO,QD)
+         IF(IHAODE==1 .and. IETA/=IMIU)THEN     ! Off-diagonal elements
+          HAODE = HAODE + RDM1*RDM1
+         ENDIF
          IF(DABS(RDM1)>THRESHDM)THEN
           WRITE(15,2)IETA,IMIU,RDM1
          ENDIF
         ENDDO
        ENDDO
+       NBF2 = NBF*(NBF-1)
+       HAODE = DSQRT ( HAODE / DFLOAT(NBF2) )
       ENDIF
 !     Check the normalization of the RDMs
       WRITE(6,4)
-      IF(NOUTRDM==1.or.NOUTRDM==3)CALL RDM1NORM(OVERLAP,RO,QD)
+      IF(NOUTRDM==1.or.NOUTRDM==3)THEN
+       CALL RDM1NORM(OVERLAP,RO,QD)
+       WRITE(6,5)HAODE
+      END IF
       IF(NOUTRDM==2.or.NOUTRDM==3)CALL RDM2NORM(OVERLAP,RO,QD,CJ12,CK12)
 !-----------------------------------------------------------------------
 1     FORMAT(4I4,D20.10)
 2     FORMAT(2I4,D20.10)
 3     FORMAT(I4,I20)
 4     FORMAT(/' RDM Norms ',/,' ---------  ')
+5     FORMAT(1X,'Harmonic average of atomic 1RDM =',F10.5,/)
       RETURN
       END
   
@@ -1233,7 +1256,7 @@
       ENDDO
       WRITE(6,1)SUMNORM
 !-----------------------------------------------------------------------     
-1     FORMAT(/,1X,'1RDM Norm =',F7.3,/)
+1     FORMAT(/,1X,'1RDM Norm =',F10.3,/)
       RETURN
       END
 
@@ -2182,7 +2205,7 @@
       9101 FORMAT(1X,/,71(1H-),/)
       9110 FORMAT(1X,A10,3F14.6,3X,E14.6)
       9113 FORMAT(5X,I4,4X,F10.2,1X,F15.6,5X,E14.6)
-      9114 FORMAT(/8X,'#',7X'Freq(cm-1)   EVIB(KCAL/MOL)  SVIB(CAL/MOL-K)')
+      9114 FORMAT(/8X,'#',7X,'Freq(cm-1)   EVIB(KCAL/MOL)  SVIB(CAL/MOL-K)')
       9111 FORMAT(1X,A40,F14.6," (a.u.) ")
       9112 FORMAT(1X,A10,3F14.6)
       9200 FORMAT(1X,'FREQUENCY NUMBER',I4,' IS UNEXPECTEDLY ZERO!')

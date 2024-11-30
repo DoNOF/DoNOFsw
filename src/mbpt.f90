@@ -135,7 +135,8 @@
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      NVIR=NBF-NA
      Nab=NVIR*NA
-     last_coup=NA+NCWO*(NCO-NO1PT2)
+     !last_coup=NA+NCWO*(NCO-NO1PT2)                !old-sort
+     last_coup=NA+(NCO-NO1PT2+1) + NCO*(NCWO-1) - 1 !new-sort
      WRITE(6,1)NBF,NO1PT2,NA,NVIR,last_coup,Nab
      ALLOCATE(OCC(NBF),TEMPM(NBF,NBF),COEF2(NBF,NBF))
      COEF2=COEF
@@ -365,21 +366,36 @@
      double precision,dimension(NBF,NBF),intent(inout)::FOCKm
      integer,allocatable,dimension(:)::coup
      integer::i,k,in,kn,lmin_i,lmax_i,last_coup
+     integer::iw
      allocate(coup(NVIR))
      coup=0
-     last_coup=NA+ncwo*(nco-nfr)
-     do i=1,nco
-      lmin_i = NA+ncwo*(nco-i)+1
-      lmax_i = NA+ncwo*(nco-i)+ncwo
-      do k=1,nvir
-       kn=k+NA
-       FOCKm(i,kn)=0.0d0 
-       FOCKm(kn,i)=0.0d0 
-       if((lmin_i<=kn.and.kn<=lmax_i).and.(lmax_i<=last_coup)) then
-        coup(k)=i 
-       endif
-      enddo
-     enddo
+     !last_coup=NA+ncwo*(nco-nfr)                                   !old-sort
+     !do i=1,nco                                                    !old-sort
+     ! !lmin_i = NA+ncwo*(nco-i)+1                                  !old-sort
+     ! !lmax_i = NA+ncwo*(nco-i)+ncwo                               !old-sort
+     ! do k=1,nvir                                                  !old-sort
+     !  kn=k+NA                                                     !old-sort
+     !  FOCKm(i,kn)=0.0d0                                           !old-sort
+     !  FOCKm(kn,i)=0.0d0                                           !old-sort
+     !  if((lmin_i<=kn.and.kn<=lmax_i).and.(lmax_i<=last_coup)) then!old-sort
+     !   coup(k)=i                                                  !old-sort
+     !  endif                                                       !old-sort
+     ! enddo                                                        !old-sort
+     !enddo                                                         !old-sort
+     do i=1+nfr,nco                                                 !new-sort
+      do iw=1,ncwo                                                  !new-sort
+       k = nco-i+1 + (nco-nfr)*(iw-1)                               !new-sort
+       coup(k) = i                                                  !new-sort
+      end do                                                        !new-sort
+     end do                                                         !new-sort
+     do i=1,nco                                                     !new-sort
+      do k=1,nvir                                                   !new-sort
+       kn=k+NA                                                      !new-sort
+       FOCKm(i,kn)=0.0d0                                            !new-sort
+       FOCKm(kn,i)=0.0d0                                            !new-sort
+      enddo                                                         !new-sort
+     enddo                                                          !new-sort
+
      do i=nco+1,NA
       do k=1,nvir
        kn=k+NA
@@ -451,20 +467,29 @@
      integer::i,j,k,l
      integer::a,b,c,d,an,bn,cn,dn,bmin_i,bmax_i,last_coup
      double precision::value1,Ciiab,Cijab,Cijkl,Cijka,Ciiia,Cabci,Cabcd
+     integer::iw,kn
      allocate(ERImolTMP(NBF,NBF,NBF,NBF),coup(NA+1:NVIR+NA))
      ERImolTMP=0.0d0;coup(NA+1:NVIR+NA)=0
-     last_coup=NA+ncwo*(nco-nfr)
      ! find the coupling
+     do i=1+nfr,nco                                     !new-sort
+      do iw=1,ncwo                                      !new-sort
+       k = nco-i+1 + (nco-nfr)*(iw-1)                   !new-sort
+       kn = k+NA                                        !new-sort
+       coup(kn) = i                                     !new-sort
+      end do                                            !new-sort
+     end do                                             !new-sort
+
+!     last_coup=NA+ncwo*(nco-nfr)                       !old-sort
      do i=1,NA
-      bmin_i=NA+ncwo*(nco-i)+1
-      bmax_i=NA+ncwo*(nco-i)+ncwo
-      do a=1,nvir
-       an=a+NA
-       if(      (bmin_i<=an.and.an<=bmax_i)  &
-    &       .and. (bmax_i<=last_coup)        )then
-        coup(an)=i
-       endif
-      enddo 
+!      bmin_i=NA+ncwo*(nco-i)+1                         !old-sort
+!      bmax_i=NA+ncwo*(nco-i)+ncwo                      !old-sort  
+!      do a=1,nvir                                      !old-sort
+!       an=a+NA                                         !old-sort
+!       if(      (bmin_i<=an.and.an<=bmax_i)  &         !old-sort
+!    &       .and. (bmax_i<=last_coup)        )then     !old-sort
+!        coup(an)=i                                     !old-sort
+!       endif                                           !old-sort
+!      enddo                                            !old-sort
       ! <ov|o'v'> and <oo'|vv'> and equivalent terms
       do j=1,NA
        if(i==j .and. i<=nco) then ! Subspace 'i' occ, still could be inter or intra    
@@ -472,9 +497,10 @@
          an=a+NA
          do b=1,nvir
           bn=b+NA
-          if((     (bmin_i<=an.and.an<=bmax_i)  &
-    &        .and. (bmin_i<=bn.and.bn<=bmax_i)) & 
-    &        .and. (bmax_i<=last_coup)        )then
+!          if((     (bmin_i<=an.and.an<=bmax_i)  &      !old-sort
+!    &        .and. (bmin_i<=bn.and.bn<=bmax_i)) &      !old-sort
+!    &        .and. (bmax_i<=last_coup)        )then    !old-sort
+          if(coup(an).eq.i .and. coup(bn).eq.i) then      !new-sort
            Ciiab=CINTRA(an)*CINTRA(bn)*CINTRA(i)*CINTRA(i)
           else
            Ciiab=CINTER(an)*CINTER(bn)*CINTER(i)*CINTER(i)

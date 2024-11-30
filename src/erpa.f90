@@ -643,13 +643,15 @@
        ln = NO1+l
        INTER(ln,ln) = 0.0D0
        INTRA(ln,ln) = SQRT(RO(ln))*SQRT(RO(ln))
-       DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
         in = NO1+i
         INTER(ln,in) = 0.0D0
         INTER(in,ln) = 0.0D0
         INTRA(ln,in) = -SQRT(RO(ln))*SQRT(RO(in))
         INTRA(in,ln) = -SQRT(RO(in))*SQRT(RO(ln))
-        DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
          jn = NO1+j
          INTER(jn,in) = 0.0D0
          INTRA(jn,in) = SQRT(RO(jn))*SQRT(RO(in))
@@ -685,11 +687,13 @@
         DO l=1,NDOC
          ln = NO1+l
          Pi_s(ln,ln) = 0.0D0
-         DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+         !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+         DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
           in = NO1+i
           Pi_s(ln,in) = 0.0D0
           Pi_s(in,ln) = 0.0D0
-          DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+          !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+          DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
            jn = NO1+j
            Pi_s(jn,in) = 0.0D0
           ENDDO
@@ -739,7 +743,9 @@
     !      ROd(NA+1:NBF5)
            IF(NCWO>1)THEN                        ! extended PNOF
             do iw=1,ncwo
-             im = na+ncwo*(ndoc-i)+iw            ! above Fermi level
+             ! above Fermi level
+             !im = na+ncwo*(ndoc-i)+iw                       !old-sort
+             im = no1+ndoc+(na-nb)+(ndoc-i+1)+ndoc*(iw-1)    !new-sort
              ROd(im) = RO(im) * Fin              ! ROd = RO*Hd/Hole
             enddo
            ELSE                                  ! perfect-pairing
@@ -765,13 +771,15 @@
            ln = NO1+l
            INTER(ln,ln) = 0.0D0
            INTER2(ln,ln) = 0.0D0
-           DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+           !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+           DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
             in = NO1+i
             INTER(ln,in) = 0.0D0
             INTER(in,ln) = 0.0D0
             INTER2(ln,in) = 0.0D0
             INTER2(in,ln) = 0.0D0
-            DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)
+            !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
+            DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
              jn = NO1+j
              INTER(jn,in) = 0.0D0
              INTER2(jn,in) = 0.0D0

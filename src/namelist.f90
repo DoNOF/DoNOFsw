@@ -119,8 +119,9 @@
 !       = 2        There is a center of symmetry
 !                  For more info see https://cccbdb.nist.gov/thermo.asp
 !
+!JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
 ! NATmax           Maximum Number of Atoms
-!       = 101      (Default)
+!       = 1001     (Default)
 !
 ! NSHELLmax        Maximum Number of Shells
 !       = 600      (Default)
@@ -155,7 +156,7 @@
       HSSCAL    = .TRUE.
       PROJECT   = .TRUE.
       ISIGMA    = 1
-      NATmax    = 101     
+      NATmax    = 1001     
       NSHELLmax = 600  
       NPRIMImax = 2000 
 !-----------------------------------------------------------------------
@@ -320,7 +321,8 @@
         WRITE(6,7)
         CALL ABRT
       END IF
-      IF(IECP>0 .and. NATmax>101)THEN         ! due to COMMON/ECP2/
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      IF(IECP>0 .and. NATmax>1001)THEN         ! due to COMMON/ECP2/
         WRITE(6,8)
         CALL ABRT
       END IF
@@ -332,7 +334,7 @@
         WRITE(6,10)
         CALL ABRT
       END IF
-      IF(IERITYP==2 .and. NSHELLmax>600)THEN  ! due to COMMON/NSHELaux/
+      IF(IERITYP==2 .and. NSHELLmax>700)THEN  ! due to COMMON/NSHELaux/
         WRITE(6,11)
         CALL ABRT
         END IF
@@ -340,7 +342,8 @@
         WRITE(6,12)
         CALL ABRT
       END IF
-      IF(IRUNTYP==5 .and. NATmax>101)THEN ! due to COMMON/INPDYN_FLAGS/
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      IF(IRUNTYP==5 .and. NATmax>1001)THEN ! due to COMMON/INPDYN_FLAGS/
         WRITE(6,13)
         CALL ABRT
       END IF
@@ -366,12 +369,14 @@
     5 FORMAT(/1X,'Stop: DONTW must be T with ERITYP = RI',/)
     6 FORMAT(/1X,'Stop: ERITYP must be FULL or RI',/)
     7 FORMAT(/1X,'Stop: USELIB must be F with ECP',/) 
-    8 FORMAT(/1X,'Stop: NATmax must be <= 101 with ECP',/) 
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+    8 FORMAT(/1X,'Stop: NATmax must be <= 1001 with ECP',/) 
     9 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ECP',/)
    10 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with USELIB = T',/)
-   11 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ERITYP = RI',/)
+   11 FORMAT(/1X,'Stop: NHELLmax must be <= 700 with ERITYP = RI',/)
    12 FORMAT(/1X,'Stop: NPRIMImax must be <= 2000 with ERITYP = RI',/)
-   13 FORMAT(/1X,'Stop: NATmax must be <= 101 with RUNTYP = DYN',/)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+   13 FORMAT(/1X,'Stop: NATmax must be <= 1001 with RUNTYP = DYN',/)
 !-----------------------------------------------------------------------
       END
 
@@ -381,9 +386,12 @@
       LOGICAL HFDAMP,HFEXTRAP,HFDIIS,DIIS,PERDIIS,DAMPING,EXTRAP
       LOGICAL RESTART,FROZEN,PRINTLAG,DIAGLAG,APSG,CHKORTHO,ORTHO
       LOGICAL ERPA,OIMP2,MBPT,SC2MCPT,HFID,HighSpin,SCALING,RHF
+      LOGICAL AUTOLR
+      DOUBLE PRECISION LR,FACT,BETA1,BETA2
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER
+      COMMON/INPADAM/LR,AUTOLR,FACT,BETA1,BETA2
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_HFCONVTECH/HFDAMP,HFEXTRAP,HFDIIS
@@ -453,9 +461,17 @@
 !.......... IORBOPT             Select method for NO optimization
 !
 !                      = 1      Iterative diagonalization (OrbOptFMIUGr)
-!                               (Default)
 !                      = 2      By unitary tranformations (OrbOptRot)
 !                      = 3      Sequential Quadratic Program (OrbOptSQP)
+!                      = 4      Adaptative Momentum (ADAM)             
+!                               (Default)
+!                      = 5      Gradient Descent (GD)                                  
+!                      = 6      Momentum Gradient Descent (MOMENTUMGD) 
+!                      = 7      Nesterov Gradient Descent (NGD)        
+!                      = 8      Root Mean Square Propagation (RMSProp) 
+!                      = 9      Adaptative Learning Rate (ADADELTA)    
+!                      = 10     Adaptative Subgradient (ADAGRAD)       
+!                      = 11     Decaying Momentum (DEMON)              
 !
 !.......... IEINI               Calculate only the initial energy
 !                      = 0      (Default)
@@ -613,6 +629,23 @@
 !
 !.......... EXTRAP              Extrapolation of the Gen. Fock matrix
 !                      = F      (Default)
+!
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+! Options for the Orbital Optimization Program (ADAM Method)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!
+!.......... LR                  Initial Learning Rate
+!                      = 0.01   (Default)
+!
+!.......... FACT                Factor to multiply Learning Rate
+!                               to reduce it after a failed ADAM     
+!                      = 0.4    (Default)
+!
+!.......... BETA1               BETA1 Memory for first momentum
+!                      = 0.7    (Default)
+!
+!.......... BETA2               BETA2 Memory for second momentum
+!                      = 0.9    (Default)
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Options for pertubative calculations
@@ -820,7 +853,7 @@
                       IAIMPAC,IFCHK,MOLDEN,INICOND,NOUTRDM,NTHRESHDM,   &
                       NSQT,NOUTCJK,NTHRESHCJK,NOUTTijab,NTHRESHTijab,   &
                       APSG,NTHAPSG,ORTHO,CHKORTHO,FROZEN,IFROZEN,       &
-                      ICGMETHOD,NESt,OMEGA1
+                      ICGMETHOD,NESt,OMEGA1,LR,FACT,BETA1,BETA2
 !-----------------------------------------------------------------------
 !     Preset values to namelist variables
 !-----------------------------------------------------------------------
@@ -830,7 +863,7 @@
 !     Type of Calculation
       ICOEF=1
       ISOFTMAX=1
-      IORBOPT=1
+      IORBOPT=4
       IEINI=0
       NO1=0
       
@@ -927,6 +960,13 @@
 !     Options for the Conjugate Gradient Method
       ICGMETHOD=1
       
+!     Options for the ADAM Method
+      AUTOLR=.TRUE.
+      LR=0.01D0
+      FACT=0.2D0
+      BETA1=0.7D0
+      BETA2=0.9D0
+
 !     Excited States
       NESt=0
       OMEGA1=1.0d0
@@ -940,8 +980,19 @@
 #endif
       READ(5,NOFINP,END=1,ERR=1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Note: Override AUTOZEROS to False and reduce MAXLOOP for ADAM
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IORBOPT>1) THEN
+        IF(AUTOZEROS) THEN
+          AUTOZEROS=.FALSE.
+        END IF
+      END IF
+      IF(IORBOPT==4 .AND. MAXLOOP==30) THEN
+        MAXLOOP=10
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Automatic selection of NZEROS                
-!     Note: Override the selected values ​​in the namelist
+!     Note: Override the selected values in the namelist
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(AUTOZEROS)then
         IF(RESTART)then       ! RESTART=T
@@ -1150,8 +1201,9 @@
        INTEGER :: nat,ngcf
        CHARACTER(LEN=1) :: dflag,resflag,velflag,snapshot
        DOUBLE PRECISION :: dt,tmax,Vxyz
-       COMMON/INPDYN_FLAGS/dflag(3,101)
-       COMMON/INPDYN_VELOCITY/Vxyz(3,101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+       COMMON/INPDYN_FLAGS/dflag(3,1001)
+       COMMON/INPDYN_VELOCITY/Vxyz(3,1001)
        COMMON/INPDYN_NSHOT/snapshot
 !----------------------------------------------------------------------!
 !                   --- DYNINP NAMELIST VARIABLES ---                  !
@@ -1284,8 +1336,9 @@
       COMMON/INPFILE_NO1PT2/NO1PT2,NEX
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/ELPROP/IEMOM      
-      COMMON/ECP2/CLP(404),ZLP(404),NLP(404),KFRST(101,6),              &
-      KLAST(101,6),LMAX(101),LPSKIP(101),IZCORE(101)
+      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
+      KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/NumLinIndOrb/NQMT
       !
       INTEGER,DIMENSION(NATOMSn) :: IAN
@@ -1475,6 +1528,8 @@
           WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==3)THEN
           WRITE(6,58)IORBOPT       
+        ELSE IF(IORBOPT==4)THEN
+          WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==5)THEN
           WRITE(6,57)IORBOPT       
         ELSE IF(IORBOPT==6)THEN

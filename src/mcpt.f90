@@ -143,7 +143,8 @@
        ALLOCATE(BBn(NOC,NCWO))
        do i=1,NOC
         do iw=1,NCWO
-         k = noc+ncwo*(noc-i)+iw                     ! k = (i,iw)
+         !k = noc+ncwo*(noc-i)+iw         !old-sort           ! k = (i,iw)
+         k = noc+noc*(iw+1)-i+1           !new-sort
          BBn(i,iw) = DSQRT(OCC(k)/OCC(i))
         enddo
        enddo
@@ -156,7 +157,8 @@
        E2x = 0.0d0
        DO i=1,NOC
         do iw=1,NCWO
-         k = NOC+NCWO*(NOC-i)+iw
+         !k = NOC+NCWO*(NOC-i)+iw         !old-sort
+         k = noc+noc*(iw+1)-i+1           !new-sort
          ik = i + k*(k-1)/2
          BBQK = BBn(i,iw)*QKv(ik)
          Eki = 2.0d0*(EIG(k)-EIG(i))
@@ -443,7 +445,8 @@
       E2F = 0.0d0
       DO i=1,noc
        do iw=1,ncwo
-        k = noc+ncwo*(noc-i)+iw              ! k = (i,iw)
+        !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+        k = noc+noc*(iw+1)-i+1           !new-sort
         Eki = EIG(k) - EIG(i)
         E2F = E2F + BBn(i,iw)*FOCKm(i,k)*FOCKm(k,i)/Eki 
        enddo
@@ -467,7 +470,8 @@
        DO l=noc+1,norb
         Eli = EIG(l) - EIG(i)
         do iw=1,ncwo
-         k = noc+ncwo*(noc-i)+iw              ! k = (i,iw)
+         !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+         k = noc+noc*(iw+1)-i+1           !new-sort
          Eklii = EIG(k) - EIG(i) + Eli
          Xiikl = ERImol(i,i,l,k)
          Xilkk = ERImol(i,l,k,k)
@@ -480,7 +484,8 @@
       DO j=1,noc
        DO i=1,noc
         do iw=1,ncwo
-         k = noc+ncwo*(noc-i)+iw              ! k = (i,iw)
+         !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+         k = noc+noc*(iw+1)-i+1           !new-sort
          Ekj = EIG(k) - EIG(j)
          Ekkij = 2.0d0*EIG(k) - EIG(i) - EIG(j)
          Xiijk = ERImol(i,i,k,j)
@@ -506,7 +511,8 @@
       E2ERIERI = 0.0d0
       DO i=1,noc
        do iw=1,ncwo
-        k = noc+ncwo*(noc-i)+iw                  ! k = (i,iw)
+        !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+        k = noc+noc*(iw+1)-i+1           !new-sort
         DO m=1,noc
          DO j=1,noc
           Ekkmj = 2.0d0*EIG(k) - EIG(m) - EIG(j)
@@ -539,7 +545,8 @@
       E2dHF = 0.0d0
       DO i=1,noc
        do iw=1,ncwo
-        k = noc+ncwo*(noc-i)+iw                     ! k = (i,iw)
+        !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+        k = noc+noc*(iw+1)-i+1           !new-sort
         DO j=1,noc
          DO l=noc+1,norb
           Elkij = EIG(l) + EIG(k) - EIG(i) - EIG(j)
@@ -572,10 +579,12 @@
        DO j=1,noc
         if(j/=i)then
          do iw=1,ncwo
-          k = noc+ncwo*(noc-i)+iw                    ! k = (i,iw)
+          !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+          k = noc+noc*(iw+1)-i+1           !new-sort
           jk = j + k*(k-1)/2
           do jw=1,ncwo
-           l = noc+ncwo*(noc-j)+jw                   ! l = (j,jw)
+           !l = noc+ncwo*(noc-j)+jw         !old-sort     ! k = (i,iw)
+           l = noc+noc*(jw+1)-j+1           !new-sort
            il = i + l*(l-1)/2
            Eli = EIG(l)-EIG(i)
            BB2 = BBn(i,iw)*BBn(j,jw)
@@ -601,9 +610,11 @@
       DO i=1,noc
        DO j=1,noc
         do iw=1,ncwo
-         k = noc+ncwo*(noc-i)+iw                     ! k = (i,iw)
+         !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+         k = noc+noc*(iw+1)-i+1           !new-sort
          do jw=1,ncwo
-          l = noc+ncwo*(noc-j)+jw                    ! l = (j,jw)
+          !l = noc+ncwo*(noc-j)+jw         !old-sort     ! k = (i,iw)
+          l = noc+noc*(jw+1)-j+1           !new-sort
           BB2 = BBn(i,iw)*BBn(j,jw)
           if(j/=i)then
            Eklii = EIG(k) + EIG(l) - 2.0d0*EIG(i)
@@ -681,7 +692,8 @@
        DO l=noc+1,norb
         Eli = EIG(l) - EIG(i)
         do iw=1,ncwo
-         k = noc+ncwo*(noc-i)+iw               ! k = (i,iw)
+         !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+         k = noc+noc*(iw+1)-i+1           !new-sort
          Xilkk = ERImol(i,l,k,k)
          E2FERIex = E2FERIex + BBn(i,iw)*FOCKm(i,l)*Xilkk/Eli
         enddo
@@ -694,7 +706,8 @@
        DO i=1,noc
         if(i/=j)then       
          do iw=1,ncwo
-          k = noc+ncwo*(noc-i)+iw              ! k = (i,iw)
+          !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+          k = noc+noc*(iw+1)-i+1           !new-sort
           Ekj = EIG(k) - EIG(j)
           Ekkij = 2.0d0*EIG(k) - EIG(i) - EIG(j)
           Xiijk = ERImol(i,i,k,j)
@@ -723,7 +736,8 @@
       E2ERIERIex = 0.0d0
       DO i=1,noc
        do iw=1,ncwo
-        k = noc+ncwo*(noc-i)+iw                  ! k = (i,iw)
+        !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+        k = noc+noc*(iw+1)-i+1           !new-sort
         DO m=1,noc
          DO j=1,noc
           if(j/=m)then         
@@ -752,7 +766,8 @@
       E2dHFex = 0.0d0
       DO i=1,noc
        do iw=1,ncwo
-        k = noc+ncwo*(noc-i)+iw                     ! k = (i,iw)
+        !k = noc+ncwo*(noc-i)+iw         !old-sort     ! k = (i,iw)
+        k = noc+noc*(iw+1)-i+1           !new-sort
         DO j=1,noc
          if(j/=i)then
           DO l=noc+1,norb
@@ -798,7 +813,8 @@
        do j=1,nex
         jx = iex(j)
         do jxw=1,ncwo  
-         lx = noc+ncwo*(noc-jx)+jxw            ! lx = (jx,jxw)
+         !lx = noc+ncwo*(noc-jx)+jxw         !old-sort     ! k = (i,iw)
+         lx = noc+noc*(jxw+1)-jx+1           !new-sort
          E2HFs_nex = E2HFs_nex                                          &
                    + FOCKm(ix,lx)*FOCKm(lx,ix)/(EIG(lx)-EIG(ix))
         enddo
@@ -827,11 +843,13 @@
          do i=1,nex
           ix = iex(i)
           do ixw=1,ncwo  
-           kx = noc+ncwo*(noc-ix)+ixw            ! kx = (ix,ixw)
+           !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+           kx = noc+noc*(ixw+1)-ix+1           !new-sort
            do j=1,nex
             jx = iex(j)
             do jxw=1,ncwo  
-             lx = noc+ncwo*(noc-jx)+jxw           ! lx = (jx,jxw)
+             !lx = noc+ncwo*(noc-jx)+jxw         !old-sort     ! k = (i,iw)
+             lx = noc+noc*(jxw+1)-jx+1           !new-sort
              Xmnkl = ERImol(mx,nx,lx,kx)
              Xmnlk = ERImol(mx,nx,kx,lx)
              Eklmn = EIG(kx) + EIG(lx) - EIG(mx) - EIG(nx)
@@ -861,7 +879,8 @@
       do i=1,nex
        ix = iex(i)
        do ixw=1,ncwo
-        kx = noc+ncwo*(noc-ix)+ixw               ! kx = (ix,ixw)
+        !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+        kx = noc+noc*(ixw+1)-ix+1           !new-sort
         Eki = EIG(kx) - EIG(ix)
         E2F_nex = E2F_nex - BBn(ix,ixw)*FOCKm(ix,kx)*FOCKm(kx,ix)/Eki 
        enddo
@@ -890,10 +909,12 @@
        do j=1,nex
         jx = iex(j)
         do jxw=1,ncwo
-         lx = noc+ncwo*(noc-jx)+jxw            ! lx = (jx,jxw)
+         !lx = noc+ncwo*(noc-jx)+jxw         !old-sort     ! k = (i,iw)
+         lx = noc+noc*(jxw+1)-jx+1           !new-sort
          Eli = EIG(lx) - EIG(ix)
          do ixw=1,ncwo
-          kx = noc+ncwo*(noc-ix)+ixw           ! kx = (ix,ixw)
+          !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+          kx = noc+noc*(ixw+1)-ix+1           !new-sort
           Xilkk = ERImol(ix,lx,kx,kx)
           E2FERIex_nex = E2FERIex_nex                                   &
                        - BBn(ix,ixw)*FOCKm(ix,lx)*Xilkk/Eli
@@ -910,7 +931,8 @@
         ix = iex(i)
         if(ix/=jx)then       
          do ixw=1,ncwo
-          kx = noc+ncwo*(noc-ix)+ixw              ! kx = (ix,ixw)
+          !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+          kx = noc+noc*(ixw+1)-ix+1           !new-sort
           Ekj = EIG(kx) - EIG(jx)          
           Ekkij = 2.0d0*EIG(kx) - EIG(ix) - EIG(jx) 
           Xiijk = ERImol(ix,ix,kx,jx)          
@@ -946,7 +968,8 @@
          do m=1,nex
           mx=iex(m)
           do mxw=1,ncwo  
-           lx = noc+ncwo*(noc-mx)+mxw            ! lx = (mx,mxw)
+           !lx = noc+ncwo*(noc-mx)+mxw         !old-sort     ! k = (i,iw)
+           lx = noc+noc*(mxw+1)-mx+1           !new-sort
            Xmmij = ERImol(mx,mx,jx,ix)
            Xijll = ERImol(ix,jx,lx,lx)
            Ellij = 2.0d0*EIG(lx) - EIG(ix) - EIG(jx)
@@ -975,14 +998,16 @@
       do i=1,nex
        ix = iex(i)
        do ixw=1,ncwo
-        kx = noc+ncwo*(noc-ix)+ixw            ! kx = (ix,ixw)
+        !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+        kx = noc+noc*(ixw+1)-ix+1           !new-sort
         do j=1,nex
          jx = iex(j)
          if(jx/=ix)then
           do m=1,nex
            mx = iex(m)
            do mxw=1,ncwo  
-            lx = noc+ncwo*(noc-mx)+mxw        ! lx = (mx,mxw)
+            !lx = noc+ncwo*(noc-mx)+mxw         !old-sort     ! k = (i,iw)
+            lx = noc+noc*(mxw+1)-mx+1           !new-sort
             Elkij = EIG(lx) + EIG(kx) - EIG(ix) - EIG(jx)
             Xijlk = ERImol(ix,jx,kx,lx)
             Xiljk = ERImol(ix,lx,kx,jx)
@@ -1020,9 +1045,11 @@
         jx = iex(j)
         if(jx/=ix)then
          do ixw=1,ncwo
-          kx = noc+ncwo*(noc-ix)+ixw         ! kx = (ix,ixw)
+          !kx = noc+ncwo*(noc-ix)+ixw         !old-sort     ! k = (i,iw)
+          kx = noc+noc*(ixw+1)-ix+1           !new-sort
           do jxw=1,ncwo
-           lx = noc+ncwo*(noc-jx)+jxw        ! lx = (jx,jxw)
+           !lx = noc+ncwo*(noc-jx)+jxw         !old-sort     ! k = (i,iw)
+           lx = noc+noc*(jxw+1)-jx+1           !new-sort
            BB2 = BBn(ix,ixw)*BBn(jx,jxw)
            Xijkl = ERImol(ix,jx,lx,kx)
            Xijlk = ERImol(ix,jx,kx,lx)
