@@ -84,7 +84,7 @@ The &INPRUN and &NOFINP namelists specify the input and output, and the fundamen
 
 The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
 **GNOFm**: IPNOF=8 lmod=1
-**GNOF**: IPNOF=8 lmod=0
+**GNOF**: IPNOF=8 (default)
 **PNOF7**: IPNOF=7
 **PNOF6**: IPNOF=6
 **PNOF5**: IPNOF=5
