@@ -15,7 +15,7 @@ The solution is established optimizing the energy functional with respect to the
 **Requisites.** You need a FORTRAN compiler, either gfortran or ifort. Optionally, you may want to install OpenMPI for parallel execution.
 
 0. Install ![libcint](https://github.com/sunqm/libcint). The following instructions are provided as example.
-~~~
+~~~ bash
 git clone http://github.com/sunqm/libcint.git
 cd libcint
 mkdir build; cd build
@@ -24,17 +24,17 @@ sudo make install
 ~~~
 
 1. Clone the code with
-~~~
+~~~ bash
 git clone https://github.com/DoNOF/DoNOFsw
 ~~~
 
 2. Go inside the DoNOFsw folder (`cd DoNOFsw`) and compile with `make [option]`. For example:
-~~~
+~~~ bash
 make serialg # gfortran serial -> /exe/DoNOFg.x
 ~~~
 
 The possible options are:
-~~~
+~~~ bash
 make serialg # gfortran Serial      -> /exe/DoNOFg.x
 make ompg    # gfortran OpenMP      -> /exe/DoNOFompg.x
 make mpig    # gfortran MPI         -> /exe/DoNOFmpig.x
@@ -63,13 +63,13 @@ H  1.0  0.0000    -0.7572   -0.4692
 ~~~
 
 If the input is placed in a file called filename.inp, it can be executed with
-~~~
+~~~ bash
 ./run_donofg filename     # gfortran serial
 ~~~
 the output will be placed in filename.out.
 
 The possible options are:
-~~~
+~~~ bash
 ./run_donofg filename     # gfortran serial
 ./run_donofompg filename  # gfortran omp
 ./run_donofmpig filename  # gfortran mpi
@@ -83,11 +83,11 @@ The possible options are:
 The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
 
 The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
-**GNOFm**: IPNOF=8 lmod=1
-**GNOF**: IPNOF=8 (default)
-**PNOF7**: IPNOF=7
-**PNOF6**: IPNOF=6
-**PNOF5**: IPNOF=5
+- **GNOFm**: IPNOF=8 lmod=1
+- **GNOF**: IPNOF=8 (default)
+- **PNOF7**: IPNOF=7
+- **PNOF6**: IPNOF=6
+- **PNOF5**: IPNOF=5
 
 Current capabilities include:
 - **RUNTYP = ENERGY** - Single-point Energy (Default)
