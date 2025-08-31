@@ -73,9 +73,9 @@ The possible options are:
 ./run_donofg filename     # gfortran serial
 ./run_donofompg filename  # gfortran omp
 ./run_donofmpig filename  # gfortran mpi
-./run_donof filename     # ifort serial
-./run_donofomp filename  # ifort omp
-./run_donofmpi filename  # ifort mpi
+./run_donof filename      # ifort serial
+./run_donofomp filename   # ifort omp
+./run_donofmpi filename   # ifort mpi
 ~~~
 
 ## Capabilities
