@@ -466,21 +466,18 @@
 !
 !.......... ISOFTMAX            Use Softmax function for ON (Gamma) opt.
 !                      = 1      (Default)
+!                      = 0      Trigonometric Parametrization for ON
 !
 !.......... IORBOPT             Select method for NO optimization
 !
+!.......... IORBOPT             Select method for NO optimization
 !                      = 1      Iterative diagonalization (OrbOptFMIUGr)
 !                      = 2      By unitary tranformations (OrbOptRot)
 !                      = 3      Sequential Quadratic Program (OrbOptSQP)
-!                      = 4      Adaptative Momentum (ADAM)             
-!                               (Default)
-!                      = 5      Gradient Descent (GD)                                  
-!                      = 6      Momentum Gradient Descent (MOMENTUMGD) 
-!                      = 7      Nesterov Gradient Descent (NGD)        
-!                      = 8      Root Mean Square Propagation (RMSProp) 
-!                      = 9      Adaptative Learning Rate (ADADELTA)    
-!                      = 10     Adaptative Subgradient (ADAGRAD)       
-!                      = 11     Decaying Momentum (DEMON)              
+!                      = 4      Adaptative Momentum (ADAM) (Default)
+!                      = 5      ADABelief                                  
+!                      = 6      YOGI 
+!                      = 7      Decaying Momentum (DEMON)  
 !
 !.......... IEINI               Calculate only the initial energy
 !                      = 0      (Default)
