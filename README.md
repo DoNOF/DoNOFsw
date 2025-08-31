@@ -82,7 +82,12 @@ The possible options are:
 
 The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
 
-The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example, INPOF=7 indicates to use PNOF7. GNOF is indicated with IPNOF=8.
+The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
+**GNOFm**: IPNOF=8 lmod=1
+**GNOF**: IPNOF=8 lmod=0
+**PNOF7**: IPNOF=7
+**PNOF6**: IPNOF=6
+**PNOF5**: IPNOF=5
 
 Current capabilities include:
 - **RUNTYP = ENERGY** - Single-point Energy (Default)
