@@ -82,12 +82,13 @@ The possible options are:
 
 The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
 
-The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
-- **GNOFm**: IPNOF=8 lmod=1
-- **GNOF**: IPNOF=8 (default)
-- **PNOF7**: IPNOF=7
-- **PNOF6**: IPNOF=6
-- **PNOF5**: IPNOF=5
+> [!NOTE] 
+> The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
+> - **GNOFm**: IPNOF=8 lmod=1
+> - **GNOF**: IPNOF=8 (default)
+> - **PNOF7**: IPNOF=7
+> - **PNOF6**: IPNOF=6
+> - **PNOF5**: IPNOF=5
 
 Current capabilities include:
 - **RUNTYP = ENERGY** - Single-point Energy (Default)
@@ -97,3 +98,6 @@ Current capabilities include:
 - **RUNTYP = DYN** - Born-Oppenheimer on-the-fly molecular dynamics
 
 Other common options include excited states calculation (**ERPA=T**) and NOF-MBPT calculations (**MBPT=T**).
+
+> [!TIP]
+> See the ![documentation](https://donof-documentation.readthedocs.io) for a complete list of the available options.
