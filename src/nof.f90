@@ -12,7 +12,8 @@
                         CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF,DIPN,QUADN,    &
                         OCTUN,NVAL,DQOInt,NINTMXn,NREC,IX2,BUFP2,       &
                         BUFP2aux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,      &
-                        IRUNTYP,DIPS,XINTS,IPRINTOPT)
+                        IRUNTYP,DIPS,XINTS,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
+                        IGTYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL CONVGDELAG,RESTART,ERIACTIVATED,HFID,HighSpin,RHF
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -31,7 +32,6 @@
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ELPROP/IEMOM
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
@@ -41,7 +41,7 @@
                           N47,N48,N49,N50,N51,NUSER
 !
       INTEGER :: NATOMSn,NBFn,NBFTn,NSHELLn,NPRIMIn,NVAL,NINTMXn,NREC
-      INTEGER :: NINTEGt,NINTEGAUXtm,IDONTW,IRUNTYP,IPRINTOPT
+      INTEGER :: NINTEGt,NINTEGAUXtm,IDONTW,IRUNTYP,IPRINTOPT,IGTYP
       DOUBLE PRECISION,DIMENSION(NATOMSn):: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATOMSn):: Cxyz
       INTEGER,DIMENSION(NATOMSn):: IAN,IMIN,IMAX
@@ -83,6 +83,10 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:):: XATOM,YATOM,ZATOM
       INTEGER :: CR, CM, TIMESTART, TIMEFINISH
       DOUBLE PRECISION :: RATE
+
+      INTEGER :: SIZE_ENV,NBAS               !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)      !LIBCINT
+      INTEGER :: ATM(6,NATOMSn), BAS(8,NBAS) !LIBCINT
 !-----------------------------------------------------------------------
 !     Initialization for system_clock
 !-----------------------------------------------------------------------
@@ -280,7 +284,7 @@
        CALL PT2GRAD(ELAG,COEF,AHCORE,IJKL,XIJKL,XIJKaux,USER,IRUNTYP,   &
                     GRADS,ATMNAME,KATOM,KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,&
                     XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,XINTS,     &
-                    IPRINTOPT)
+                    SIZE_ENV,ENV,NATOMSn,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
        IF(IERITYP==3 .and. MIXSTATE==2) MIXSTATE = 1              ! MIX
        IF(IPRINTOPT==1)WRITE(6,2)IT
        GOTO 10
@@ -316,6 +320,7 @@
          STOP
         end if      
        ENDIF
+       CALL FLUSH(6)
 !      MIX: Change to FULL ERIs if RI is converged
        IF(IERITYP==3 .and. MIXSTATE==1 .and. CONVGDELAG) THEN
         IF(IPRINTOPT==1)WRITE(6,14)
@@ -342,7 +347,8 @@
         CALL PT2GRAD(ELAG,COEF,AHCORE,IJKL,XIJKL,XIJKaux,USER,IRUNTYP,  &
                      GRADS,ATMNAME,KATOM,KTYPE,KLOC,KMIN,KMAX,          &
                      KSTART,KNG,XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,        &
-                     CD,CF,CG,XINTS,IPRINTOPT)
+                     CD,CF,CG,XINTS,SIZE_ENV,ENV,NATOMSn,ATM,NBAS,BAS,  &
+                     IGTYP,IPRINTOPT)
 !       MIX: Return to RI ERIs if FULL is converged                    
         IF(IERITYP==3 .and. MIXSTATE==2 .and. CONVGDELAG)MIXSTATE = 1
 !                    
@@ -407,7 +413,8 @@
       SUBROUTINE PT2GRAD(ELAG,COEF,AHCORE,IJKL,XIJKL,XIJKaux,USER,      &
                          IRUNTYP,GRADS,ATMNAME,KATOM,KTYPE,KLOC,KMIN,   &
                          KMAX,KSTART,KNG,XATOM,YATOM,ZATOM,ZAN,EX1,CS,  &
-                         CP,CD,CF,CG,XINTS,IPRINTOPT)
+                         CP,CD,CF,CG,XINTS,SIZE_ENV,ENV,NAT,ATM,NBAS,   &
+                         BAS,IGTYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL ERPA,MBPT,OIMP2,SC2MCPT,HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -436,7 +443,11 @@
       INTEGER,DIMENSION(NSHELL):: KATOM,KTYPE,KLOC,KMIN,KMAX,KSTART,KNG
       DOUBLE PRECISION,DIMENSION(NATOMS) :: XATOM,YATOM,ZATOM,ZAN 
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX1,CS,CP,CD,CF,CG
-      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS 
+      DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS
+
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)  
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Orbital-Invariant MP2 Perturbative Corrections
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -515,10 +526,12 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(IRUNTYP>1)THEN
        IF(.not.HighSpin)THEN
+
         CALL PNOFGRAD(COEF,USER(N7),USER(N1),ELAG,GRADS,ATMNAME,KATOM, &
                       KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,XATOM,YATOM,     &
                       ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,USER(N2),USER(N3),  &
-                      XINTS,IPRINTOPT) 
+                      XINTS,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP,       &
+                      IPRINTOPT)
        ELSE
         WRITE(6,8)
         CALL ABRT       
@@ -771,7 +784,6 @@
        MAXI = KMAX(INTYP(J))
        DO I = MINI,MAXI
         IF(I<=35)THEN
-         !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
          WRITE(4,'(A2,I2,A4)')LABELAT,MOD(IAT,1000),BFNAM1(I)
         ELSE
          WRITE(4,'(A2,A6)')LABELAT,BFNAM2(I-35)
@@ -810,7 +822,6 @@
 !-----------------------------------------------------------------------
 !     NUMBER OF BASIS FUNCTIONS PER ATOM: LIMLOW(iat) ... LIMSUP(iat)
 !-----------------------------------------------------------------------
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       IF(NATOMS>1000)THEN
        WRITE(6,*)'Stop, NATOMS>1000, enlarge the dimensions of limlow'
        CALL ABRT       
@@ -1246,6 +1257,7 @@
 !     INPUTFMIUG=0: Diagonal Elements of F (FMIUG0) = Eigenvalues (E)
 !     INPUTFMIUG=1: Read Diagonal Elements of F on file GCF (3)
 ! -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+      FMIUG0 = 0.0D0
       IF(INPUTFMIUG==1)CALL READFMIUG0(FMIUG0,NBF,NSQ)
 !-----------------------------------------------------------------------
       RETURN
@@ -2311,14 +2323,18 @@
 !     Calculate molecular Hcore matrix (HCORE)
 !-----------------------------------------------------------------------
       ALLOCATE(AUX(NBF,NBF))
+      !$OMP PARALLEL DO PRIVATE(J, AUX)
       DO J=1,NBF
        CALL DENMATj(J,AUX,C,NBF)
        QD(J,1:NBF,1:NBF) = AUX(1:NBF,1:NBF)
       ENDDO
+      !$OMP END PARALLEL DO
+      !$OMP PARALLEL DO PRIVATE(J, AUX)
       DO J=1,NBF5
        AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
        CALL TRACEm(HCORE(J),AUX,AHCORE,NBF)
       ENDDO
+      !$OMP END PARALLEL DO
 !-----------------------------------------------------------------------
       DEALLOCATE(AUX)
       RETURN
@@ -2353,11 +2369,13 @@
       DO J=1,NBF5
        AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
        CALL HSTARJ(AUX1,AUX2,IJKL,XIJKL)
+       !$OMP PARALLEL DO PRIVATE(I, IJ, AUX2)
        DO I=1,J
         IJ=I+J*(J-1)/2
         AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
         CALL TRACEm(QJ(IJ),AUX2,AUX1,NBF)
        ENDDO
+       !$OMP END PARALLEL DO
       ENDDO
 !-----------------------------------------------------------------------
       DEALLOCATE (AUX1,AUX2)
@@ -2380,11 +2398,13 @@
       DO J=1,NBF5
        AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
        CALL HSTARK(AUX1,AUX2,IJKL,XIJKL)
+       !$OMP PARALLEL DO PRIVATE(I, IJ, AUX2)
        DO I=1,J
         IJ=I+J*(J-1)/2
         AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
         CALL TRACEm(QK(IJ),AUX2,AUX1,NBF)
        ENDDO
+       !$OMP END PARALLEL DO
       ENDDO
 !-----------------------------------------------------------------------
       DEALLOCATE (AUX1,AUX2)
@@ -2400,15 +2420,15 @@
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 #include "mpip.h"
-      DIMENSION QJ(NBFT5),QK(NBFT5)
-      DIMENSION XIJKAUX(NBF*(NBF+1)/2,IAUXDIM)
+      DOUBLE PRECISION::QJ(NBFT5),QK(NBFT5)
+      DOUBLE PRECISION::XIJKAUX(NBF*(NBF+1)/2,IAUXDIM)
 #ifdef MPI
       DOUBLE PRECISION,DIMENSION(NBFT5)::QQJ,QQK
 #endif
 !-----------------------------------------------------------------------
-      DIMENSION C(NBF,NBF)
-      DIMENSION B_IN(NBF5,NBF)
-      DIMENSION B_IJ(NBF5,NBF5)
+      DOUBLE PRECISION :: C(NBF,NBF)
+      DOUBLE PRECISION,ALLOCATABLE :: B_IN(:,:), B_IJ(:,:)
+      DOUBLE PRECISION,ALLOCATABLE :: QJJ(:), QKK(:)
       INTEGER :: I,J,K,M,N
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
@@ -2422,7 +2442,12 @@
       ENDDO
       CALL MPI_BCAST(C,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
 #endif
-      !$OMP PARALLEL DO PRIVATE(M, N, MN, I, J, IJ, B_IN, B_IJ) REDUCTION(+:QJ,QK)
+      ALLOCATE(B_IN(NBF5,NBF), B_IJ(NBF5,NBF5))
+      ALLOCATE(QJJ(NBFT5),QKK(NBFT5))
+      QJJ = 0.0D0
+      QKK = 0.0D0
+      !$OMP PARALLEL DO PRIVATE(K, M, N, MN, I, J, IJ, B_IN, B_IJ)      &
+      !$OMP REDUCTION(+:QJJ,QKK)
       DO K=1,IAUXDIM
 
         B_IN(1:NBF5,1:NBF) = 0.0d0
@@ -2448,19 +2473,23 @@
         DO J=1,NBF5
           DO I=1,J
             IJ=I+J*(J-1)/2
-            QJ(IJ) = QJ(IJ) + B_IJ(I,I)*B_IJ(J,J)
+            QJJ(IJ) = QJJ(IJ) + B_IJ(I,I)*B_IJ(J,J)
           END DO
         END DO
 
         DO J=1,NBF5
           DO I=1,J
             IJ=I+J*(J-1)/2
-            QK(IJ) = QK(IJ) + B_IJ(I,J)*B_IJ(I,J)
+            QKK(IJ) = QKK(IJ) + B_IJ(I,J)*B_IJ(I,J)
           END DO
         END DO
 
       END DO
       !$OMP END PARALLEL DO
+      DEALLOCATE(B_IN, B_IJ)
+      QJ(1:NBFT5) = QJJ(1:NBFT5)
+      QK(1:NBFT5) = QKK(1:NBFT5)
+      DEALLOCATE(QJJ,QKK)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2617,21 +2646,20 @@
 ! HSTARJKRI
       SUBROUTINE HSTARJKRI(FMJ,FMK,ERIaux,C)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL ERIACTIVATED       
+      LOGICAL ERIACTIVATED
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
 #include "mpip.h"
       DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,IAUXDIM)::ERIaux
       DOUBLE PRECISION,DIMENSION(NBF,NBF):: FMJ,FMK
-      DOUBLE PRECISION,DIMENSION(NBFT):: FJ
-      DOUBLE PRECISION,DIMENSION(NBFT):: FK
+      DOUBLE PRECISION,ALLOCATABLE :: FJ(:),FK(:)
 #ifdef MPI
       DOUBLE PRECISION,DIMENSION(NBFT)::FFJ,FFK
 #endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DOUBLE PRECISION,DIMENSION(NBF)::C
-      DOUBLE PRECISION,DIMENSION(NBF)::B_IN
-      DOUBLE PRECISION::B_II
+      DOUBLE PRECISION,DIMENSION(NBF) :: C
+      DOUBLE PRECISION, ALLOCATABLE :: B_IN(:)
+      DOUBLE PRECISION :: B_II
       INTEGER :: M,N,K
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
@@ -2646,10 +2674,13 @@
       CALL MPI_BCAST(C,NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
 #endif
 
+      ALLOCATE(FJ(NBFT), FK(NBFT), B_IN(NBF))
+
       FJ(1:NBFT) = 0.0d0
       FK(1:NBFT) = 0.0d0
 
-      !$OMP PARALLEL DO PRIVATE(M, N, MN, B_II, B_IN) REDUCTION(+:FJ, FK)
+      !$OMP PARALLEL DO PRIVATE(K, M, N, MN, B_II, B_IN)                &
+      !$OMP REDUCTION(+:FJ, FK)
       DO K=1,IAUXDIM
         B_IN(1:NBF) = 0.0d0
         B_II = 0.0d0
@@ -2687,7 +2718,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
       CALL MPI_REDUCE(FJ,FFJ,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)                               
+                      MPI_COMM_WORLD,IERR)
       CALL MPI_REDUCE(FK,FFK,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
                       MPI_COMM_WORLD,IERR)
       CALL TRIANSQUARE(FMJ,FFJ,NBF,NBFT)
@@ -2696,6 +2727,7 @@
       CALL TRIANSQUARE(FMJ,FJ,NBF,NBFT)
       CALL TRIANSQUARE(FMK,FK,NBF,NBFT)
 #endif      
+      DEALLOCATE(FJ, FK, B_IN)
 !----------------------------------------------------------------------
       RETURN
       END
@@ -2718,7 +2750,7 @@
 !                                                                      !
 !    Minimization of Elec. Energy using CG or LBFGS Algorithms         !
 !                                                                      !
-!    OCUPACIONTFr: Calculate Occupation Numbers and their Derivatives  !
+!    OCUPACIONTFr: Calculate ONs and their Derivatives using Trigomet. !
 !    OCUPACIONSMr: Calculate ONs and their Derivatives using Softmax   !
 !    ENENEWr: Evaluate one-particle energies                           !
 !                                                                      !
@@ -2975,7 +3007,7 @@
       ELSEIF(IPNOF==7)THEN
        CALL CJCKD7(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       ELSEIF(IPNOF==8)THEN
-       CALL CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)      
+       CALL CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       ENDIF
 !-----------------------------------------------------------------------
       DEALLOCATE(BETA,DB)
@@ -3135,7 +3167,7 @@
       ELSEIF(IPNOF==7)THEN
        CALL CJCKD7(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       ELSEIF(IPNOF==8)THEN
-       CALL CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)      
+       CALL CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       ENDIF
 !-----------------------------------------------------------------------
       DEALLOCATE(BETA,DB)
@@ -3339,7 +3371,7 @@
 !-----------------------------------------------------------------------
 !     Avoiding warnings
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NF = NF
+!BORRAR NF = NF (Esta causando Segmentation Fault)
       IUSER(1) = IUSER(1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Occupations
@@ -4399,7 +4431,8 @@
 !          ( PRL 119, 063002, 2017; PRA 100, 032508, 2019 )            !
 !  CJCKD8: Define the coefficientes in front J,K,L integrals for GNOF  !
 !          ( Phys. Rev. Lett. 127, 233001, 2021 )                      !
-!                                                                      !
+!          Define the coefficientes in front J,K,L integrals for GNOFm !
+!          ( Phys. Rev. Lett. 134, 206401, 2025 )                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
 ! CJCKD3 = PNOF3 + pairing conditions
@@ -5037,7 +5070,7 @@
       RETURN
       END
 
-! CJCKD7 = PNOF7n(Nc)(Ista=0) and PNOF7s(Nc)(Ista=1)
+! CJCKD7 = PNOF7(Nc)(Ista=0) and PNOF7s(Nc)(Ista=1)
       SUBROUTINE CJCKD7(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL HighSpin
@@ -5151,13 +5184,14 @@
       RETURN
       END
 
-! CJCKD8 = GNOF
+! CJCKD8 = GNOF(lmod=0) GNOFm(lmod=1)
       SUBROUTINE CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HighSpin      
+      LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_MOD/lmod
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 !
       DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
@@ -5171,7 +5205,9 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !          Dynamic and Static Occupation Numbers (ROd,Rd,FIs)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Hcut = 0.02d0*DSQRT(2.0d0)
+      if(lmod==0 .OR. lmod==1)then                   ! GNOFm
+       Hcutd = 0.02d0*DSQRT(2.0d0)
+      end if
       ROd  = 0.0d0
       DROd = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5180,9 +5216,9 @@
       DO i=1,NDOC
        in = NO1+i
        HOLEin = 1.0d0-RO(in)
-       COC = HOLEin/Hcut       
+       COC = HOLEin/Hcutd
        ARG  = - COC**2
-       DARG = - 2*COC/Hcut
+       DARG = - 2*COC/Hcutd
        Fin = DEXP(ARG)                       ! Hd/Hole
 !      ROd(NO1+1:NB)
        ROd(in) = RO(in) * Fin
@@ -5216,109 +5252,130 @@
       DO j=1,NBF5
        Rd(j) = DSQRT(ROd(j))
        do k=1,nv
-        if(Rd(j)>1.0d-20)DRd(j,k) = 0.5d0 * DROd(j,k) / Rd(j)      
+        if(Rd(j)>0.0d0)DRd(j,k) = 0.5d0 * DROd(j,k) / Rd(j)
        enddo
-      ENDDO 
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     FIs = (Np*Hp)^1/2
+      ENDDO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     FIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       FIs = 0.0d0
-      DFIs = 0.0d0 
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     PNOF7: (Np*Hp)^1/2
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO j=NO1+1,NBF5
-       FIs(j) = DSQRT( RO(j)*(1.0d0-RO(j)) )
-       if(FIs(j)>1.0d-20)then
-        do k=1,nv        
-         DFIs(j,k) = (0.5d0-RO(j))*DR(j,k)/FIs(j)
-        enddo
-       endif
-      ENDDO
+      DFIs = 0.0d0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
+      if(lmod==0 .OR. lmod==1)then
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      FIs = (Np*Hp)^1/2
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
+       DO j=NO1+1,NBF5
+        FIs(j) = DSQRT( RO(j)*(1.0d0-RO(j)) )
+        if(FIs(j)>0.0d0)then
+         do k=1,nv
+          DFIs(j,k) = (0.5d0-RO(j))*DR(j,k)/FIs(j)
+         enddo
+        endif
+       ENDDO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - -
+      end if
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !                  - Interpair Electron Correlation -
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-!     CJpq = 2NpNq , CKpq = NpNq - PIs_pq
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO j=1,NBF5
-       DO i=1,NBF5
-        CJ12(j,i) = 2.0d0*RO(j)*RO(i)
-        CK12(j,i) = RO(j)*RO(i)
-        do k=1,nv
-         DCJ12r(j,i,k) = 2.0d0*DR(j,k)*RO(i)
-         DCK12r(j,i,k) = DR(j,k)*RO(i)
-        enddo
-       ENDDO
-      ENDDO    
+      IF(lmod==0) THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     CKpq = NpNq - PIs_pq
-!     Static component: PIs_pq = - FIs(p)*FIs(q)
+!       CJpq = 2NpNq , CKpq = NpNq
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO j=NO1+1,NB
-       DO i=NA+1,NBF5     
-        CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
-        do k=1,nv
-         DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
-        enddo
-       ENDDO
-      ENDDO
-      DO j=NA+1,NBF5           
-       DO i=NO1+1,NB
-        CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
-        do k=1,nv
-         DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
-        enddo
-       ENDDO
-       DO i=NA+1,NBF5
-        CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
-        do k=1,nv
-         DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
-        enddo
-       ENDDO
-      ENDDO
+        DO j=1,NBF5
+         DO i=1,NBF5
+          CJ12(j,i) = 2.0d0*RO(j)*RO(i)
+          CK12(j,i) = RO(j)*RO(i)
+          do k=1,nv
+           DCJ12r(j,i,k) = 2.0d0*DR(j,k)*RO(i)
+           DCK12r(j,i,k) = DR(j,k)*RO(i)
+          enddo
+         ENDDO
+        ENDDO    
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(MSpin==0.and.NSOC>0)then
-       DO j=NO1+1,NB           
-        DO i=NB+1,NA                                              
-         CK12(j,i) = CK12(j,i) + 0.5d0*FIs(j)*0.5d0
-         do k=1,nv                                                
-          DCK12r(j,i,k) = DCK12r(j,i,k) + 0.5d0*DFIs(j,k)*0.5d0        
-         enddo                                                    
-        ENDDO                                                     
-       ENDDO      
-       DO j=NB+1,NA
-        DO i=NO1+1,NB     
-         CK12(j,i) = CK12(j,i) + 0.5d0*0.5d0*FIs(i) 
+!       CKpq = NpNq - PIs_pq
+!       Static component: PIs_pq = - FIs(p)*FIs(q)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        DO j=NO1+1,NB
+         DO i=NA+1,NBF5     
+          CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
+          do k=1,nv
+           DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
+          enddo
+         ENDDO
         ENDDO
-       ENDDO
-!      
-       DO j=NB+1,NA
-        DO i=NA+1,NBF5     
-         CK12(j,i) = CK12(j,i) + 0.5d0*FIs(i) 
+        DO j=NA+1,NBF5           
+         DO i=NO1+1,NB
+          CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
+          do k=1,nv
+           DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
+          enddo
+         ENDDO
+         DO i=NA+1,NBF5
+          CK12(j,i) = CK12(j,i) + FIs(j)*FIs(i) 
+          do k=1,nv
+           DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*FIs(i)
+          enddo
+         ENDDO
         ENDDO
-       ENDDO
-       DO j=NA+1,NBF5           
-        DO i=NB+1,NA
-         CK12(j,i) = CK12(j,i) + FIs(j)*0.5d0
-         do k=1,nv
-          DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*0.5d0
-         enddo
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        if(MSpin==0.and.NSOC>0)then
+         DO j=NO1+1,NB           
+          DO i=NB+1,NA                                              
+           CK12(j,i) = CK12(j,i) + 0.5d0*FIs(j)*0.5d0
+           do k=1,nv                                                
+            DCK12r(j,i,k) = DCK12r(j,i,k) + 0.5d0*DFIs(j,k)*0.5d0        
+           enddo                                                    
+          ENDDO                                                     
+         ENDDO      
+         DO j=NB+1,NA
+          DO i=NO1+1,NB     
+           CK12(j,i) = CK12(j,i) + 0.5d0*0.5d0*FIs(i) 
+          ENDDO
+         ENDDO
+  !      
+         DO j=NB+1,NA
+          DO i=NA+1,NBF5     
+           CK12(j,i) = CK12(j,i) + 0.5d0*FIs(i) 
+          ENDDO
+         ENDDO
+         DO j=NA+1,NBF5           
+          DO i=NB+1,NA
+           CK12(j,i) = CK12(j,i) + FIs(j)*0.5d0
+           do k=1,nv
+            DCK12r(j,i,k) = DCK12r(j,i,k) + DFIs(j,k)*0.5d0
+           enddo
+          ENDDO
+         ENDDO       
+        end if
+  
+        if(MSpin==0.and.NSOC>1)then
+         DO j=NB+1,NA
+          DO i=NB+1,NA
+           CK12(j,i) = 0.5d0              ! 2.0d0*RO(j)*RO(i)
+           do k=1,nv
+            DCK12r(j,i,k) = 0.0d0         ! 2.0d0*DR(j,k)*RO(i)
+           enddo
+          ENDDO      
+         ENDDO
+        end if            
+      ELSE IF(lmod==1) THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       CJpq = 2NpNq , CKpq = NpNq + FIs(p)*FIs(q)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        DO j=1,NBF5
+         DO i=1,NBF5
+          CJ12(j,i) = 2.0d0*RO(j)*RO(i)
+          CK12(j,i) = RO(j)*RO(i) + FIs(j)*FIs(i)
+          do k=1,nv
+           DCJ12r(j,i,k) = 2.0d0*DR(j,k)*RO(i)
+           DCK12r(j,i,k) = DR(j,k)*RO(i) + DFIs(j,k)*FIs(i)
+          enddo
+         ENDDO
         ENDDO
-       ENDDO       
-      end if
-
-      if(MSpin==0.and.NSOC>1)then
-       DO j=NB+1,NA
-        DO i=NB+1,NA
-         CK12(j,i) = 0.5d0              ! 2.0d0*RO(j)*RO(i)
-         do k=1,nv
-          DCK12r(j,i,k) = 0.0d0         ! 2.0d0*DR(j,k)*RO(i)
-         enddo
-        ENDDO      
-       ENDDO
-      end if      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
-!     CKpq = CKpq - PId_pq 
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     CKpq = CKpq - PId_pq
 !     Dynamic component: PId_pq = - Rd(p)*Rd(q) + ROd(p)*ROd(q)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO j=NO1+1,NB
@@ -5328,7 +5385,7 @@
          DCK12r(j,i,k) = DCK12r(j,i,k)+DRd(j,k)*Rd(i)-DROd(j,k)*ROd(i)
         enddo
        ENDDO
-      ENDDO      
+      ENDDO
       DO j=NA+1,NBF5
        DO i=NO1+1,NB
         CK12(j,i) = CK12(j,i) + Rd(j)*Rd(i) - ROd(j)*ROd(i)

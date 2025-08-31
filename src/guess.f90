@@ -15,7 +15,8 @@
                              EIG,VEC,XInteg,IXInteg,XIntegaux,NSHELL,   &
                              NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm,     &
                              NINTEGt,NREC,XINTS,NSH2,IDONTW,INPUTC,     &
-                             IPRINTOPT,ZAN)
+                             IPRINTOPT,ZAN,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
+                             IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                                
 !      
       LOGICAL RHF                                                        
@@ -26,6 +27,7 @@
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       LOGICAL HFID
       COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
+      COMMON/INTOPT/ISCHWZ,IECP,NECP
 !      
       INTEGER :: NPRIMI,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm
       INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT
@@ -42,6 +44,11 @@
       DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: TKIN,DipoInt,Q
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCCa,OCCb,DENa,DENb
+
+      INTEGER :: SIZE_ENV,NBAS           !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)  !LIBCINT
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS) !LIBCINT
+      INTEGER :: IGTYP                   !LIBCINT
 !-----------------------------------------------------------------------
 !     IRHFTYP=1: Restricted Closed HF
 !     IRHFTYP=2: Restricted Open HF
@@ -68,7 +75,8 @@
       ALLOCATE(TKIN(NBFT),DipoInt(3*NBFT))
       CALL OneElecInt(Cxyz,H,S,TKIN,DipoInt,NBFT,IPRINTOPT,             &
                       EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,            &
-                      KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,ZAN)
+                      KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,ZAN,NAT,    &
+                      IECP,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Initial Orbitals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -86,12 +94,13 @@
        CALL JandK(XInteg,IXInteg,NINTEGtm,NINTEGt,NREC,XINTS,NSH2,      &
                   IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,      &
                   KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,         &
-                  Cxyz,NAT)
+                  Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       end if
       if(IERITYP==2 .or. IERITYP==3)then   ! RI or MIX
        CALL JandKaux(XIntegaux,NINTEGAUXtm,IDONTW,IPRINTOPT,NBF,        &
                      EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,       &
-                     KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
+                     KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,          &
+                     SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate the Restricted HF Energy of Molecule

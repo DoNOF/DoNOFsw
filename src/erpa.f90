@@ -48,7 +48,7 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:,:) :: A
 
 !-----------------------------------------------------------------------
-!     This code solve the ERPA equations using the PNOFi (i=5,7,8) RDMs
+!     This code solve the ERPA equations using the PNOFi (i=5,7,9) RDMs
 !     requiring to solve the eigenproblem:
 !
 !     ( A_rspq    B_rspq    A_rspp) (Xpq)     ( dN_rs    0    0)(Xpq)
@@ -619,7 +619,7 @@
       ALLOCATE(FI(NBF5))
       ALLOCATE(Pi_s(NBF5,NBF5),Pi_d(NBF5,NBF5),INTRA(NBF5,NBF5),INTER(NBF5,NBF5),INTER2(NBF5,NBF5))
 
-      IF(IPNOF.NE.5 .AND. IPNOF.NE.7 .AND. IPNOF.NE.8) THEN
+      IF(IPNOF.NE.5 .AND. IPNOF.NE.7 .AND. IPNOF.NE.9) THEN
         WRITE(*,*) "ERROR in ERPA: Compute_2RDM Subroutine has been coded only for PNOF5, PNOF7 and GNOF"
       END IF
 
@@ -638,7 +638,7 @@
         END DO
       END DO
 
-      ! PNOF5 eq. (18)  J. Chem. Phys. 139, 234109 (2013). 
+      ! PNOF5: Eq. (18) in J. Chem. Phys. 139, 234109 (2013).
       DO l=1,NDOC
        ln = NO1+l
        INTER(ln,ln) = 0.0D0
@@ -674,8 +674,8 @@
       END DO
 
       ! Add PNOF7 contributions to D(alpha,beta)
-      ! eq. (21) Phys. Rev. A 100, 032508 (2019).
-      IF(IPNOF.EQ.7 .OR. IPNOF.EQ.8) THEN
+      ! Eq. (21) in Phys. Rev. A 100, 032508 (2019).
+      IF(IPNOF.EQ.7 .OR. IPNOF.EQ.9) THEN
         FI = RO*(1-RO)
         FI = SQRT(MAX(FI,0.0D0))
         DO I=1,NBF5
@@ -707,8 +707,8 @@
         INTER(NDOC+1:NDNS,NDOC+1:NDNS) = Pi_s(NDOC+1:NDNS,NDOC+1:NDNS)
 
         ! In case of GNOF, modify Pi_s for the D(alpha,beta) contributions
-        ! as in eq. (4)  Phys. Rev. Lett. 127, 233001 (2021).
-        IF(IPNOF.EQ.8) THEN
+        ! as in Eq. (4) of Phys. Rev. Lett. 127, 233001 (2021).
+        IF(IPNOF.EQ.9) THEN
           Pi_s(1:NDOC,1:NDOC) = 0.0D0
           Pi_s(1:NDOC,NDOC+1:NDNS) = Pi_s(1:NDOC,NDOC+1:NDNS)*0.5
           Pi_s(NDOC+1:NDNS,1:NDOC) = Pi_s(NDOC+1:NDNS,1:NDOC)*0.5
@@ -721,8 +721,8 @@
         END DO
 
         ! GNOF Pi_d for the D(alpha,beta) contributions
-        ! as in eq. (4)  Phys. Rev. Lett. 127, 233001 (2021).
-        IF(IPNOF.EQ.8) THEN
+        ! as in Eq. (4) of Phys. Rev. Lett. 127, 233001 (2021).
+        IF(IPNOF.EQ.9) THEN
           Hcut = 0.02d0*DSQRT(2.0d0)
           ROd  = 0.0D0
           DROd = 0.0D0

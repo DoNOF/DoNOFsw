@@ -4,219 +4,2938 @@
 !                                                                      !
 !======================================================================!
 !======================================================================!
+MODULE AOINTS
+      IMPLICIT NONE
 
-! OneElecInt                                           
-      SUBROUTINE OneElecInt(Cxyz,H,S,TKIN,DInteg,NBFT,IPRINTOPT,        &
-                            EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,      &
-                            KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,ZAN)
+      !COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
+      !ICOUNT TRACK THE NUMBER OF INTEGRALS IN EACH THREAD
+      DOUBLE PRECISION :: SHLTOL, CUTOFF
+
+      !COMMON/SHLNOS1/QQ4,IJKL
+      ! QQ4 is the number of times that an integral appears (due to symmetry)
+      ! IJKL is the size of the integral block given by the dimension of the
+      ! 4 Shells
+      INTEGER :: QQ4, IJKL
+      !$OMP THREADPRIVATE(QQ4, IJKL) 
+
+      !COMMON/NORMAL/NORM
+      ! NORM decides if gaussians are normalized
+      LOGICAL       NORM
+      !$OMP THREADPRIVATE(NORM) 
+
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      LOGICAL     IANDJ,KANDL,SAME
+      ! Look symmetries in the shells of the integrals
+      !$OMP THREADPRIVATE(IANDJ, KANDL, SAME)
+
+      !COMMON /ERIOUT/ INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL
+      INTEGER :: INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL
+      ! Mirror ISH, JSH, KSH and LSH, but considers permutation
+      !$OMP THREADPRIVATE(INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL)
+      !
+
+      !NROOTS for each integral block
+      INTEGER :: NROOTS
+      !$OMP THREADPRIVATE(NROOTS)
+
+      INTEGER :: NGTH(4)
+
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)                                 
+      INTEGER :: IJGT(784),KLGT(784)
+      !$OMP THREADPRIVATE(IJGT, KLGT)
+
+      !COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),              &
+      !                KLX(784),KLY(784),KLZ(784)
+      INTEGER :: IJX(784),IJY(784),IJZ(784),IK(784),                    &
+                      KLX(784),KLY(784),KLZ(784)
+      !$OMP THREADPRIVATE(IJX,IJY,IJZ,IK,KLX,KLY,KLZ)
+
+      !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                   &
+      !              CFA(30),CGA(30),CHA(30),CIA(30),                   &
+      !               GB(30),CSB(30),CPB(30),CDB(30),                   &
+      !              CFB(30),CGB(30),CHB(30),CIB(30),                   &
+      !               GC(30),CSC(30),CPC(30),CDC(30),                   &
+      !              CFC(30),CGC(30),CHC(30),CIC(30),                   &
+      !               GD(30),CSD(30),CPD(30),CDD(30),                   &
+      !              CFD(30),CGD(30),CHD(30),CID(30),                   &
+      !              AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                    &
+      !              DX,DY,DZ,RCD,NGA,NGB,NGC,NGD       
+      DOUBLE PRECISION :: GA(30),CSA(30),CPA(30),CDA(30),               &
+                    CFA(30),CGA(30),CHA(30),CIA(30),                    &
+                     GB(30),CSB(30),CPB(30),CDB(30),                    &
+                    CFB(30),CGB(30),CHB(30),CIB(30),                    &
+                     GC(30),CSC(30),CPC(30),CDC(30),                    &
+                    CFC(30),CGC(30),CHC(30),CIC(30),                    &
+                     GD(30),CSD(30),CPD(30),CDD(30),                    &
+                    CFD(30),CGD(30),CHD(30),CID(30),                    &
+                    AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
+                   DX,DY,DZ,RCD
+      INTEGER :: NGA,NGB,NGC,NGD       
+      !$OMP THREADPRIVATE(GA,CSA,CPA,CDA,CFA,CGA,CHA,CIA,               &
+      !$OMP               GB,CSB,CPB,CDB,CFB,CGB,CHB,CIB,               &
+      !$OMP               GC,CSC,CPC,CDC,CFC,CGC,CHC,CIC,               &
+      !$OMP               GD,CSD,CPD,CDD,CFD,CGD,CHD,CID,               &
+      !$OMP               AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,               &
+      !$OMP               DX,DY,DZ,RCD,NGA,NGB,NGC,NGD)
+
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
+      !               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
+      !               NIJ,IJ,KL    
+      INTEGER :: LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                   &
+                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,           &
+                     NIJ,IJ,KL    
+      !$OMP THREADPRIVATE(LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,          &
+      !$OMP               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,      &
+      !$OMP               NIJ,IJ,KL)
+
+      INTEGER :: II,JJ
+      LOGICAL :: IIANDJJ
+
+      !COMMON /IJGNRL/ A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),       &
+      !              Y1_IJGNRL(900),Z1_IJGNRL(900),IJD(784)                                             
+      DOUBLE PRECISION :: A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),    &
+                          Y1_IJGNRL(900),Z1_IJGNRL(900)
+      INTEGER :: IJD(784)                                             
+      !$OMP THREADPRIVATE(A_IJGNRL,R_IJGNRL,X1_IJGNRL,Y1_IJGNRL,         &
+      !$OMP               Z1_IJGNRL,IJD)
+
+      !COMMON/DENS/DKL(784),DIJ(784)
+      DOUBLE PRECISION :: DKL(784),DIJ(784)
+      !$OMP THREADPRIVATE(DKL,DIJ)
+
+      !COMMON/SETINT/IN(13),KN(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,   &
+      !              BP01,B00,B10,XCP00,XC00,YCP00,YC00,                &
+      !              ZCP00,ZC00,F00,                                    &
+      !              DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                        
+      INTEGER :: INN(13),KNN(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX
+      DOUBLE PRECISION :: BP01,B00,B10,XCP00,XC00,YCP00,YC00,           &
+                    ZCP00,ZC00,F00,                                     &
+                    DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                        
+      !$OMP THREADPRIVATE(INN,KNN,NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,    &
+      !$OMP          BP01,B00,B10,XCP00,XC00,YCP00,YC00,                &
+      !$OMP          ZCP00,ZC00,F00,                                    &
+      !$OMP          DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL)
+
+      !COMMON /XYZ   / XINT(31213),YINT(31213),ZINT(31213)               
+      DOUBLE PRECISION :: XINT(31213),YINT(31213),ZINT(31213)
+      !$OMP THREADPRIVATE(XINT,YINT,ZINT)
+
+
+      CONTAINS
+ 
+! Calling by HSandT & ERISPDFGHIL: RT123 
+      SUBROUTINE RT123(X,RT,WW,NROOTS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/USELIBRETA/ILIBRETA      
-      COMMON/INTOPT/ISCHWZ,IECP,NECP            
-      COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                        
-      LOGICAL EFLDL                                                  
-      COMMON/EFLDC_1/EFLDL
-      COMMON/EFLDC_2/EVEC(3)
-!      
-      INTEGER :: NBFT,IPRINTOPT,NPRIMI,NSHELL
-      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN    
-      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
-      INTEGER :: CR, CM, timestartoneE, timefinishoneE
-      DOUBLE PRECISION :: RATE
-!-----------------------------------------------------------------------
-      IF(IPRINTOPT==1)WRITE(6,'(/1X,A13/,1X,13(1H-))')'1e- integrals'
-!-----------------------------------------------------------------------
-!     Initialization for system_clock
-!-----------------------------------------------------------------------
-      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
-      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
-      RATE = REAL(CR)
-      CALL SYSTEM_CLOCK(timestartoneE)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
-!     H, S & T integrals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(ILIBRETA==0)then
-       CALL HSandT(H,S,TKIN,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,        &
-                   KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,        &
-                   ZAN,Cxyz)
-      else if(ILIBRETA==1)then
-       CALL HSandTlib(H,S,TKIN,NBFT,KATOM,KLOC,KMIN,KMAX,NSHELL,        &
-                      ZAN,Cxyz)      
-      end if
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ECP integrals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF( 1<=IECP .and. IECP<=3 )THEN
-       CALL ECPINT(H,NBFT,EX,CS,CP,CD,CF,CG,NPRIMI,KSTART,KATOM,KNG,    &
-                   KLOC,KMIN,KMAX,NSHELL,Cxyz)
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Add Electric Field Contribution to 1e Hamiltonian
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(EFLDL)THEN
-       CALL DipInt(DInteg,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,          &
-                   KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,        &
-                   Cxyz,NAT)
-       CALL ElecFieldInt(H,DInteg,NBFT)              
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL SYSTEM_CLOCK(timefinishoneE)
-      DeltaToneE = (timefinishoneE - timestartoneE)/RATE
-      IF(IPRINTOPT==1)                                                  &
-       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE                                                                                                    
-!-----------------------------------------------------------------------
-      RETURN                                                            
-      END                                                               
-
-! DipInt                                           
-      SUBROUTINE DipInt(DInteg,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,     &
-                        KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,   &
-                        Cxyz,NAT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/USELIBRETA/ILIBRETA            
-      COMMON/ELPROP/IEMOM      
-      COMMON/TRANSF/XP,YP,ZP
-      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Dipole integrals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      XP = 0.0d0                                                           
-      YP = 0.0d0
-      ZP = 0.0d0                                                        
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IEMSV = IEMOM                                                  
-      IEMOM = 1    
-      ALLOCATE(AUX(3*784))
-      if(ILIBRETA==0)then
-       CALL PRCALC(DInteg,AUX,3,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,    &
-                   KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz)                   
-      else if(ILIBRETA==1)then
-       CALL PRCALClib(DInteg,AUX,3,NBFT,KATOM,KLOC,KMIN,KMAX,NSHELL)      
-      end if
-      IEMOM = IEMSV                                                  
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DEALLOCATE(AUX)                                                                                  
-      RETURN                                                            
-      END                                                               
-
-! ElecFieldInt
-      SUBROUTINE ElecFieldInt(H,DInteg,NBFT)   
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      LOGICAL EFLDL                                                  
-      COMMON/EFLDC_1/EFLDL
-      COMMON/EFLDC_2/EVEC(3) 
-      DOUBLE PRECISION,DIMENSION(NBFT) :: H
-      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
-!-----------------------------------------------------------------------
-      WRITE(6,'(1X,A16,3F10.5)')'Electric Field =',(EVEC(I),I=1,3)                     
-      IF(EVEC(1)/=0.0d0)CALL DAXPY(NBFT,EVEC(1),DInteg(1       ),1,H,1)              
-      IF(EVEC(2)/=0.0d0)CALL DAXPY(NBFT,EVEC(2),DInteg(1+  NBFT),1,H,1)              
-      IF(EVEC(3)/=0.0d0)CALL DAXPY(NBFT,EVEC(3),DInteg(1+2*NBFT),1,H,1)              
-!----------------------------------------------------------------------- 
-      RETURN                                                            
-      END                                                               
-
-! JandK                                            
-      SUBROUTINE JandK(BUFP2,IX2,NINTEGtm,NINTEGt,NRECO,XINTS,NSH2,     &
-                       IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI, &
-                       KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,    &
-                       Cxyz,NAT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/USELIBRETA/ILIBRETA      
-      COMMON/INTFIL/NINTMX           
-      COMMON/INTOPT/ISCHWZ,IECP,NECP            
-      COMMON/RESTAR/NREC,IST,JST,KST,LST           
-!      
-      LOGICAL SCHWRZ
-      INTEGER :: NINTEGtm,NINTEGt,NRECO,NSH2,IDONTW,IPRINTOPT
-      INTEGER :: NPRIMI,NSHELL,NAT
-      INTEGER,DIMENSION(NINTEGtm) :: IX2
-      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
-      DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
+      DOUBLE PRECISION :: X, RT(13), WW(13)
+      INTEGER :: NROOTS
+      !COMMON /ROOT  / X,RT(13),WW(13),NROOTS
+      !EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
+      !EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
+      DATA R12,PIE4/2.75255128608411D-01, 7.85398163397448D-01/
+      DATA R22,W22/ 2.72474487139158D+00, 9.17517095361369D-02/
+      DATA R13/     1.90163509193487D-01/
+      DATA R23,W23/ 1.78449274854325D+00, 1.77231492083829D-01/
+      DATA R33,W33/ 5.52534374226326D+00, 5.11156880411248D-03/
 !
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IX
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFP,GHONDOLIB
-      INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
-      DOUBLE PRECISION :: RATE
+      IF (X > 5.0D+00) GO TO 400
+      IF (X > 1.0D+00) GO TO 280
+      IF (X > 3.0D-07) GO TO 180
+!     X IS APPROXIMATELY 0.0d0.         NROOTS=1,2, OR 3
+      IF (NROOTS-2) 120,140,160
+  120 RT(1) = 0.5D+00 -X/5.0D+00
+      WW(1) = 1.0D+00 -X/3.0D+00
+      RETURN
+  140 RT(1) = 1.30693606237085D-01 -2.90430236082028D-02 *X
+      RT(2) = 2.86930639376291D+00 -6.37623643058102D-01 *X
+      WW(1) = 6.52145154862545D-01 -1.22713621927067D-01 *X
+      WW(2) = 3.47854845137453D-01 -2.10619711404725D-01 *X
+      RETURN
+  160 RT(1) = 6.03769246832797D-02 -9.28875764357368D-03 *X
+      RT(2) = 7.76823355931043D-01 -1.19511285527878D-01 *X
+      RT(3) = 6.66279971938567D+00 -1.02504611068957D+00 *X
+      WW(1) = 4.67913934572691D-01 -5.64876917232519D-02 *X
+      WW(2) = 3.60761573048137D-01 -1.49077186455208D-01 *X
+      WW(3) = 1.71324492379169D-01 -1.27768455150979D-01 *X
+      RETURN
+!     X = 0.0 TO 1.0                   NROOTS=1,2, OR 3
+  180 IF (NROOTS == 3) GO TO 220
+      F1 = ((((((((-8.36313918003957D-08*X+1.21222603512827D-06 )*X-    &
+           1.15662609053481D-05 )*X+9.25197374512647D-05 )*X-           &
+           6.40994113129432D-04 )*X+3.78787044215009D-03 )*X-           &
+           1.85185172458485D-02 )*X+7.14285713298222D-02 )*X-           &
+           1.99999999997023D-01 )*X+3.33333333333318D-01                 
+      WW(1) = (X+X)*F1+EXP(-X)                                             
+      IF (NROOTS == 2) GO TO 200                                         
+      RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  200 RT(1) = (((((((-2.35234358048491D-09*X+2.49173650389842D-08)*X-     &
+           4.558315364581D-08)*X-2.447252174587D-06)*X+                 &
+           4.743292959463D-05)*X-5.33184749432408D-04 )*X+              &
+           4.44654947116579D-03 )*X-2.90430236084697D-02 )*X+           &
+           1.30693606237085D-01                                          
+      RT(2) = (((((((-2.47404902329170D-08*X+2.36809910635906D-07)*X+     &
+           1.835367736310D-06)*X-2.066168802076D-05)*X-                 &
+           1.345693393936D-04)*X-5.88154362858038D-05 )*X+              &
+           5.32735082098139D-02 )*X-6.37623643056745D-01 )*X+           &
+           2.86930639376289D+00                                          
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  220 RT(1) = ((((((-5.10186691538870D-10*X+2.40134415703450D-08)*X-      &
+           5.01081057744427D-07 )*X+7.58291285499256D-06 )*X-           &
+           9.55085533670919D-05 )*X+1.02893039315878D-03 )*X-           &
+           9.28875764374337D-03 )*X+6.03769246832810D-02                 
+      RT(2) = ((((((-1.29646524960555D-08*X+7.74602292865683D-08)*X+      &
+           1.56022811158727D-06 )*X-1.58051990661661D-05 )*X-           &
+           3.30447806384059D-04 )*X+9.74266885190267D-03 )*X-           &
+           1.19511285526388D-01 )*X+7.76823355931033D-01                 
+      RT(3) = ((((((-9.28536484109606D-09*X-3.02786290067014D-07)*X-      &
+           2.50734477064200D-06 )*X-7.32728109752881D-06 )*X+           &
+           2.44217481700129D-04 )*X+4.94758452357327D-02 )*X-           &
+           1.02504611065774D+00 )*X+6.66279971938553D+00                 
+      F2 = ((((((((-7.60911486098850D-08*X+1.09552870123182D-06 )*X-    &
+           1.03463270693454D-05 )*X+8.16324851790106D-05 )*X-           &
+           5.55526624875562D-04 )*X+3.20512054753924D-03 )*X-           &
+           1.51515139838540D-02 )*X+5.55555554649585D-02 )*X-           &
+           1.42857142854412D-01 )*X+1.99999999999986D-01                 
+  240 E = EXP(-X)                                                        
+      F1 = ((X+X)*F2+E)/3.0D+00                                          
+      WW(1) = (X+X)*F1+E                                                   
+  260 T1 = RT(1)/(RT(1)+1.0D+00)                                             
+      T2 = RT(2)/(RT(2)+1.0D+00)                                             
+      T3 = RT(3)/(RT(3)+1.0D+00)                                             
+      A2 = F2-T1*F1                                                      
+      A1 = F1-T1*WW(1)                                                     
+      WW(3) = (A2-T2*A1)/((T3-T2)*(T3-T1))                                 
+      WW(2) = (T3*A1-A2)/((T3-T2)*(T2-T1))                                 
+      WW(1) = WW(1)-WW(2)-WW(3)                                                  
+      RETURN                                                             
+  280 IF (X > 3.0D+00) GO TO 340                                         
+!     X = 1.0 TO 3.0                   NROOTS=1,2, OR 3                  
+      Y = X-2.0D+00                                                      
+      IF (NROOTS == 3) GO TO 320                                         
+      F1 = ((((((((((-1.61702782425558D-10*Y+1.96215250865776D-09 )*Y-  &
+           2.14234468198419D-08 )*Y+2.17216556336318D-07 )*Y-           &
+           1.98850171329371D-06 )*Y+1.62429321438911D-05 )*Y-           &
+           1.16740298039895D-04 )*Y+7.24888732052332D-04 )*Y-           &
+           3.79490003707156D-03 )*Y+1.61723488664661D-02 )*Y-           &
+           5.29428148329736D-02 )*Y+1.15702180856167D-01                 
+      WW(1) = (X+X)*F1+EXP(-X)                                             
+      IF (NROOTS == 2) GO TO 300                                         
+      RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  300 RT(1) = (((((((((-6.36859636616415D-12*Y+8.47417064776270D-11)*Y-   &
+           5.152207846962D-10)*Y-3.846389873308D-10)*Y+                 &
+           8.472253388380D-08)*Y-1.85306035634293D-06 )*Y+              &
+           2.47191693238413D-05 )*Y-2.49018321709815D-04 )*Y+           &
+           2.19173220020161D-03 )*Y-1.63329339286794D-02 )*Y+           &
+           8.68085688285261D-02                                          
+      RT(2) = ((((((((( 1.45331350488343D-10*Y+2.07111465297976D-09)*Y-   &
+           1.878920917404D-08)*Y-1.725838516261D-07)*Y+                 &
+           2.247389642339D-06)*Y+9.76783813082564D-06 )*Y-              &
+           1.93160765581969D-04 )*Y-1.58064140671893D-03 )*Y+           &
+           4.85928174507904D-02 )*Y-4.30761584997596D-01 )*Y+           &
+           1.80400974537950D+00                                          
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  320 RT(1) = (((((((( 1.44687969563318D-12*Y+4.85300143926755D-12)*Y-    &
+           6.55098264095516D-10 )*Y+1.56592951656828D-08 )*Y-           &
+           2.60122498274734D-07 )*Y+3.86118485517386D-06 )*Y-           &
+           5.13430986707889D-05 )*Y+6.03194524398109D-04 )*Y-           &
+           6.11219349825090D-03 )*Y+4.52578254679079D-02                 
+      RT(2) = ((((((( 6.95964248788138D-10*Y-5.35281831445517D-09)*Y-     &
+           6.745205954533D-08)*Y+1.502366784525D-06)*Y+                 &
+           9.923326947376D-07)*Y-3.89147469249594D-04 )*Y+              &
+           7.51549330892401D-03 )*Y-8.48778120363400D-02 )*Y+           &
+           5.73928229597613D-01                                          
+      RT(3) = ((((((((-2.81496588401439D-10*Y+3.61058041895031D-09)*Y+    &
+           4.53631789436255D-08 )*Y-1.40971837780847D-07 )*Y-           &
+           6.05865557561067D-06 )*Y-5.15964042227127D-05 )*Y+           &
+           3.34761560498171D-05 )*Y+5.04871005319119D-02 )*Y-           &
+           8.24708946991557D-01 )*Y+4.81234667357205D+00                 
+      F2 = ((((((((((-1.48044231072140D-10*Y+1.78157031325097D-09 )*Y-  &
+           1.92514145088973D-08 )*Y+1.92804632038796D-07 )*Y-           &
+           1.73806555021045D-06 )*Y+1.39195169625425D-05 )*Y-           &
+           9.74574633246452D-05 )*Y+5.83701488646511D-04 )*Y-           &
+           2.89955494844975D-03 )*Y+1.13847001113810D-02 )*Y-           &
+           3.23446977320647D-02 )*Y+5.29428148329709D-02                 
+      GO TO 240                                                          
+!     X = 3.0 TO 5.0                   NROOTS =1,2, OR 3                 
+  340 Y = X-4.0D+00                                                      
+      IF (NROOTS == 3) GO TO 380                                         
+      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y-  &
+           3.614965656163D-09)*Y+3.760256799971D-08)*Y-                 &
+           3.553558319675D-07)*Y+3.022556449731D-06)*Y-                 &
+           2.290098979647D-05)*Y+1.526537461148D-04)*Y-                 &
+           8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-           &
+           1.75257821619926D-02 )*Y+5.28406320615584D-02                 
+      WW(1) = (X+X)*F1+EXP(-X)                                             
+      IF (NROOTS == 2) GO TO 360                                         
+      RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  360 RT(1) = ((((((((-4.11560117487296D-12*Y+7.10910223886747D-11)*Y-    &
+           1.73508862390291D-09 )*Y+5.93066856324744D-08 )*Y-           &
+           9.76085576741771D-07 )*Y+1.08484384385679D-05 )*Y-           &
+           1.12608004981982D-04 )*Y+1.16210907653515D-03 )*Y-           &
+           9.89572595720351D-03 )*Y+6.12589701086408D-02                 
+      RT(2) = (((((((((-1.80555625241001D-10*Y+5.44072475994123D-10)*Y+   &
+           1.603498045240D-08)*Y-1.497986283037D-07)*Y-                 &
+           7.017002532106D-07)*Y+1.85882653064034D-05 )*Y-              &
+           2.04685420150802D-05 )*Y-2.49327728643089D-03 )*Y+           &
+           3.56550690684281D-02 )*Y-2.60417417692375D-01 )*Y+           &
+           1.12155283108289D+00                                          
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  380 RT(1) = ((((((( 1.44265709189601D-11*Y-4.66622033006074D-10)*Y+     &
+           7.649155832025D-09)*Y-1.229940017368D-07)*Y+                 &
+           2.026002142457D-06)*Y-2.87048671521677D-05 )*Y+              &
+           3.70326938096287D-04 )*Y-4.21006346373634D-03 )*Y+           &
+           3.50898470729044D-02                                          
+      RT(2) = ((((((((-2.65526039155651D-11*Y+1.97549041402552D-10)*Y+    &
+           2.15971131403034D-09 )*Y-7.95045680685193D-08 )*Y+           &
+           5.15021914287057D-07 )*Y+1.11788717230514D-05 )*Y-           &
+           3.33739312603632D-04 )*Y+5.30601428208358D-03 )*Y-           &
+           5.93483267268959D-02 )*Y+4.31180523260239D-01                 
+      RT(3) = ((((((((-3.92833750584041D-10*Y-4.16423229782280D-09)*Y+    &
+           4.42413039572867D-08 )*Y+6.40574545989551D-07 )*Y-           &
+           3.05512456576552D-06 )*Y-1.05296443527943D-04 )*Y-           &
+           6.14120969315617D-04 )*Y+4.89665802767005D-02 )*Y-           &
+           6.24498381002855D-01 )*Y+3.36412312243724D+00                 
+      F2 = ((((((((((-2.36788772599074D-11*Y+2.89147476459092D-10 )*Y-  &
+           3.18111322308846D-09 )*Y+3.25336816562485D-08 )*Y-           &
+           3.00873821471489D-07 )*Y+2.48749160874431D-06 )*Y-           &
+           1.81353179793672D-05 )*Y+1.14504948737066D-04 )*Y-           &
+           6.10614987696677D-04 )*Y+2.64584212770942D-03 )*Y-           &
+           8.66415899015349D-03 )*Y+1.75257821619922D-02                 
+      GO TO 240                                                          
+  400 IF (X > 15.0D+00) GO TO 560                                        
+      E = EXP(-X)                                                        
+      IF (X > 10.0D+00) GO TO 480                                        
+!     X = 5.0 TO 10.0                  NROOTS =1,2, OR 3                 
+      WW(1) = (((((( 4.6897511375022D-01/X-6.9955602298985D-01)/X +       &
+           5.3689283271887D-01)/X-3.2883030418398D-01)/X +              &
+           2.4645596956002D-01)/X-4.9984072848436D-01)/X -              &
+           3.1501078774085D-06)*E + SQRT(PIE4/X)                         
+      F1 = (WW(1)-E)/(X+X)                                                 
+      IF (NROOTS-2) 420,440,460                                          
+  420 RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  440 Y = X-7.5D+00                                                      
+      RT(1) = (((((((((((((-1.43632730148572D-16*Y+2.38198922570405D-16)* &
+           Y+1.358319618800D-14)*Y-7.064522786879D-14)*Y-               &
+           7.719300212748D-13)*Y+7.802544789997D-12)*Y+                 &
+           6.628721099436D-11)*Y-1.775564159743D-09)*Y+                 &
+           1.713828823990D-08)*Y-1.497500187053D-07)*Y+                 &
+           2.283485114279D-06)*Y-3.76953869614706D-05 )*Y+              &
+           4.74791204651451D-04 )*Y-4.60448960876139D-03 )*Y+           &
+           3.72458587837249D-02                                          
+      RT(2) = (((((((((((( 2.48791622798900D-14*Y-1.36113510175724D-13)*Y-&
+           2.224334349799D-12)*Y+4.190559455515D-11)*Y-                 &
+           2.222722579924D-10)*Y-2.624183464275D-09)*Y+                 &
+           6.128153450169D-08)*Y-4.383376014528D-07)*Y-                 &
+           2.49952200232910D-06 )*Y+1.03236647888320D-04 )*Y-           &
+           1.44614664924989D-03 )*Y+1.35094294917224D-02 )*Y-           &
+           9.53478510453887D-02 )*Y+5.44765245686790D-01                 
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  460 F2 = (F1+F1+F1-E)/(X+X)                                            
+      Y = X-7.5D+00                                                      
+      RT(1) = ((((((((((( 5.74429401360115D-16*Y+7.11884203790984D-16)*Y- &
+           6.736701449826D-14)*Y-6.264613873998D-13)*Y+                 &
+           1.315418927040D-11)*Y-4.23879635610964D-11 )*Y+              &
+           1.39032379769474D-09 )*Y-4.65449552856856D-08 )*Y+           &
+           7.34609900170759D-07 )*Y-1.08656008854077D-05 )*Y+           &
+           1.77930381549953D-04 )*Y-2.39864911618015D-03 )*Y+           &
+           2.39112249488821D-02                                          
+      RT(2) = ((((((((((( 1.13464096209120D-14*Y+6.99375313934242D-15)*Y- &
+           8.595618132088D-13)*Y-5.293620408757D-12)*Y-                 &
+           2.492175211635D-11)*Y+2.73681574882729D-09 )*Y-              &
+           1.06656985608482D-08 )*Y-4.40252529648056D-07 )*Y+           &
+           9.68100917793911D-06 )*Y-1.68211091755327D-04 )*Y+           &
+           2.69443611274173D-03 )*Y-3.23845035189063D-02 )*Y+           &
+           2.75969447451882D-01                                          
+      RT(3) = (((((((((((( 6.66339416996191D-15*Y+1.84955640200794D-13)*Y-&
+           1.985141104444D-12)*Y-2.309293727603D-11)*Y+                 &
+           3.917984522103D-10)*Y+1.663165279876D-09)*Y-                 &
+           6.205591993923D-08)*Y+8.769581622041D-09)*Y+                 &
+           8.97224398620038D-06 )*Y-3.14232666170796D-05 )*Y-           &
+           1.83917335649633D-03 )*Y+3.51246831672571D-02 )*Y-           &
+           3.22335051270860D-01 )*Y+1.73582831755430D+00                 
+      GO TO 260                                                          
+!     X = 10.0 TO 15.0                 NROOTS=1,2, OR 3                  
+  480 WW(1) = (((-1.8784686463512D-01/X+2.2991849164985D-01)/X -          &
+           4.9893752514047D-01)/X-2.1916512131607D-05)*E + SQRT(PIE4/X)  
+      F1 = (WW(1)-E)/(X+X)                                                 
+      IF (NROOTS-2) 500,520,540                                          
+  500 RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  520 RT(1) = ((((-1.01041157064226D-05*X+1.19483054115173D-03)*X -       &
+           6.73760231824074D-02)*X+1.25705571069895D+00)*X + (((-       &
+           8.57609422987199D+03/X+5.91005939591842D+03)/X -             &
+           1.70807677109425D+03)/X+2.64536689959503D+02)/X -            &
+           2.38570496490846D+01)*E + R12/(X-R12)                         
+      RT(2) = ((( 3.39024225137123D-04*X-9.34976436343509D-02)*X -        &
+           4.22216483306320D+00)*X + (((-2.08457050986847D+03/X -       &
+           1.04999071905664D+03)/X+3.39891508992661D+02)/X -            &
+           1.56184800325063D+02)/X+8.00839033297501D+00)*E + R22/(X-R22) 
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  540 F2 = (F1+F1+F1-E)/(X+X)                                            
+      Y = X-12.5D+00                                                     
+      RT(1) = ((((((((((( 4.42133001283090D-16*Y-2.77189767070441D-15)*Y- &
+           4.084026087887D-14)*Y+5.379885121517D-13)*Y+                 &
+           1.882093066702D-12)*Y-8.67286219861085D-11 )*Y+              &
+           7.11372337079797D-10 )*Y-3.55578027040563D-09 )*Y+           &
+           1.29454702851936D-07 )*Y-4.14222202791434D-06 )*Y+           &
+           8.04427643593792D-05 )*Y-1.18587782909876D-03 )*Y+           &
+           1.53435577063174D-02                                          
+      RT(2) = ((((((((((( 6.85146742119357D-15*Y-1.08257654410279D-14)*Y- &
+           8.579165965128D-13)*Y+6.642452485783D-12)*Y+                 &
+           4.798806828724D-11)*Y-1.13413908163831D-09 )*Y+              &
+           7.08558457182751D-09 )*Y-5.59678576054633D-08 )*Y+           &
+           2.51020389884249D-06 )*Y-6.63678914608681D-05 )*Y+           &
+           1.11888323089714D-03 )*Y-1.45361636398178D-02 )*Y+           &
+           1.65077877454402D-01                                          
+      RT(3) = (((((((((((( 3.20622388697743D-15*Y-2.73458804864628D-14)*Y-&
+           3.157134329361D-13)*Y+8.654129268056D-12)*Y-                 &
+           5.625235879301D-11)*Y-7.718080513708D-10)*Y+                 &
+           2.064664199164D-08)*Y-1.567725007761D-07)*Y-                 &
+           1.57938204115055D-06 )*Y+6.27436306915967D-05 )*Y-           &
+           1.01308723606946D-03 )*Y+1.13901881430697D-02 )*Y-           &
+           1.01449652899450D-01 )*Y+7.77203937334739D-01                 
+      GO TO 260                                                          
+  560 IF (X > 33.0D+00) GO TO 660                                        
+!     X = 15.0 TO 33.0                 NROOTS=1,2, OR 3                  
+      E = EXP(-X)                                                        
+      WW(1) = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
+           6.0156581186481D-05)*E + SQRT(PIE4/X)                         
+      F1 = (WW(1)-E)/(X+X)                                                 
+      IF (NROOTS-2) 580,600,620                                          
+  580 RT(1) = F1/(WW(1)-F1)                                                  
+      RETURN                                                             
+  600 RT(1) = ((((-1.14906395546354D-06*X+1.76003409708332D-04)*X -       &
+           1.71984023644904D-02)*X-1.37292644149838D-01)*X + (-         &
+           4.75742064274859D+01/X+9.21005186542857D+00)/X -             &
+           2.31080873898939D-02)*E + R12/(X-R12)                         
+      RT(2) = ((( 3.64921633404158D-04*X-9.71850973831558D-02)*X -        &
+           4.02886174850252D+00)*X + (-1.35831002139173D+02/X -         &
+           8.66891724287962D+01)/X+2.98011277766958D+00)*E + R22/(X-R22) 
+      WW(2) = ((F1-WW(1))*RT(1)+F1)*(1.0D+00+RT(2))/(RT(2)-RT(1))                    
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  620 F2 = (F1+F1+F1-E)/(X+X)                                            
+      IF (X > 20.0D+00) GO TO 640                                        
+      RT(1) = ((((((-2.43270989903742D-06*X+3.57901398988359D-04)*X -     &
+           2.34112415981143D-02)*X+7.81425144913975D-01)*X -            &
+           1.73209218219175D+01)*X+2.43517435690398D+02)*X + (-         &
+           1.97611541576986D+04/X+9.82441363463929D+03)/X -             &
+           2.07970687843258D+03)*E + R13/(X-R13)                         
+      RT(2) = (((((-2.62627010965435D-04*X+3.49187925428138D-02)*X -      &
+           3.09337618731880D+00)*X+1.07037141010778D+02)*X -            &
+           2.36659637247087D+03)*X + ((-2.91669113681020D+06/X +        &
+           1.41129505262758D+06)/X-2.91532335433779D+05)/X +            &
+           3.35202872835409D+04)*E + R23/(X-R23)                         
+      RT(3) = ((((( 9.31856404738601D-05*X-2.87029400759565D-02)*X -      &
+           7.83503697918455D-01)*X-1.84338896480695D+01)*X +            &
+           4.04996712650414D+02)*X + (-1.89829509315154D+05/X +         &
+           5.11498390849158D+04)/X-6.88145821789955D+03)*E + R33/(X-R33) 
+      GO TO 260                                                          
+  640 RT(1) = ((((-4.97561537069643D-04*X-5.00929599665316D-02)*X +       &
+           1.31099142238996D+00)*X-1.88336409225481D+01)*X -            &
+           6.60344754467191D+02 /X+1.64931462413877D+02)*E + R13/(X-R13) 
+      RT(2) = ((((-4.48218898474906D-03*X-5.17373211334924D-01)*X +       &
+           1.13691058739678D+01)*X-1.65426392885291D+02)*X -            &
+           6.30909125686731D+03 /X+1.52231757709236D+03)*E + R23/(X-R23) 
+      RT(3) = ((((-1.38368602394293D-02*X-1.77293428863008D+00)*X +       &
+           1.73639054044562D+01)*X-3.57615122086961D+02)*X -            &
+           1.45734701095912D+04 /X+2.69831813951849D+03)*E + R33/(X-R33) 
+      GO TO 260                                                          
+!     X = 33.0 TO INFINITY             NROOTS=1,2, OR 3                  
+  660 WW(1) = SQRT(PIE4/X)                                                 
+      IF (NROOTS-2) 680,700,720                                          
+  680 RT(1) = 0.5D+00/(X-0.5D+00)                                          
+      RETURN                                                             
+  700 IF (X > 40.0D+00) GO TO 740                                        
+      E = EXP(-X)                                                        
+      RT(1) = (-8.78947307498880D-01*X+1.09243702330261D+01)*E + R12/(X-  &
+           R12)                                                          
+      RT(2) = (-9.28903924275977D+00*X+8.10642367843811D+01)*E + R22/(X-  &
+           R22)                                                          
+      WW(2) = ( 4.46857389308400D+00*X-7.79250653461045D+01)*E + W22*WW(1)   
+      WW(1) = WW(1)-WW(2)                                                      
+      RETURN                                                             
+  720 IF (X > 47.0D+00) GO TO 760                                        
+      E = EXP(-X)                                                        
+      RT(1) = ((-7.39058467995275D+00*X+3.21318352526305D+02)*X -         &
+           3.99433696473658D+03)*E + R13/(X-R13)                         
+      RT(2) = ((-7.38726243906513D+01*X+3.13569966333873D+03)*X -         &
+           3.86862867311321D+04)*E + R23/(X-R23)                         
+      RT(3) = ((-2.63750565461336D+02*X+1.04412168692352D+04)*X -         &
+           1.28094577915394D+05)*E + R33/(X-R33)                         
+      WW(3) = ((( 1.52258947224714D-01*X-8.30661900042651D+00)*X +        &
+           1.92977367967984D+02)*X-1.67787926005344D+03)*E + W33*WW(1)     
+      WW(2) = (( 6.15072615497811D+01*X-2.91980647450269D+03)*X +         &
+           3.80794303087338D+04)*E + W23*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)
+      RETURN
+  740 RT(1) = R12/(X-R12)
+      RT(2) = R22/(X-R22)
+      WW(2) = W22*WW(1)
+      WW(1) = WW(1)-WW(2)
+      RETURN
+  760 RT(1) = R13/(X-R13)
+      RT(2) = R23/(X-R23)
+      RT(3) = R33/(X-R33)
+      WW(2) = W23*WW(1)
+      WW(3) = W33*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)
+      RETURN
+      END SUBROUTINE
+
+! Calling by HSandT & ERISPDFGHIL: ROOT4 
+      SUBROUTINE ROOT4(X,RT,WW,NROOTS)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION :: X, RT(13), WW(13)
+      INTEGER :: NROOTS
+      !COMMON /ROOT  / X,RT(13),WW(13),NROOTS
+      !EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
+      !EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
+      DATA R14,PIE4/1.45303521503316D-01, 7.85398163397448D-01/
+      DATA R24,W24/ 1.33909728812636D+00, 2.34479815323517D-01/
+      DATA R34,W34/ 3.92696350135829D+00, 1.92704402415764D-02/
+      DATA R44,W44/ 8.58863568901199D+00, 2.25229076750736D-04/
+!
+      IF (X > 15.0D+00) GO TO 180
+      IF (X > 5.0D+00) GO TO 140
+      IF (X > 1.0D+00) GO TO 120
+      IF (X > 3.0D-07) GO TO 100
+!     X IS APPROXIMATELY 0.0d0.                   NROOTS = 4
+      RT(1) = 3.48198973061471D-02 -4.09645850660395D-03 *X
+      RT(2) = 3.81567185080042D-01 -4.48902570656719D-02 *X
+      RT(3) = 1.73730726945891D+00 -2.04389090547327D-01 *X
+      RT(4) = 1.18463056481549D+01 -1.39368301742312D+00 *X
+      WW(1) = 3.62683783378362D-01 -3.13844305713928D-02 *X
+      WW(2) = 3.13706645877886D-01 -8.98046242557724D-02 *X
+      WW(3) = 2.22381034453372D-01 -1.29314370958973D-01 *X
+      WW(4) = 1.01228536290376D-01 -8.28299075414321D-02 *X
+      RETURN
+!
+!     X=0.0 TO 1.0                               NROOTS = 4
+  100 RT(1) = ((((((-1.95309614628539D-10*X+5.19765728707592D-09)*X-      &
+           1.01756452250573D-07 )*X+1.72365935872131D-06 )*X-           &
+           2.61203523522184D-05 )*X+3.52921308769880D-04 )*X-           &
+           4.09645850658433D-03 )*X+3.48198973061469D-02                 
+      RT(2) = (((((-1.89554881382342D-08*X+3.07583114342365D-07)*X+       &
+           1.270981734393D-06)*X-1.417298563884D-04)*X+                 &
+           3.226979163176D-03)*X-4.48902570678178D-02 )*X+              &
+           3.81567185080039D-01                                          
+      RT(3) = (((((( 1.77280535300416D-09*X+3.36524958870615D-08)*X-      &
+           2.58341529013893D-07 )*X-1.13644895662320D-05 )*X-           &
+           7.91549618884063D-05 )*X+1.03825827346828D-02 )*X-           &
+           2.04389090525137D-01 )*X+1.73730726945889D+00                 
+      RT(4) = (((((-5.61188882415248D-08*X-2.49480733072460D-07)*X+       &
+           3.428685057114D-06)*X+1.679007454539D-04)*X+                 &
+           4.722855585715D-02)*X-1.39368301737828D+00 )*X+              &
+           1.18463056481543D+01                                          
+      WW(1) = ((((((-1.14649303201279D-08*X+1.88015570196787D-07)*X-      &
+           2.33305875372323D-06 )*X+2.68880044371597D-05 )*X-           &
+           2.94268428977387D-04 )*X+3.06548909776613D-03 )*X-           &
+           3.13844305680096D-02 )*X+3.62683783378335D-01                 
+      WW(2) = ((((((((-4.11720483772634D-09*X+6.54963481852134D-08)*X-    &
+           7.20045285129626D-07 )*X+6.93779646721723D-06 )*X-           &
+           6.05367572016373D-05 )*X+4.74241566251899D-04 )*X-           &
+           3.26956188125316D-03 )*X+1.91883866626681D-02 )*X-           &
+           8.98046242565811D-02 )*X+3.13706645877886D-01                 
+      WW(3) = ((((((((-3.41688436990215D-08*X+5.07238960340773D-07)*X-    &
+           5.01675628408220D-06 )*X+4.20363420922845D-05 )*X-           &
+           3.08040221166823D-04 )*X+1.94431864731239D-03 )*X-           &
+           1.02477820460278D-02 )*X+4.28670143840073D-02 )*X-           &
+           1.29314370962569D-01 )*X+2.22381034453369D-01                 
+      WW(4) = ((((((((( 4.99660550769508D-09*X-7.94585963310120D-08)*X+   &
+           8.359072409485D-07)*X-7.422369210610D-06)*X+                 &
+           5.763374308160D-05)*X-3.86645606718233D-04 )*X+              &
+           2.18417516259781D-03 )*X-9.99791027771119D-03 )*X+           &
+           3.48791097377370D-02 )*X-8.28299075413889D-02 )*X+           &
+           1.01228536290376D-01                                          
+      RETURN
+!                                                                        
+!     X= 1.0 TO 5.0                              NROOTS = 4              
+  120 Y = X-3.0D+00                                                      
+      RT(1) = (((((((((-1.48570633747284D-15*Y-1.33273068108777D-13)*Y+   &
+           4.068543696670D-12)*Y-9.163164161821D-11)*Y+                 &
+           2.046819017845D-09)*Y-4.03076426299031D-08 )*Y+              &
+           7.29407420660149D-07 )*Y-1.23118059980833D-05 )*Y+           &
+           1.88796581246938D-04 )*Y-2.53262912046853D-03 )*Y+           &
+           2.51198234505021D-02                                          
+      RT(2) = ((((((((( 1.35830583483312D-13*Y-2.29772605964836D-12)*Y-   &
+           3.821500128045D-12)*Y+6.844424214735D-10)*Y-                 &
+           1.048063352259D-08)*Y+1.50083186233363D-08 )*Y+              &
+           3.48848942324454D-06 )*Y-1.08694174399193D-04 )*Y+           &
+           2.08048885251999D-03 )*Y-2.91205805373793D-02 )*Y+           &
+           2.72276489515713D-01                                          
+      RT(3) = ((((((((( 5.02799392850289D-13*Y+1.07461812944084D-11)*Y-   &
+           1.482277886411D-10)*Y-2.153585661215D-09)*Y+                 &
+           3.654087802817D-08)*Y+5.15929575830120D-07 )*Y-              &
+           9.52388379435709D-06 )*Y-2.16552440036426D-04 )*Y+           &
+           9.03551469568320D-03 )*Y-1.45505469175613D-01 )*Y+           &
+           1.21449092319186D+00                                          
+      RT(4) = (((((((((-1.08510370291979D-12*Y+6.41492397277798D-11)*Y+   &
+           7.542387436125D-10)*Y-2.213111836647D-09)*Y-                 &
+           1.448228963549D-07)*Y-1.95670833237101D-06 )*Y-              &
+           1.07481314670844D-05 )*Y+1.49335941252765D-04 )*Y+           &
+           4.87791531990593D-02 )*Y-1.10559909038653D+00 )*Y+           &
+           8.09502028611780D+00                                          
+      WW(1) = ((((((((((-4.65801912689961D-14*Y+7.58669507106800D-13)*Y-  &
+           1.186387548048D-11)*Y+1.862334710665D-10)*Y-                 &
+           2.799399389539D-09)*Y+4.148972684255D-08)*Y-                 &
+           5.933568079600D-07)*Y+8.168349266115D-06)*Y-                 &
+           1.08989176177409D-04 )*Y+1.41357961729531D-03 )*Y-           &
+           1.87588361833659D-02 )*Y+2.89898651436026D-01                 
+      WW(2) = ((((((((((((-1.46345073267549D-14*Y+2.25644205432182D-13)*Y-&
+           3.116258693847D-12)*Y+4.321908756610D-11)*Y-                 &
+           5.673270062669D-10)*Y+7.006295962960D-09)*Y-                 &
+           8.120186517000D-08)*Y+8.775294645770D-07)*Y-                 &
+           8.77829235749024D-06 )*Y+8.04372147732379D-05 )*Y-           &
+           6.64149238804153D-04 )*Y+4.81181506827225D-03 )*Y-           &
+           2.88982669486183D-02 )*Y+1.56247249979288D-01                 
+      WW(3) = ((((((((((((( 9.06812118895365D-15*Y-1.40541322766087D-13)* &
+           Y+1.919270015269D-12)*Y-2.605135739010D-11)*Y+               &
+           3.299685839012D-10)*Y-3.86354139348735D-09 )*Y+              &
+           4.16265847927498D-08 )*Y-4.09462835471470D-07 )*Y+           &
+           3.64018881086111D-06 )*Y-2.88665153269386D-05 )*Y+           &
+           2.00515819789028D-04 )*Y-1.18791896897934D-03 )*Y+           &
+           5.75223633388589D-03 )*Y-2.09400418772687D-02 )*Y+           &
+           4.85368861938873D-02                                          
+      WW(4) = ((((((((((((((-9.74835552342257D-16*Y+1.57857099317175D-14)*&
+           Y-2.249993780112D-13)*Y+3.173422008953D-12)*Y-               &
+           4.161159459680D-11)*Y+5.021343560166D-10)*Y-                 &
+           5.545047534808D-09)*Y+5.554146993491D-08)*Y-                 &
+           4.99048696190133D-07 )*Y+3.96650392371311D-06 )*Y-           &
+           2.73816413291214D-05 )*Y+1.60106988333186D-04 )*Y-           &
+           7.64560567879592D-04 )*Y+2.81330044426892D-03 )*Y-           &
+           7.16227030134947D-03 )*Y+9.66077262223353D-03                 
+      RETURN
+!                                                                        
+  140 IF (X > 10.0D+00) GO TO 160                                        
+!     X=5.0 TO 10.0                              NROOTS = 4              
+      Y = X-7.5D+00                                                      
+      RT(1) = ((((((((( 4.64217329776215D-15*Y-6.27892383644164D-15)*Y+   &
+           3.462236347446D-13)*Y-2.927229355350D-11)*Y+                 &
+           5.090355371676D-10)*Y-9.97272656345253D-09 )*Y+              &
+           2.37835295639281D-07 )*Y-4.60301761310921D-06 )*Y+           &
+           8.42824204233222D-05 )*Y-1.37983082233081D-03 )*Y+           &
+           1.66630865869375D-02                                          
+      RT(2) = ((((((((( 2.93981127919047D-14*Y+8.47635639065744D-13)*Y-   &
+           1.446314544774D-11)*Y-6.149155555753D-12)*Y+                 &
+           8.484275604612D-10)*Y-6.10898827887652D-08 )*Y+              &
+           2.39156093611106D-06 )*Y-5.35837089462592D-05 )*Y+           &
+           1.00967602595557D-03 )*Y-1.57769317127372D-02 )*Y+           &
+           1.74853819464285D-01                                          
+      RT(3) = (((((((((( 2.93523563363000D-14*Y-6.40041776667020D-14)*Y-  &
+           2.695740446312D-12)*Y+1.027082960169D-10)*Y-                 &
+           5.822038656780D-10)*Y-3.159991002539D-08)*Y+                 &
+           4.327249251331D-07)*Y+4.856768455119D-06)*Y-                 &
+           2.54617989427762D-04 )*Y+5.54843378106589D-03 )*Y-           &
+           7.95013029486684D-02 )*Y+7.20206142703162D-01                 
+      RT(4) = (((((((((((-1.62212382394553D-14*Y+7.68943641360593D-13)*Y+ &
+           5.764015756615D-12)*Y-1.380635298784D-10)*Y-                 &
+           1.476849808675D-09)*Y+1.84347052385605D-08 )*Y+              &
+           3.34382940759405D-07 )*Y-1.39428366421645D-06 )*Y-           &
+           7.50249313713996D-05 )*Y-6.26495899187507D-04 )*Y+           &
+           4.69716410901162D-02 )*Y-6.66871297428209D-01 )*Y+           &
+           4.11207530217806D+00                                          
+      WW(1) = ((((((((((-1.65995045235997D-15*Y+6.91838935879598D-14)*Y-  &
+           9.131223418888D-13)*Y+1.403341829454D-11)*Y-                 &
+           3.672235069444D-10)*Y+6.366962546990D-09)*Y-                 &
+           1.039220021671D-07)*Y+1.959098751715D-06)*Y-                 &
+           3.33474893152939D-05 )*Y+5.72164211151013D-04 )*Y-           &
+           1.05583210553392D-02 )*Y+2.26696066029591D-01                 
+      WW(2) = ((((((((((((-3.57248951192047D-16*Y+6.25708409149331D-15)*Y-&
+           9.657033089714D-14)*Y+1.507864898748D-12)*Y-                 &
+           2.332522256110D-11)*Y+3.428545616603D-10)*Y-                 &
+           4.698730937661D-09)*Y+6.219977635130D-08)*Y-                 &
+           7.83008889613661D-07 )*Y+9.08621687041567D-06 )*Y-           &
+           9.86368311253873D-05 )*Y+9.69632496710088D-04 )*Y-           &
+           8.14594214284187D-03 )*Y+8.50218447733457D-02                 
+      WW(3) = ((((((((((((( 1.64742458534277D-16*Y-2.68512265928410D-15)* &
+           Y+3.788890667676D-14)*Y-5.508918529823D-13)*Y+               &
+           7.555896810069D-12)*Y-9.69039768312637D-11 )*Y+              &
+           1.16034263529672D-09 )*Y-1.28771698573873D-08 )*Y+           &
+           1.31949431805798D-07 )*Y-1.23673915616005D-06 )*Y+           &
+           1.04189803544936D-05 )*Y-7.79566003744742D-05 )*Y+           &
+           5.03162624754434D-04 )*Y-2.55138844587555D-03 )*Y+           &
+           1.13250730954014D-02                                          
+      WW(4) = ((((((((((((((-1.55714130075679D-17*Y+2.57193722698891D-16)*&
+           Y-3.626606654097D-15)*Y+5.234734676175D-14)*Y-               &
+           7.067105402134D-13)*Y+8.793512664890D-12)*Y-                 &
+           1.006088923498D-10)*Y+1.050565098393D-09)*Y-                 &
+           9.91517881772662D-09 )*Y+8.35835975882941D-08 )*Y-           &
+           6.19785782240693D-07 )*Y+3.95841149373135D-06 )*Y-           &
+           2.11366761402403D-05 )*Y+9.00474771229507D-05 )*Y-           &
+           2.78777909813289D-04 )*Y+5.26543779837487D-04                 
+      RETURN
+!                                                                        
+!     X=10.0 TO 15.0                             NROOTS = 4              
+  160 Y = X-12.5D+00                                                     
+      RT(1) = ((((((((((( 4.94869622744119D-17*Y+8.03568805739160D-16)*Y- &
+           5.599125915431D-15)*Y-1.378685560217D-13)*Y+                 &
+           7.006511663249D-13)*Y+1.30391406991118D-11 )*Y+              &
+           8.06987313467541D-11 )*Y-5.20644072732933D-09 )*Y+           &
+           7.72794187755457D-08 )*Y-1.61512612564194D-06 )*Y+           &
+           4.15083811185831D-05 )*Y-7.87855975560199D-04 )*Y+           &
+           1.14189319050009D-02                                          
+      RT(2) = ((((((((((( 4.89224285522336D-16*Y+1.06390248099712D-14)*Y- &
+           5.446260182933D-14)*Y-1.613630106295D-12)*Y+                 &
+           3.910179118937D-12)*Y+1.90712434258806D-10 )*Y+              &
+           8.78470199094761D-10 )*Y-5.97332993206797D-08 )*Y+           &
+           9.25750831481589D-07 )*Y-2.02362185197088D-05 )*Y+           &
+           4.92341968336776D-04 )*Y-8.68438439874703D-03 )*Y+           &
+           1.15825965127958D-01                                          
+      RT(3) = (((((((((( 6.12419396208408D-14*Y+1.12328861406073D-13)*Y-  &
+           9.051094103059D-12)*Y-4.781797525341D-11)*Y+                 &
+           1.660828868694D-09)*Y+4.499058798868D-10)*Y-                 &
+           2.519549641933D-07)*Y+4.977444040180D-06)*Y-                 &
+           1.25858350034589D-04 )*Y+2.70279176970044D-03 )*Y-           &
+           3.99327850801083D-02 )*Y+4.33467200855434D-01                 
+      RT(4) = ((((((((((( 4.63414725924048D-14*Y-4.72757262693062D-14)*Y- &
+           1.001926833832D-11)*Y+6.074107718414D-11)*Y+                 &
+           1.576976911942D-09)*Y-2.01186401974027D-08 )*Y-              &
+           1.84530195217118D-07 )*Y+5.02333087806827D-06 )*Y+           &
+           9.66961790843006D-06 )*Y-1.58522208889528D-03 )*Y+           &
+           2.80539673938339D-02 )*Y-2.78953904330072D-01 )*Y+           &
+           1.82835655238235D+00                                          
+      WW(4) = ((((((((((((( 2.90401781000996D-18*Y-4.63389683098251D-17)* &
+           Y+6.274018198326D-16)*Y-8.936002188168D-15)*Y+               &
+           1.194719074934D-13)*Y-1.45501321259466D-12 )*Y+              &
+           1.64090830181013D-11 )*Y-1.71987745310181D-10 )*Y+           &
+           1.63738403295718D-09 )*Y-1.39237504892842D-08 )*Y+           &
+           1.06527318142151D-07 )*Y-7.27634957230524D-07 )*Y+           &
+           4.12159381310339D-06 )*Y-1.74648169719173D-05 )*Y+           &
+           8.50290130067818D-05                                          
+      WW(3) = ((((((((((((-4.19569145459480D-17*Y+5.94344180261644D-16)*Y-&
+           1.148797566469D-14)*Y+1.881303962576D-13)*Y-                 &
+           2.413554618391D-12)*Y+3.372127423047D-11)*Y-                 &
+           4.933988617784D-10)*Y+6.116545396281D-09)*Y-                 &
+           6.69965691739299D-08 )*Y+7.52380085447161D-07 )*Y-           &
+           8.08708393262321D-06 )*Y+6.88603417296672D-05 )*Y-           &
+           4.67067112993427D-04 )*Y+5.42313365864597D-03                 
+      WW(2) = ((((((((((-6.22272689880615D-15*Y+1.04126809657554D-13)*Y-  &
+           6.842418230913D-13)*Y+1.576841731919D-11)*Y-                 &
+           4.203948834175D-10)*Y+6.287255934781D-09)*Y-                 &
+           8.307159819228D-08)*Y+1.356478091922D-06)*Y-                 &
+           2.08065576105639D-05 )*Y+2.52396730332340D-04 )*Y-           &
+           2.94484050194539D-03 )*Y+6.01396183129168D-02                 
+      WW(1) = (((-1.8784686463512D-01/X+2.2991849164985D-01)/X -          &
+           4.9893752514047D-01)/X-2.1916512131607D-05)*EXP(-X) +        &
+           SQRT(PIE4/X)-WW(4)-WW(3)-WW(2)                                      
+      RETURN
+!                                                                        
+  180 WW(1) = SQRT(PIE4/X)                                                 
+      IF (X > 35.0D+00) GO TO 220                                        
+      IF (X > 20.0D+00) GO TO 200                                        
+!     X=15.0 TO 20.0                             NROOTS = 4              
+      Y = X-17.5D+00                                                     
+      RT(1) = ((((((((((( 4.36701759531398D-17*Y-1.12860600219889D-16)*Y- &
+           6.149849164164D-15)*Y+5.820231579541D-14)*Y+                 &
+           4.396602872143D-13)*Y-1.24330365320172D-11 )*Y+              &
+           6.71083474044549D-11 )*Y+2.43865205376067D-10 )*Y+           &
+           1.67559587099969D-08 )*Y-9.32738632357572D-07 )*Y+           &
+           2.39030487004977D-05 )*Y-4.68648206591515D-04 )*Y+           &
+           8.34977776583956D-03                                          
+      RT(2) = ((((((((((( 4.98913142288158D-16*Y-2.60732537093612D-16)*Y- &
+           7.775156445127D-14)*Y+5.766105220086D-13)*Y+                 &
+           6.432696729600D-12)*Y-1.39571683725792D-10 )*Y+              &
+           5.95451479522191D-10 )*Y+2.42471442836205D-09 )*Y+           &
+           2.47485710143120D-07 )*Y-1.14710398652091D-05 )*Y+           &
+           2.71252453754519D-04 )*Y-4.96812745851408D-03 )*Y+           &
+           8.26020602026780D-02                                          
+      RT(3) = ((((((((((( 1.91498302509009D-15*Y+1.48840394311115D-14)*Y- &
+           4.316925145767D-13)*Y+1.186495793471D-12)*Y+                 &
+           4.615806713055D-11)*Y-5.54336148667141D-10 )*Y+              &
+           3.48789978951367D-10 )*Y-2.79188977451042D-09 )*Y+           &
+           2.09563208958551D-06 )*Y-6.76512715080324D-05 )*Y+           &
+           1.32129867629062D-03 )*Y-2.05062147771513D-02 )*Y+           &
+           2.88068671894324D-01                                          
+      RT(4) = (((((((((((-5.43697691672942D-15*Y-1.12483395714468D-13)*Y+ &
+           2.826607936174D-12)*Y-1.266734493280D-11)*Y-                 &
+           4.258722866437D-10)*Y+9.45486578503261D-09 )*Y-              &
+           5.86635622821309D-08 )*Y-1.28835028104639D-06 )*Y+           &
+           4.41413815691885D-05 )*Y-7.61738385590776D-04 )*Y+           &
+           9.66090902985550D-03 )*Y-1.01410568057649D-01 )*Y+           &
+           9.54714798156712D-01                                          
+      WW(4) = ((((((((((((-7.56882223582704D-19*Y+7.53541779268175D-18)*Y-&
+           1.157318032236D-16)*Y+2.411195002314D-15)*Y-                 &
+           3.601794386996D-14)*Y+4.082150659615D-13)*Y-                 &
+           4.289542980767D-12)*Y+5.086829642731D-11)*Y-                 &
+           6.35435561050807D-10 )*Y+6.82309323251123D-09 )*Y-           &
+           5.63374555753167D-08 )*Y+3.57005361100431D-07 )*Y-           &
+           2.40050045173721D-06 )*Y+4.94171300536397D-05                 
+      WW(3) = (((((((((((-5.54451040921657D-17*Y+2.68748367250999D-16)*Y+ &
+           1.349020069254D-14)*Y-2.507452792892D-13)*Y+                 &
+           1.944339743818D-12)*Y-1.29816917658823D-11 )*Y+              &
+           3.49977768819641D-10 )*Y-8.67270669346398D-09 )*Y+           &
+           1.31381116840118D-07 )*Y-1.36790720600822D-06 )*Y+           &
+           1.19210697673160D-05 )*Y-1.42181943986587D-04 )*Y+           &
+           4.12615396191829D-03                                          
+      WW(2) = (((((((((((-1.86506057729700D-16*Y+1.16661114435809D-15)*Y+ &
+           2.563712856363D-14)*Y-4.498350984631D-13)*Y+                 &
+           1.765194089338D-12)*Y+9.04483676345625D-12 )*Y+              &
+           4.98930345609785D-10 )*Y-2.11964170928181D-08 )*Y+           &
+           3.98295476005614D-07 )*Y-5.49390160829409D-06 )*Y+           &
+           7.74065155353262D-05 )*Y-1.48201933009105D-03 )*Y+           &
+           4.97836392625268D-02                                          
+      WW(1) = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
+           6.0156581186481D-05)*EXP(-X)+WW(1)-WW(2)-WW(3)-WW(4)                  
+      RETURN
+!                                                                        
+!     X=20.0 TO 35.0                             NROOTS = 4              
+  200 E = EXP(-X)                                                        
+      RT(1) = ((((((-4.45711399441838D-05*X+1.27267770241379D-03)*X -     &
+           2.36954961381262D-01)*X+1.54330657903756D+01)*X -            &
+           5.22799159267808D+02)*X+1.05951216669313D+04)*X + (-         &
+           2.51177235556236D+06/X+8.72975373557709D+05)/X -             &
+           1.29194382386499D+05)*E + R14/(X-R14)                         
+      RT(2) = (((((-7.85617372254488D-02*X+6.35653573484868D+00)*X -      &
+           3.38296938763990D+02)*X+1.25120495802096D+04)*X -            &
+           3.16847570511637D+05)*X + ((-1.02427466127427D+09/X +        &
+           3.70104713293016D+08)/X-5.87119005093822D+07)/X +            &
+           5.38614211391604D+06)*E + R24/(X-R24)                         
+      RT(3) = (((((-2.37900485051067D-01*X+1.84122184400896D+01)*X -      &
+           1.00200731304146D+03)*X+3.75151841595736D+04)*X -            &
+           9.50626663390130D+05)*X + ((-2.88139014651985D+09/X +        &
+           1.06625915044526D+09)/X-1.72465289687396D+08)/X +            &
+           1.60419390230055D+07)*E + R34/(X-R34)                         
+      RT(4) = ((((((-6.00691586407385D-04*X-3.64479545338439D-01)*X +     &
+           1.57496131755179D+01)*X-6.54944248734901D+02)*X +            &
+           1.70830039597097D+04)*X-2.90517939780207D+05)*X + (+         &
+           3.49059698304732D+07/X-1.64944522586065D+07)/X +             &
+           2.96817940164703D+06)*E + R44/(X-R44)                         
+      IF (X <= 25.0D+00) WW(4) = ((((((( 2.33766206773151D-07*X-          &
+           3.81542906607063D-05)*X +3.51416601267000D-03)*X-            &
+           1.66538571864728D-01)*X +4.80006136831847D+00)*X-            &
+           8.73165934223603D+01)*X +9.77683627474638D+02)*X +           &
+           1.66000945117640D+04/X -6.14479071209961D+03)*E + W44*WW(1)     
+      IF (X > 25.0D+00) WW(4) = (((((( 5.74245945342286D-06*X-            &
+           7.58735928102351D-05)*X +2.35072857922892D-04)*X-            &
+           3.78812134013125D-03)*X +3.09871652785805D-01)*X-            &
+           7.11108633061306D+00)*X +5.55297573149528D+01)*E + W44*WW(1)    
+      WW(3) = (((((( 2.36392855180768D-04*X-9.16785337967013D-03)*X +     &
+           4.62186525041313D-01)*X-1.96943786006540D+01)*X +            &
+           4.99169195295559D+02)*X-6.21419845845090D+03)*X + ((+        &
+           5.21445053212414D+07/X-1.34113464389309D+07)/X +             &
+           1.13673298305631D+06)/X-2.81501182042707D+03)*E + W34*WW(1)     
+      WW(2) = (((((( 7.29841848989391D-04*X-3.53899555749875D-02)*X +     &
+           2.07797425718513D+00)*X-1.00464709786287D+02)*X +            &
+           3.15206108877819D+03)*X-6.27054715090012D+04)*X + (+         &
+           1.54721246264919D+07/X-5.26074391316381D+06)/X +             &
+           7.67135400969617D+05)*E + W24*WW(1)                             
+      WW(1) = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
+           6.0156581186481D-05)*E + WW(1)-WW(2)-WW(3)-WW(4)                      
+      RETURN
+!                                                                        
+  220 IF (X > 53.0D+00) GO TO 240                                        
+!     X=35.0 TO 53.0                             NROOTS = 4              
+      E = EXP(-X)*(X*X)**2                                               
+      RT(4) = ((-2.19135070169653D-03*X-1.19108256987623D-01)*X -         &
+           7.50238795695573D-01)*E + R44/(X-R44)                         
+      RT(3) = ((-9.65842534508637D-04*X-4.49822013469279D-02)*X +         &
+           6.08784033347757D-01)*E + R34/(X-R34)                         
+      RT(2) = ((-3.62569791162153D-04*X-9.09231717268466D-03)*X +         &
+           1.84336760556262D-01)*E + R24/(X-R24)                         
+      RT(1) = ((-4.07557525914600D-05*X-6.88846864931685D-04)*X +         &
+           1.74725309199384D-02)*E + R14/(X-R14)                         
+      WW(4) = (( 5.76631982000990D-06*X-7.89187283804890D-05)*X +         &
+           3.28297971853126D-04)*E + W44*WW(1)                             
+      WW(3) = (( 2.08294969857230D-04*X-3.77489954837361D-03)*X +         &
+           2.09857151617436D-02)*E + W34*WW(1)                             
+      WW(2) = (( 6.16374517326469D-04*X-1.26711744680092D-02)*X +         &
+          8.14504890732155D-02)*E + W24*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)-WW(4)
+      RETURN
+!
+!     X=47.0 TO INFINITY                         NROOTS = 4
+  240 RT(1) = R14/(X-R14)
+      RT(2) = R24/(X-R24)
+      RT(3) = R34/(X-R34)
+      RT(4) = R44/(X-R44)
+      WW(4) = W44*WW(1)
+      WW(3) = W34*WW(1)
+      WW(2) = W24*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)-WW(4)
+      RETURN
+      END SUBROUTINE
+
+! Calling by HSandT & ERISPDFGHIL: ROOT5 
+      SUBROUTINE ROOT5(X,RT,WW,NROOTS)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION :: X, RT(13), WW(13)
+      INTEGER :: NROOTS
+      !COMMON /ROOT  / X,RT(13),WW(13),NROOTS
+      !EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
+      !EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
+      DATA R15,PIE4/1.17581320211778D-01, 7.85398163397448D-01/
+      DATA R25,W25/ 1.07456201243690D+00, 2.70967405960535D-01/
+      DATA R35,W35/ 3.08593744371754D+00, 3.82231610015404D-02/
+      DATA R45,W45/ 6.41472973366203D+00, 1.51614186862443D-03/
+      DATA R55,W55/ 1.18071894899717D+01, 8.62130526143657D-06/
+!
+      IF (X > 15.0D+00) GO TO 180
+      IF (X > 5.0D+00) GO TO 140
+      IF (X > 1.0D+00) GO TO 120
+      IF (X > 3.0D-07) GO TO 100
+!     X IS APPROXIMATELY 0.0d0.                   NROOTS = 5
+      RT(1) = 2.26659266316985D-02 -2.15865967920897D-03 *X
+      RT(2) = 2.31271692140903D-01 -2.20258754389745D-02 *X
+      RT(3) = 8.57346024118836D-01 -8.16520023025515D-02 *X
+      RT(4) = 2.97353038120346D+00 -2.83193369647137D-01 *X
+      RT(5) = 1.84151859759051D+01 -1.75382723579439D+00 *X
+      WW(1) = 2.95524224714752D-01 -1.96867576909777D-02 *X
+      WW(2) = 2.69266719309995D-01 -5.61737590184721D-02 *X
+      WW(3) = 2.19086362515981D-01 -9.71152726793658D-02 *X
+      WW(4) = 1.49451349150580D-01 -1.02979262193565D-01 *X
+      WW(5) = 6.66713443086877D-02 -5.73782817488315D-02 *X
+      RETURN
+!
+!     X=0.0 TO 1.0                               NROOTS = 5
+  100 RT(1) = ((((((-4.46679165328413D-11*X+1.21879111988031D-09)*X-      &
+           2.62975022612104D-08 )*X+5.15106194905897D-07 )*X-           &
+           9.27933625824749D-06 )*X+1.51794097682482D-04 )*X-           &
+           2.15865967920301D-03 )*X+2.26659266316985D-02                 
+      RT(2) = (((((( 1.93117331714174D-10*X-4.57267589660699D-09)*X+      &
+           2.48339908218932D-08 )*X+1.50716729438474D-06 )*X-           &
+           6.07268757707381D-05 )*X+1.37506939145643D-03 )*X-           &
+           2.20258754419939D-02 )*X+2.31271692140905D-01                 
+      RT(3) = ((((( 4.84989776180094D-09*X+1.31538893944284D-07)*X-       &
+           2.766753852879D-06)*X-7.651163510626D-05)*X+                 &
+           4.033058545972D-03)*X-8.16520022916145D-02 )*X+              &
+           8.57346024118779D-01                                          
+      RT(4) = ((((-2.48581772214623D-07*X-4.34482635782585D-06)*X-        &
+           7.46018257987630D-07 )*X+1.01210776517279D-02 )*X-           &
+           2.83193369640005D-01 )*X+2.97353038120345D+00                 
+      RT(5) = (((((-8.92432153868554D-09*X+1.77288899268988D-08)*X+       &
+           3.040754680666D-06)*X+1.058229325071D-04)*X+                 &
+           4.596379534985D-02)*X-1.75382723579114D+00 )*X+              &
+           1.84151859759049D+01                                          
+      WW(1) = ((((((-2.03822632771791D-09*X+3.89110229133810D-08)*X-      &
+           5.84914787904823D-07 )*X+8.30316168666696D-06 )*X-           &
+           1.13218402310546D-04 )*X+1.49128888586790D-03 )*X-           &
+           1.96867576904816D-02 )*X+2.95524224714749D-01                 
+      WW(2) = ((((((( 8.62848118397570D-09*X-1.38975551148989D-07)*X+     &
+           1.602894068228D-06)*X-1.646364300836D-05)*X+                 &
+           1.538445806778D-04)*X-1.28848868034502D-03 )*X+              &
+           9.38866933338584D-03 )*X-5.61737590178812D-02 )*X+           &
+           2.69266719309991D-01                                          
+      WW(3) = ((((((((-9.41953204205665D-09*X+1.47452251067755D-07)*X-    &
+           1.57456991199322D-06 )*X+1.45098401798393D-05 )*X-           &
+           1.18858834181513D-04 )*X+8.53697675984210D-04 )*X-           &
+           5.22877807397165D-03 )*X+2.60854524809786D-02 )*X-           &
+           9.71152726809059D-02 )*X+2.19086362515979D-01                 
+      WW(4) = ((((((((-3.84961617022042D-08*X+5.66595396544470D-07)*X-    &
+           5.52351805403748D-06 )*X+4.53160377546073D-05 )*X-           &
+           3.22542784865557D-04 )*X+1.95682017370967D-03 )*X-           &
+           9.77232537679229D-03 )*X+3.79455945268632D-02 )*X-           &
+           1.02979262192227D-01 )*X+1.49451349150573D-01                 
+      WW(5) = ((((((((( 4.09594812521430D-09*X-6.47097874264417D-08)*X+   &
+           6.743541482689D-07)*X-5.917993920224D-06)*X+                 &
+           4.531969237381D-05)*X-2.99102856679638D-04 )*X+              &
+           1.65695765202643D-03 )*X-7.40671222520653D-03 )*X+           &
+           2.50889946832192D-02 )*X-5.73782817487958D-02 )*X+           &
+           6.66713443086877D-02                                          
+      RETURN
+                                                                        
+!     X=1.0 TO 5.0                               NROOTS = 5              
+  120 Y = X-3.0D+00                                                      
+      RT(1) = ((((((((-2.58163897135138D-14*Y+8.14127461488273D-13)*Y-    &
+           2.11414838976129D-11 )*Y+5.09822003260014D-10 )*Y-           &
+           1.16002134438663D-08 )*Y+2.46810694414540D-07 )*Y-           &
+           4.92556826124502D-06 )*Y+9.02580687971053D-05 )*Y-           &
+           1.45190025120726D-03 )*Y+1.73416786387475D-02                 
+      RT(2) = ((((((((( 1.04525287289788D-14*Y+5.44611782010773D-14)*Y-   &
+           4.831059411392D-12)*Y+1.136643908832D-10)*Y-                 &
+           1.104373076913D-09)*Y-2.35346740649916D-08 )*Y+              &
+           1.43772622028764D-06 )*Y-4.23405023015273D-05 )*Y+           &
+           9.12034574793379D-04 )*Y-1.52479441718739D-02 )*Y+           &
+           1.76055265928744D-01                                          
+      RT(3) = (((((((((-6.89693150857911D-14*Y+5.92064260918861D-13)*Y+   &
+           1.847170956043D-11)*Y-3.390752744265D-10)*Y-                 &
+           2.995532064116D-09)*Y+1.57456141058535D-07 )*Y-              &
+           3.95859409711346D-07 )*Y-9.58924580919747D-05 )*Y+           &
+           3.23551502557785D-03 )*Y-5.97587007636479D-02 )*Y+           &
+           6.46432853383057D-01                                          
+      RT(4) = ((((((((-3.61293809667763D-12*Y-2.70803518291085D-11)*Y+    &
+           8.83758848468769D-10 )*Y+1.59166632851267D-08 )*Y-           &
+           1.32581997983422D-07 )*Y-7.60223407443995D-06 )*Y-           &
+           7.41019244900952D-05 )*Y+9.81432631743423D-03 )*Y-           &
+           2.23055570487771D-01 )*Y+2.21460798080643D+00                 
+      RT(5) = ((((((((( 7.12332088345321D-13*Y+3.16578501501894D-12)*Y-   &
+           8.776668218053D-11)*Y-2.342817613343D-09)*Y-                 &
+           3.496962018025D-08)*Y-3.03172870136802D-07 )*Y+              &
+           1.50511293969805D-06 )*Y+1.37704919387696D-04 )*Y+           &
+           4.70723869619745D-02 )*Y-1.47486623003693D+00 )*Y+           &
+           1.35704792175847D+01                                          
+      WW(1) = ((((((((( 1.04348658616398D-13*Y-1.94147461891055D-12)*Y+   &
+           3.485512360993D-11)*Y-6.277497362235D-10)*Y+                 &
+           1.100758247388D-08)*Y-1.88329804969573D-07 )*Y+              &
+           3.12338120839468D-06 )*Y-5.04404167403568D-05 )*Y+           &
+           8.00338056610995D-04 )*Y-1.30892406559521D-02 )*Y+           &
+           2.47383140241103D-01                                          
+      WW(2) = ((((((((((( 3.23496149760478D-14*Y-5.24314473469311D-13)*Y+ &
+           7.743219385056D-12)*Y-1.146022750992D-10)*Y+                 &
+           1.615238462197D-09)*Y-2.15479017572233D-08 )*Y+              &
+           2.70933462557631D-07 )*Y-3.18750295288531D-06 )*Y+           &
+           3.47425221210099D-05 )*Y-3.45558237388223D-04 )*Y+           &
+           3.05779768191621D-03 )*Y-2.29118251223003D-02 )*Y+           &
+           1.59834227924213D-01                                          
+      WW(3) = ((((((((((((-3.42790561802876D-14*Y+5.26475736681542D-13)*Y-&
+           7.184330797139D-12)*Y+9.763932908544D-11)*Y-                 &
+           1.244014559219D-09)*Y+1.472744068942D-08)*Y-                 &
+           1.611749975234D-07)*Y+1.616487851917D-06)*Y-                 &
+           1.46852359124154D-05 )*Y+1.18900349101069D-04 )*Y-           &
+           8.37562373221756D-04 )*Y+4.93752683045845D-03 )*Y-           &
+           2.25514728915673D-02 )*Y+6.95211812453929D-02                 
+      WW(4) = ((((((((((((( 1.04072340345039D-14*Y-1.60808044529211D-13)* &
+           Y+2.183534866798D-12)*Y-2.939403008391D-11)*Y+               &
+           3.679254029085D-10)*Y-4.23775673047899D-09 )*Y+              &
+           4.46559231067006D-08 )*Y-4.26488836563267D-07 )*Y+           &
+           3.64721335274973D-06 )*Y-2.74868382777722D-05 )*Y+           &
+           1.78586118867488D-04 )*Y-9.68428981886534D-04 )*Y+           &
+           4.16002324339929D-03 )*Y-1.28290192663141D-02 )*Y+           &
+           2.22353727685016D-02                                          
+      WW(5) = ((((((((((((((-8.16770412525963D-16*Y+1.31376515047977D-14)*&
+           Y-1.856950818865D-13)*Y+2.596836515749D-12)*Y-               &
+           3.372639523006D-11)*Y+4.025371849467D-10)*Y-                 &
+           4.389453269417D-09)*Y+4.332753856271D-08)*Y-                 &
+           3.82673275931962D-07 )*Y+2.98006900751543D-06 )*Y-           &
+           2.00718990300052D-05 )*Y+1.13876001386361D-04 )*Y-           &
+           5.23627942443563D-04 )*Y+1.83524565118203D-03 )*Y-           &
+           4.37785737450783D-03 )*Y+5.36963805223095D-03                 
+      RETURN
+                                                                        
+  140 IF (X > 10.0D+00) GO TO 160                                        
+!     X=5.0 TO 10.0                              NROOTS = 5              
+      Y = X-7.5D+00                                                      
+      RT(1) = ((((((((-1.13825201010775D-14*Y+1.89737681670375D-13)*Y-    &
+           4.81561201185876D-12 )*Y+1.56666512163407D-10 )*Y-           &
+           3.73782213255083D-09 )*Y+9.15858355075147D-08 )*Y-           &
+           2.13775073585629D-06 )*Y+4.56547356365536D-05 )*Y-           &
+           8.68003909323740D-04 )*Y+1.22703754069176D-02                 
+      RT(2) = (((((((((-3.67160504428358D-15*Y+1.27876280158297D-14)*Y-   &
+           1.296476623788D-12)*Y+1.477175434354D-11)*Y+                 &
+           5.464102147892D-10)*Y-2.42538340602723D-08 )*Y+              &
+           8.20460740637617D-07 )*Y-2.20379304598661D-05 )*Y+           &
+           4.90295372978785D-04 )*Y-9.14294111576119D-03 )*Y+           &
+           1.22590403403690D-01                                          
+      RT(3) = ((((((((( 1.39017367502123D-14*Y-6.96391385426890D-13)*Y+   &
+           1.176946020731D-12)*Y+1.725627235645D-10)*Y-                 &
+           3.686383856300D-09)*Y+2.87495324207095D-08 )*Y+              &
+           1.71307311000282D-06 )*Y-7.94273603184629D-05 )*Y+           &
+           2.00938064965897D-03 )*Y-3.63329491677178D-02 )*Y+           &
+           4.34393683888443D-01                                          
+      RT(4) = ((((((((((-1.27815158195209D-14*Y+1.99910415869821D-14)*Y+  &
+           3.753542914426D-12)*Y-2.708018219579D-11)*Y-                 &
+           1.190574776587D-09)*Y+1.106696436509D-08)*Y+                 &
+           3.954955671326D-07)*Y-4.398596059588D-06)*Y-                 &
+           2.01087998907735D-04 )*Y+7.89092425542937D-03 )*Y-           &
+           1.42056749162695D-01 )*Y+1.39964149420683D+00                 
+      RT(5) = ((((((((((-1.19442341030461D-13*Y-2.34074833275956D-12)*Y+  &
+           6.861649627426D-12)*Y+6.082671496226D-10)*Y+                 &
+           5.381160105420D-09)*Y-6.253297138700D-08)*Y-                 &
+           2.135966835050D-06)*Y-2.373394341886D-05)*Y+                 &
+           2.88711171412814D-06 )*Y+4.85221195290753D-02 )*Y-           &
+           1.04346091985269D+00 )*Y+7.89901551676692D+00                 
+      WW(1) = ((((((((( 7.95526040108997D-15*Y-2.48593096128045D-13)*Y+   &
+           4.761246208720D-12)*Y-9.535763686605D-11)*Y+                 &
+           2.225273630974D-09)*Y-4.49796778054865D-08 )*Y+              &
+           9.17812870287386D-07 )*Y-1.86764236490502D-05 )*Y+           &
+           3.76807779068053D-04 )*Y-8.10456360143408D-03 )*Y+           &
+           2.01097936411496D-01                                          
+      WW(2) = ((((((((((( 1.25678686624734D-15*Y-2.34266248891173D-14)*Y+ &
+           3.973252415832D-13)*Y-6.830539401049D-12)*Y+                 &
+           1.140771033372D-10)*Y-1.82546185762009D-09 )*Y+              &
+           2.77209637550134D-08 )*Y-4.01726946190383D-07 )*Y+           &
+           5.48227244014763D-06 )*Y-6.95676245982121D-05 )*Y+           &
+           8.05193921815776D-04 )*Y-8.15528438784469D-03 )*Y+           &
+           9.71769901268114D-02                                          
+      WW(3) = ((((((((((((-8.20929494859896D-16*Y+1.37356038393016D-14)*Y-&
+           2.022863065220D-13)*Y+3.058055403795D-12)*Y-                 &
+           4.387890955243D-11)*Y+5.923946274445D-10)*Y-                 &
+           7.503659964159D-09)*Y+8.851599803902D-08)*Y-                 &
+           9.65561998415038D-07 )*Y+9.60884622778092D-06 )*Y-           &
+           8.56551787594404D-05 )*Y+6.66057194311179D-04 )*Y-           &
+           4.17753183902198D-03 )*Y+2.25443826852447D-02                 
+      WW(4) = ((((((((((((((-1.08764612488790D-17*Y+1.85299909689937D-16)*&
+           Y-2.730195628655D-15)*Y+4.127368817265D-14)*Y-               &
+           5.881379088074D-13)*Y+7.805245193391D-12)*Y-                 &
+           9.632707991704D-11)*Y+1.099047050624D-09)*Y-                 &
+           1.15042731790748D-08 )*Y+1.09415155268932D-07 )*Y-           &
+           9.33687124875935D-07 )*Y+7.02338477986218D-06 )*Y-           &
+           4.53759748787756D-05 )*Y+2.41722511389146D-04 )*Y-           &
+           9.75935943447037D-04 )*Y+2.57520532789644D-03                 
+      WW(5) = ((((((((((((((( 7.28996979748849D-19*Y-1.26518146195173D-17)&
+           *Y+1.886145834486D-16)*Y-2.876728287383D-15)*Y+              &
+           4.114588668138D-14)*Y-5.44436631413933D-13 )*Y+              &
+           6.64976446790959D-12 )*Y-7.44560069974940D-11 )*Y+           &
+           7.57553198166848D-10 )*Y-6.92956101109829D-09 )*Y+           &
+           5.62222859033624D-08 )*Y-3.97500114084351D-07 )*Y+           &
+           2.39039126138140D-06 )*Y-1.18023950002105D-05 )*Y+           &
+           4.52254031046244D-05 )*Y-1.21113782150370D-04 )*Y+           &
+           1.75013126731224D-04                                          
+      RETURN
+                                                                        
+!     X=10.0 TO 15.0                             NROOTS = 5              
+  160 Y = X-12.5D+00                                                     
+      RT(1) = ((((((((((-4.16387977337393D-17*Y+7.20872997373860D-16)*Y+  &
+           1.395993802064D-14)*Y+3.660484641252D-14)*Y-                 &
+           4.154857548139D-12)*Y+2.301379846544D-11)*Y-                 &
+           1.033307012866D-09)*Y+3.997777641049D-08)*Y-                 &
+           9.35118186333939D-07 )*Y+2.38589932752937D-05 )*Y-           &
+           5.35185183652937D-04 )*Y+8.85218988709735D-03                 
+      RT(2) = ((((((((((-4.56279214732217D-16*Y+6.24941647247927D-15)*Y+  &
+           1.737896339191D-13)*Y+8.964205979517D-14)*Y-                 &
+           3.538906780633D-11)*Y+9.561341254948D-11)*Y-                 &
+           9.772831891310D-09)*Y+4.240340194620D-07)*Y-                 &
+           1.02384302866534D-05 )*Y+2.57987709704822D-04 )*Y-           &
+           5.54735977651677D-03 )*Y+8.68245143991948D-02                 
+      RT(3) = ((((((((((-2.52879337929239D-15*Y+2.13925810087833D-14)*Y+  &
+           7.884307667104D-13)*Y-9.023398159510D-13)*Y-                 &
+           5.814101544957D-11)*Y-1.333480437968D-09)*Y-                 &
+           2.217064940373D-08)*Y+1.643290788086D-06)*Y-                 &
+           4.39602147345028D-05 )*Y+1.08648982748911D-03 )*Y-           &
+           2.13014521653498D-02 )*Y+2.94150684465425D-01                 
+      RT(4) = ((((((((((-6.42391438038888D-15*Y+5.37848223438815D-15)*Y+  &
+           8.960828117859D-13)*Y+5.214153461337D-11)*Y-                 &
+           1.106601744067D-10)*Y-2.007890743962D-08)*Y+                 &
+           1.543764346501D-07)*Y+4.520749076914D-06)*Y-                 &
+           1.88893338587047D-04 )*Y+4.73264487389288D-03 )*Y-           &
+           7.91197893350253D-02 )*Y+8.60057928514554D-01                 
+      RT(5) = (((((((((((-2.24366166957225D-14*Y+4.87224967526081D-14)*Y+ &
+           5.587369053655D-12)*Y-3.045253104617D-12)*Y-                 &
+           1.223983883080D-09)*Y-2.05603889396319D-09 )*Y+              &
+           2.58604071603561D-07 )*Y+1.34240904266268D-06 )*Y-           &
+           5.72877569731162D-05 )*Y-9.56275105032191D-04 )*Y+           &
+           4.23367010370921D-02 )*Y-5.76800927133412D-01 )*Y+           &
+           3.87328263873381D+00                                          
+      WW(1) = ((((((((( 8.98007931950169D-15*Y+7.25673623859497D-14)*Y+   &
+           5.851494250405D-14)*Y-4.234204823846D-11)*Y+                 &
+           3.911507312679D-10)*Y-9.65094802088511D-09 )*Y+              &
+           3.42197444235714D-07 )*Y-7.51821178144509D-06 )*Y+           &
+           1.94218051498662D-04 )*Y-5.38533819142287D-03 )*Y+           &
+           1.68122596736809D-01                                          
+      WW(2) = ((((((((((-1.05490525395105D-15*Y+1.96855386549388D-14)*Y-  &
+           5.500330153548D-13)*Y+1.003849567976D-11)*Y-                 &
+           1.720997242621D-10)*Y+3.533277061402D-09)*Y-                 &
+           6.389171736029D-08)*Y+1.046236652393D-06)*Y-                 &
+           1.73148206795827D-05 )*Y+2.57820531617185D-04 )*Y-           &
+           3.46188265338350D-03 )*Y+7.03302497508176D-02                 
+      WW(3) = ((((((((((( 3.60020423754545D-16*Y-6.24245825017148D-15)*Y+ &
+           9.945311467434D-14)*Y-1.749051512721D-12)*Y+                 &
+           2.768503957853D-11)*Y-4.08688551136506D-10 )*Y+              &
+           6.04189063303610D-09 )*Y-8.23540111024147D-08 )*Y+           &
+           1.01503783870262D-06 )*Y-1.20490761741576D-05 )*Y+           &
+           1.26928442448148D-04 )*Y-1.05539461930597D-03 )*Y+           &
+           1.15543698537013D-02                                          
+      WW(4) = ((((((((((((( 2.51163533058925D-18*Y-4.31723745510697D-17)* &
+           Y+6.557620865832D-16)*Y-1.016528519495D-14)*Y+               &
+           1.491302084832D-13)*Y-2.06638666222265D-12 )*Y+              &
+           2.67958697789258D-11 )*Y-3.23322654638336D-10 )*Y+           &
+           3.63722952167779D-09 )*Y-3.75484943783021D-08 )*Y+           &
+           3.49164261987184D-07 )*Y-2.92658670674908D-06 )*Y+           &
+           2.12937256719543D-05 )*Y-1.19434130620929D-04 )*Y+           &
+           6.45524336158384D-04                                          
+      WW(5) = ((((((((((((((-1.29043630202811D-19*Y+2.16234952241296D-18)*&
+           Y-3.107631557965D-17)*Y+4.570804313173D-16)*Y-               &
+           6.301348858104D-15)*Y+8.031304476153D-14)*Y-                 &
+           9.446196472547D-13)*Y+1.018245804339D-11)*Y-                 &
+           9.96995451348129D-11 )*Y+8.77489010276305D-10 )*Y-           &
+           6.84655877575364D-09 )*Y+4.64460857084983D-08 )*Y-           &
+           2.66924538268397D-07 )*Y+1.24621276265907D-06 )*Y-           &
+           4.30868944351523D-06 )*Y+9.94307982432868D-06                 
+      RETURN
+                                                                        
+  180 IF (X > 25.0D+00) GO TO 220                                        
+      IF (X > 20.0D+00) GO TO 200                                        
+!     X=15.0 TO 20.0                             NROOTS = 5              
+      Y = X-17.5D+00                                                     
+      RT(1) = (((((((((( 1.91875764545740D-16*Y+7.8357401095707D-16)*Y-   &
+           3.260875931644D-14)*Y-1.186752035569D-13)*Y+                 &
+           4.275180095653D-12)*Y+3.357056136731D-11)*Y-                 &
+           1.123776903884D-09)*Y+1.231203269887D-08)*Y-                 &
+           3.99851421361031D-07 )*Y+1.45418822817771D-05 )*Y-           &
+           3.49912254976317D-04 )*Y+6.67768703938812D-03                 
+      RT(2) = (((((((((( 2.02778478673555D-15*Y+1.01640716785099D-14)*Y-  &
+           3.385363492036D-13)*Y-1.615655871159D-12)*Y+                 &
+           4.527419140333D-11)*Y+3.853670706486D-10)*Y-                 &
+           1.184607130107D-08)*Y+1.347873288827D-07)*Y-                 &
+           4.47788241748377D-06 )*Y+1.54942754358273D-04 )*Y-           &
+           3.55524254280266D-03 )*Y+6.44912219301603D-02                 
+      RT(3) = (((((((((( 7.79850771456444D-15*Y+6.00464406395001D-14)*Y-  &
+           1.249779730869D-12)*Y-1.020720636353D-11)*Y+                 &
+           1.814709816693D-10)*Y+1.766397336977D-09)*Y-                 &
+           4.603559449010D-08)*Y+5.863956443581D-07)*Y-                 &
+           2.03797212506691D-05 )*Y+6.31405161185185D-04 )*Y-           &
+           1.30102750145071D-02 )*Y+2.10244289044705D-01                 
+      RT(4) = (((((((((((-2.92397030777912D-15*Y+1.94152129078465D-14)*Y+ &
+           4.859447665850D-13)*Y-3.217227223463D-12)*Y-                 &
+           7.484522135512D-11)*Y+7.19101516047753D-10 )*Y+              &
+           6.88409355245582D-09 )*Y-1.44374545515769D-07 )*Y+           &
+           2.74941013315834D-06 )*Y-1.02790452049013D-04 )*Y+           &
+           2.59924221372643D-03 )*Y-4.35712368303551D-02 )*Y+           &
+           5.62170709585029D-01                                          
+      RT(5) = ((((((((((( 1.17976126840060D-14*Y+1.24156229350669D-13)*Y- &
+           3.892741622280D-12)*Y-7.755793199043D-12)*Y+                 &
+           9.492190032313D-10)*Y-4.98680128123353D-09 )*Y-              &
+           1.81502268782664D-07 )*Y+2.69463269394888D-06 )*Y+           &
+           2.50032154421640D-05 )*Y-1.33684303917681D-03 )*Y+           &
+           2.29121951862538D-02 )*Y-2.45653725061323D-01 )*Y+           &
+           1.89999883453047D+00                                          
+      WW(1) = (((((((((( 1.74841995087592D-15*Y-6.95671892641256D-16)*Y-  &
+           3.000659497257D-13)*Y+2.021279817961D-13)*Y+                 &
+           3.853596935400D-11)*Y+1.461418533652D-10)*Y-                 &
+           1.014517563435D-08)*Y+1.132736008979D-07)*Y-                 &
+           2.86605475073259D-06 )*Y+1.21958354908768D-04 )*Y-           &
+           3.86293751153466D-03 )*Y+1.45298342081522D-01                 
+      WW(2) = ((((((((((-1.11199320525573D-15*Y+1.85007587796671D-15)*Y+  &
+           1.220613939709D-13)*Y+1.275068098526D-12)*Y-                 &
+           5.341838883262D-11)*Y+6.161037256669D-10)*Y-                 &
+           1.009147879750D-08)*Y+2.907862965346D-07)*Y-                 &
+           6.12300038720919D-06 )*Y+1.00104454489518D-04 )*Y-           &
+           1.80677298502757D-03 )*Y+5.78009914536630D-02                 
+      WW(3) = ((((((((((-9.49816486853687D-16*Y+6.67922080354234D-15)*Y+  &
+           2.606163540537D-15)*Y+1.983799950150D-12)*Y-                 &
+           5.400548574357D-11)*Y+6.638043374114D-10)*Y-                 &
+           8.799518866802D-09)*Y+1.791418482685D-07)*Y-                 &
+           2.96075397351101D-06 )*Y+3.38028206156144D-05 )*Y-           &
+           3.58426847857878D-04 )*Y+8.39213709428516D-03                 
+      WW(4) = ((((((((((( 1.33829971060180D-17*Y-3.44841877844140D-16)*Y+ &
+           4.745009557656D-15)*Y-6.033814209875D-14)*Y+                 &
+           1.049256040808D-12)*Y-1.70859789556117D-11 )*Y+              &
+           2.15219425727959D-10 )*Y-2.52746574206884D-09 )*Y+           &
+           3.27761714422960D-08 )*Y-3.90387662925193D-07 )*Y+           &
+           3.46340204593870D-06 )*Y-2.43236345136782D-05 )*Y+           &
+           3.54846978585226D-04                                          
+      WW(5) = ((((((((((((( 2.69412277020887D-20*Y-4.24837886165685D-19)* &
+           Y+6.030500065438D-18)*Y-9.069722758289D-17)*Y+               &
+           1.246599177672D-15)*Y-1.56872999797549D-14 )*Y+              &
+           1.87305099552692D-13 )*Y-2.09498886675861D-12 )*Y+           &
+           2.11630022068394D-11 )*Y-1.92566242323525D-10 )*Y+           &
+           1.62012436344069D-09 )*Y-1.23621614171556D-08 )*Y+           &
+           7.72165684563049D-08 )*Y-3.59858901591047D-07 )*Y+           &
+           2.43682618601000D-06                                          
+      RETURN
+                                                                        
+!     X=20.0 TO 25.0                             NROOTS = 5              
+  200 Y = X-22.5D+00                                                     
+      RT(1) = (((((((((-1.13927848238726D-15*Y+7.39404133595713D-15)*Y+   &
+           1.445982921243D-13)*Y-2.676703245252D-12)*Y+                 &
+           5.823521627177D-12)*Y+2.17264723874381D-10 )*Y+              &
+           3.56242145897468D-09 )*Y-3.03763737404491D-07 )*Y+           &
+           9.46859114120901D-06 )*Y-2.30896753853196D-04 )*Y+           &
+           5.24663913001114D-03                                          
+      RT(2) = (((((((((( 2.89872355524581D-16*Y-1.22296292045864D-14)*Y+  &
+           6.184065097200D-14)*Y+1.649846591230D-12)*Y-                 &
+           2.729713905266D-11)*Y+3.709913790650D-11)*Y+                 &
+           2.216486288382D-09)*Y+4.616160236414D-08)*Y-                 &
+           3.32380270861364D-06 )*Y+9.84635072633776D-05 )*Y-           &
+           2.30092118015697D-03 )*Y+5.00845183695073D-02                 
+      RT(3) = (((((((((( 1.97068646590923D-15*Y-4.89419270626800D-14)*Y+  &
+           1.136466605916D-13)*Y+7.546203883874D-12)*Y-                 &
+           9.635646767455D-11)*Y-8.295965491209D-11)*Y+                 &
+           7.534109114453D-09)*Y+2.699970652707D-07)*Y-                 &
+           1.42982334217081D-05 )*Y+3.78290946669264D-04 )*Y-           &
+           8.03133015084373D-03 )*Y+1.58689469640791D-01                 
+      RT(4) = (((((((((( 1.33642069941389D-14*Y-1.55850612605745D-13)*Y-  &
+           7.522712577474D-13)*Y+3.209520801187D-11)*Y-                 &
+           2.075594313618D-10)*Y-2.070575894402D-09)*Y+                 &
+           7.323046997451D-09)*Y+1.851491550417D-06)*Y-                 &
+           6.37524802411383D-05 )*Y+1.36795464918785D-03 )*Y-           &
+           2.42051126993146D-02 )*Y+3.97847167557815D-01                 
+      RT(5) = ((((((((((-6.07053986130526D-14*Y+1.04447493138843D-12)*Y-  &
+           4.286617818951D-13)*Y-2.632066100073D-10)*Y+                 &
+           4.804518986559D-09)*Y-1.835675889421D-08)*Y-                 &
+           1.068175391334D-06)*Y+3.292234974141D-05)*Y-                 &
+           5.94805357558251D-04 )*Y+8.29382168612791D-03 )*Y-           &
+           9.93122509049447D-02 )*Y+1.09857804755042D+00                 
+      WW(1) = (((((((((-9.10338640266542D-15*Y+1.00438927627833D-13)*Y+   &
+           7.817349237071D-13)*Y-2.547619474232D-11)*Y+                 &
+           1.479321506529D-10)*Y+1.52314028857627D-09 )*Y+              &
+           9.20072040917242D-09 )*Y-2.19427111221848D-06 )*Y+           &
+           8.65797782880311D-05 )*Y-2.82718629312875D-03 )*Y+           &
+           1.28718310443295D-01                                          
+      WW(2) = ((((((((( 5.52380927618760D-15*Y-6.43424400204124D-14)*Y-   &
+           2.358734508092D-13)*Y+8.261326648131D-12)*Y+                 &
+           9.229645304956D-11)*Y-5.68108973828949D-09 )*Y+              &
+           1.22477891136278D-07 )*Y-2.11919643127927D-06 )*Y+           &
+           4.23605032368922D-05 )*Y-1.14423444576221D-03 )*Y+           &
+           5.06607252890186D-02                                          
+      WW(3) = ((((((((( 3.99457454087556D-15*Y-5.11826702824182D-14)*Y-   &
+           4.157593182747D-14)*Y+4.214670817758D-12)*Y+                 &
+           6.705582751532D-11)*Y-3.36086411698418D-09 )*Y+              &
+           6.07453633298986D-08 )*Y-7.40736211041247D-07 )*Y+           &
+           8.84176371665149D-06 )*Y-1.72559275066834D-04 )*Y+           &
+           7.16639814253567D-03                                          
+      WW(4) = (((((((((((-2.14649508112234D-18*Y-2.45525846412281D-18)*Y+ &
+           6.126212599772D-16)*Y-8.526651626939D-15)*Y+                 &
+           4.826636065733D-14)*Y-3.39554163649740D-13 )*Y+              &
+           1.67070784862985D-11 )*Y-4.42671979311163D-10 )*Y+           &
+           6.77368055908400D-09 )*Y-7.03520999708859D-08 )*Y+           &
+           6.04993294708874D-07 )*Y-7.80555094280483D-06 )*Y+           &
+           2.85954806605017D-04                                          
+      WW(5) = ((((((((((((-5.63938733073804D-21*Y+6.92182516324628D-20)*Y-&
+           1.586937691507D-18)*Y+3.357639744582D-17)*Y-                 &
+           4.810285046442D-16)*Y+5.386312669975D-15)*Y-                 &
+           6.117895297439D-14)*Y+8.441808227634D-13)*Y-                 &
+           1.18527596836592D-11 )*Y+1.36296870441445D-10 )*Y-           &
+           1.17842611094141D-09 )*Y+7.80430641995926D-09 )*Y-           &
+           5.97767417400540D-08 )*Y+1.65186146094969D-06                 
+      RETURN
+                                                                        
+  220 WW(1) = SQRT(PIE4/X)                                                 
+      IF (X > 40.0D+00) GO TO 240                                        
+!     X=25.0 TO 40.0                             NROOTS = 5              
+      E = EXP(-X)                                                        
+      RT(1) = ((((((((-1.73363958895356D-06*X+1.19921331441483D-04)*X -   &
+           1.59437614121125D-02)*X+1.13467897349442D+00)*X -            &
+           4.47216460864586D+01)*X+1.06251216612604D+03)*X -            &
+           1.52073917378512D+04)*X+1.20662887111273D+05)*X -            &
+           4.07186366852475D+05)*E + R15/(X-R15)                         
+      RT(2) = ((((((((-1.60102542621710D-05*X+1.10331262112395D-03)*X -   &
+           1.50043662589017D-01)*X+1.05563640866077D+01)*X -            &
+           4.10468817024806D+02)*X+9.62604416506819D+03)*X -            &
+           1.35888069838270D+05)*X+1.06107577038340D+06)*X -            &
+           3.51190792816119D+06)*E + R25/(X-R25)                         
+      RT(3) = ((((((((-4.48880032128422D-05*X+2.69025112122177D-03)*X -   &
+           4.01048115525954D-01)*X+2.78360021977405D+01)*X -            &
+           1.04891729356965D+03)*X+2.36985942687423D+04)*X -            &
+           3.19504627257548D+05)*X+2.34879693563358D+06)*X -            &
+           7.16341568174085D+06)*E + R35/(X-R35)                         
+      RT(4) = ((((((((-6.38526371092582D-05*X-2.29263585792626D-03)*X -   &
+           7.65735935499627D-02)*X+9.12692349152792D+00)*X -            &
+           2.32077034386717D+02)*X+2.81839578728845D+02)*X +            &
+           9.59529683876419D+04)*X-1.77638956809518D+06)*X +            &
+           1.02489759645410D+07)*E + R45/(X-R45)                         
+      RT(5) = ((((((((-3.59049364231569D-05*X-2.25963977930044D-02)*X +   &
+           1.12594870794668D+00)*X-4.56752462103909D+01)*X +            &
+           1.05804526830637D+03)*X-1.16003199605875D+04)*X -            &
+           4.07297627297272D+04)*X+2.22215528319857D+06)*X -            &
+           1.61196455032613D+07)*E + R55/(X-R55)                         
+      WW(5) = (((((((((-4.61100906133970D-10*X+1.43069932644286D-07)*X -  &
+           1.63960915431080D-05)*X+1.15791154612838D-03)*X -            &
+           5.30573476742071D-02)*X+1.61156533367153D+00)*X -            &
+           3.23248143316007D+01)*X+4.12007318109157D+02)*X -            &
+           3.02260070158372D+03)*X+9.71575094154768D+03)*E + W55*WW(1)     
+      WW(4) = (((((((((-2.40799435809950D-08*X+8.12621667601546D-06)*X -  &
+           9.04491430884113D-04)*X+6.37686375770059D-02)*X -            &
+           2.96135703135647D+00)*X+9.15142356996330D+01)*X -            &
+           1.86971865249111D+03)*X+2.42945528916947D+04)*X -            &
+           1.81852473229081D+05)*X+5.96854758661427D+05)*E + W45*WW(1)     
+      WW(3) = (((((((( 1.83574464457207D-05*X-1.54837969489927D-03)*X +   &
+           1.18520453711586D-01)*X-6.69649981309161D+00)*X +            &
+           2.44789386487321D+02)*X-5.68832664556359D+03)*X +            &
+           8.14507604229357D+04)*X-6.55181056671474D+05)*X +            &
+           2.26410896607237D+06)*E + W35*WW(1)                             
+      WW(2) = (((((((( 2.77778345870650D-05*X-2.22835017655890D-03)*X +   &
+           1.61077633475573D-01)*X-8.96743743396132D+00)*X +            &
+           3.28062687293374D+02)*X-7.65722701219557D+03)*X +            &
+           1.10255055017664D+05)*X-8.92528122219324D+05)*X +            &
+           3.10638627744347D+06)*E + W25*WW(1)                             
+      WW(1) = WW(1)-0.01962D+00*E-WW(2)-WW(3)-WW(4)-WW(5)                            
+      RETURN
+                                                                        
+  240 IF (X > 59.0D+00) GO TO 260                                        
+!     X=40.0 TO 59.0                             NROOTS = 5              
+      XXX = X**3                                                         
+      E = XXX*EXP(-X)                                                    
+      RT(1) = (((-2.43758528330205D-02*X+2.07301567989771D+00)*X -        &
+           6.45964225381113D+01)*X+7.14160088655470D+02)*E + R15/(X-R15) 
+      RT(2) = (((-2.28861955413636D-01*X+1.93190784733691D+01)*X -        &
+           5.99774730340912D+02)*X+6.61844165304871D+03)*E + R25/(X-R25) 
+      RT(3) = (((-6.95053039285586D-01*X+5.76874090316016D+01)*X -        &
+           1.77704143225520D+03)*X+1.95366082947811D+04)*E + R35/(X-R35) 
+      RT(4) = (((-1.58072809087018D+00*X+1.27050801091948D+02)*X -        &
+           3.86687350914280D+03)*X+4.23024828121420D+04)*E + R45/(X-R45) 
+      RT(5) = (((-3.33963830405396D+00*X+2.51830424600204D+02)*X -        &
+           7.57728527654961D+03)*X+8.21966816595690D+04)*E + R55/(X-R55) 
+      E = XXX*E                                                          
+      WW(5) = (( 1.35482430510942D-08*X-3.27722199212781D-07)*X +         &
+           2.41522703684296D-06)*E + W55*WW(1)                             
+      WW(4) = (( 1.23464092261605D-06*X-3.55224564275590D-05)*X +         &
+           3.03274662192286D-04)*E + W45*WW(1)                             
+      WW(3) = (( 1.34547929260279D-05*X-4.19389884772726D-04)*X +         &
+           3.87706687610809D-03)*E + W35*WW(1)                             
+      WW(2) = (( 2.09539509123135D-05*X-6.87646614786982D-04)*X +         &
+           6.68743788585688D-03)*E + W25*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)-WW(4)-WW(5)
+      RETURN
+
+!     X=59.0 TO INFINITY                         NROOTS = 5
+  260 RT(1) = R15/(X-R15)
+      RT(2) = R25/(X-R25)
+      RT(3) = R35/(X-R35)
+      RT(4) = R45/(X-R45)
+      RT(5) = R55/(X-R55)
+      WW(2) = W25*WW(1)
+      WW(3) = W35*WW(1)
+      WW(4) = W45*WW(1)
+      WW(5) = W55*WW(1)
+      WW(1) = WW(1)-WW(2)-WW(3)-WW(4)-WW(5)
+      RETURN
+      END SUBROUTINE
+
+! Calling by HSandT & ERISPDFGHIL: ROOT6 
+      SUBROUTINE ROOT6(XX,UF,WF,NROOTS)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION :: XX, UF(13), WF(13)
+      INTEGER :: NROOTS
+      INTEGER :: K, NAUX, MAP, I, MXAUX, NAUXS, MAPRYS, IERR
+      PARAMETER (MXAUX=55)
+      DIMENSION RGRID(MXAUX),WGRID(MXAUX),P0(MXAUX),P1(MXAUX),          &
+                P2(MXAUX),RTS(13),WTS(13),WRK(13),ALPHA(0:12),BETA(0:12)
+      !COMMON /ROOT  / XX,UF(13),WF(13),NROOTS
+      COMMON /RYSPAR/ XASYMP(13),RTSASY(13,13),WTSASY(13,13),           &
+                      NAUXS(13),MAPRYS(13),RTSAUX(55,8),WTSAUX(55,8)
 !-----------------------------------------------------------------------
-!     Initialization for system_clock
+      IF(XX>=XASYMP(NROOTS)) THEN
+       FACTR = 1.0d0/XX
+       FACTW = SQRT(FACTR)
+       DO I=1,NROOTS
+         RTS(I)= FACTR * RTSASY(I,NROOTS)
+         WTS(I)= FACTW * WTSASY(I,NROOTS)
+       ENDDO
+      ELSE
+       NAUX=NAUXS(NROOTS)
+       MAP=MAPRYS(NROOTS)
+       DO I=1,NAUX
+          T2 = RTSAUX(I,MAP)*RTSAUX(I,MAP)
+          RGRID(I) = T2
+          WGRID(I) = WTSAUX(I,MAP)*EXP(-XX*T2)
+       ENDDO
+       EPS = 1.0D-14
+       CALL RYSDS(NROOTS,NAUX,RGRID,WGRID,ALPHA,BETA,IERR,P0,P1,P2)
+       CALL RYSGW(NROOTS,ALPHA,BETA,EPS,RTS,WTS,IERR,WRK)
+      END IF
+      DO K=1,NROOTS
+       DUM  = RTS(K)
+       UF(K)= DUM/(1.0d0-DUM)
+       WF(K)= WTS(K)
+      ENDDO
 !-----------------------------------------------------------------------
-      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
-      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
-      RATE = REAL(CR)
-      CALL SYSTEM_CLOCK(timestarttwoE)
-!----------------------------------------------------------------------- 
-!     Driver for 2e integrals 
-!----------------------------------------------------------------------
-      CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
-      MAXG = 4**4                                                                                  
-      IF(LMAXIMA==2)MAXG =  6**4                                                                                  
-      IF(LMAXIMA==3)MAXG = 10**4                                                                                  
-      IF(LMAXIMA==4)MAXG = 15**4                                                                                  
-      IF(LMAXIMA==5)MAXG = 21**4                                                                                  
-      IF(LMAXIMA==6)MAXG = 28**4
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Debut
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Schwarz inequality
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(GHONDOLIB(MAXG))
-      SCHWRZ = ISCHWZ>0 
-      IF(SCHWRZ)THEN
-       if(ILIBRETA==0)then
-        CALL ExchangeInt(XINTS,GHONDOLIB,NSH2,MAXG,EX,CS,CP,CD,CF,CG,   &
-                         CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN, &
-                         KMAX,NSHELL,Cxyz,NAT)                          
-       else if(ILIBRETA==1)then
-        CALL ExchangeIntlib(XINTS,GHONDOLIB,NSH2,MAXG,KTYPE,KMIN,KMAX,  &
-                            NSHELL)
-       end if
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     2e integrals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(BUFP(NINTMX),IX(NINTMX))
-      CALL TwoERI(SCHWRZ,NINTEGtm,NINTEGt,NSCHWZ,BUFP,IX,BUFP2,IX2,     &
-                  XINTS,NSH2,GHONDOLIB,MAXG,IDONTW,IPRINTOPT,EX,CS,     &
-                  CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,      &
-                  KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
-      DEALLOCATE(BUFP,IX,GHONDOLIB)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NRECO = NREC
-      CALL SYSTEM_CLOCK(timefinishtwoE)
-      DeltaTtwoE = (timefinishtwoE - timestarttwoE)/RATE
-      IF(IPRINTOPT==1)                                                  &
-       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
-!-----------------------------------------------------------------------
+      RETURN
+      END SUBROUTINE
+
+! RYSDS
+      SUBROUTINE RYSDS(N,NCAP,X,W,ALPHA,BETA,IERR,P0,P1,P2)
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+      INTEGER :: N, NCAP, IERR, NM1, M, K
+      DIMENSION X(NCAP),W(NCAP),ALPHA(N),BETA(N),P0(NCAP),              &
+                P1(NCAP),P2(NCAP)
+
+      TINY = 1.0D-40
+      HUGE = 1.0D+40
+
+      IERR=0
+      IF(N<=0 .or. N>NCAP) THEN
+        IERR=1
+        RETURN
+      END IF
+      NM1=N-1
+
+      SUM0=0.0D+00
+      SUM1=0.0D+00
+      DO 10 M=1,NCAP
+        SUM0=SUM0+W(M)
+        SUM1=SUM1+W(M)*X(M)
+   10 CONTINUE
+      ALPHA(1)=SUM1/SUM0
+      BETA(1)=SUM0
+      IF(N==1) RETURN
+
+      DO 20 M=1,NCAP
+        P1(M)=0.0D+00
+        P2(M)=1.0D+00
+   20 CONTINUE
+      DO 40 K=1,NM1
+        SUM1=0.0D+00
+        SUM2=0.0D+00
+        DO 30 M=1,NCAP
+
+          IF(W(M)==0.0D+00) GOTO 30
+          P0(M)=P1(M)
+          P1(M)=P2(M)
+          P2(M)=(X(M)-ALPHA(K))*P1(M)-BETA(K)*P0(M)
+
+          IF(ABS(P2(M))>HUGE .or. ABS(SUM2)>HUGE) THEN
+            IERR=K
+            RETURN
+          END IF
+          T=W(M)*P2(M)*P2(M)
+          SUM1=SUM1+T
+          SUM2=SUM2+T*X(M)
+   30   CONTINUE
+
+        IF(ABS(SUM1)<TINY) THEN
+          IERR=-K
+          RETURN
+        END IF
+        ALPHA(K+1)=SUM2/SUM1
+        BETA(K+1)=SUM1/SUM0
+        SUM0=SUM1
+   40 CONTINUE
+
+      RETURN
+      END SUBROUTINE
+      
+! RYSGW
+      SUBROUTINE RYSGW(N,ALPHA,BETA,EPS,ROOTS,WEIGHT,IERR,WRK)
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
+      DIMENSION ALPHA(N),BETA(N),ROOTS(N),WEIGHT(N),WRK(N)
+      INTEGER :: IERR, N, K, L, M, J, I, MML
+
+      IF(N<1) THEN
+        IERR=-1
+        RETURN
+      END IF
+
+      IERR=0
+      ROOTS(1)=ALPHA(1)
+      IF(BETA(1)<0.0D+00) THEN
+        IERR=-2
+        RETURN
+      END IF
+      WEIGHT(1)=BETA(1)
+      IF (N==1) RETURN
+
+      WEIGHT(1)=1.0D+00
+      WRK(N)=0.0D+00
+      DO 100 K=2,N
+        ROOTS(K)=ALPHA(K)
+        IF(BETA(K)<0.0D+00) THEN
+          IERR=-2
+          RETURN
+        END IF
+        WRK(K-1)=SQRT(BETA(K))
+        WEIGHT(K)=0.0D+00
+  100 CONTINUE
+
+      DO 240 L=1,N
+        J=0
+
+  105   DO 110 M=L,N
+         IF(M==N) GO TO 120
+         IF(ABS(WRK(M))<=EPS*(ABS(ROOTS(M))+ABS(ROOTS(M+1))))GOTO 120
+  110   CONTINUE
+  120   DP=ROOTS(L)
+        IF(M==L) GO TO 240
+        IF(J==30) GO TO 400
+        J=J+1
+
+        DG=(ROOTS(L+1)-DP)/(2.0D+00*WRK(L))
+        DR=SQRT(DG*DG+1.0D+00)
+        DG=ROOTS(M)-DP+WRK(L)/(DG+SIGN(DR,DG))
+        DS=1.0D+00
+        DC=1.0D+00
+        DP=0.0D+00
+        MML=M-L
+
+        DO 200 II=1,MML
+          I=M-II
+          DF=DS*WRK(I)
+          DB=DC*WRK(I)
+          IF(ABS(DF)<ABS(DG)) GO TO 150
+          DC=DG/DF
+          DR=SQRT(DC*DC+1.0D+00)
+          WRK(I+1)=DF*DR
+          DS=1.0D+00/DR
+          DC=DC*DS
+          GO TO 160
+  150     DS=DF/DG
+          DR=SQRT(DS*DS+1.0D+00)
+          WRK(I+1)=DG*DR
+          DC=1.0D+00/DR
+          DS=DS*DC
+  160     DG=ROOTS(I+1)-DP
+          DR=(ROOTS(I)-DG)*DS+2.0D+00*DC*DB
+          DP=DS*DR
+          ROOTS(I+1)=DG+DP
+          DG=DC*DR-DB
+
+          DF=WEIGHT(I+1)
+          WEIGHT(I+1)=DS*WEIGHT(I)+DC*DF
+          WEIGHT(I)=DC*WEIGHT(I)-DS*DF
+  200   CONTINUE
+        ROOTS(L)=ROOTS(L)-DP
+        WRK(L)=DG
+        WRK(M)=0.0D+00
+        GO TO 105
+  240 CONTINUE
+
+      DO 300 II=2,N
+        I=II-1
+        K=I
+        DP=ROOTS(I)
+        DO 260 J=II,N
+          IF(ROOTS(J)>=DP) GO TO 260
+          K=J
+          DP=ROOTS(J)
+  260   CONTINUE
+        IF(K==I) GO TO 300
+        ROOTS(K)=ROOTS(I)
+        ROOTS(I)=DP
+        DP=WEIGHT(I)
+        WEIGHT(I)=WEIGHT(K)
+        WEIGHT(K)=DP
+  300 CONTINUE
+      DO 310 K=1,N
+        WEIGHT(K)=BETA(1)*WEIGHT(K)*WEIGHT(K)
+  310 CONTINUE
+      RETURN
+
+  400 IERR=L
+
+      RETURN
+      END SUBROUTINE                 
+
+! SHELLS                                           
+      SUBROUTINE SHELLS(NELEC,ISH,JSH,KSH,LSH,FLIP,EX,CS,CP,CD,CF,CG,CH,&
+                 CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
+                 Cxyz,NAT)                    
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      !LOGICAL       NORM
+      !COMMON/NORMAL/NORM
+      !LOGICAL     IANDJ,KANDL,SAME
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON /ERIOUT/ INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
+      !COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
+      !                KLX(784),KLY(784),KLZ(784)                         
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)                                 
+      !COMMON /INFOA / NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
+      !COMMON /ROOT  / XX,U(13),W(13),NROOTS                              
+      !COMMON /SHLEXC/ NORGSH(3),NORGSP(3),IEXCH,NGTH(4)                  
+      !COMMON /SHLINF/  GA(30),CSA(30),CPA(30),CDA(30),                  &
+      !                CFA(30),CGA(30),CHA(30),CIA(30),                  &
+      !                 GB(30),CSB(30),CPB(30),CDB(30),                  &
+      !                CFB(30),CGB(30),CHB(30),CIB(30),                  &
+      !                 GC(30),CSC(30),CPC(30),CDC(30),                  &
+      !                CFC(30),CGC(30),CHC(30),CIC(30),                  &
+      !                 GD(30),CSD(30),CPD(30),CDD(30),                  &
+      !                CFD(30),CGD(30),CHD(30),CID(30),                  &
+      !                AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                   &
+      !                DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                    
+      !COMMON/SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
+      !                MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
+      !                NIJ,IJ,KL                                          
+      !COMMON /SHLNOS1/QQ4,IJKL
+!
+      LOGICAL FLIP                                                      
+      INTEGER :: NELEC,ISH,JSH,KSH,LSH,NPRIMI,NSHELL,NAT
+      INTEGER :: I,I1,I2,J,J1,J2,K,K1,K2,L,L1,L2,JMAX,LMAX,MAX
+      INTEGER :: NX,NY,NZ
+      INTEGER,DIMENSION(NSHELL)::KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      INTEGER :: IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
+                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)                                     
+!
+      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
+                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
+                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
+                  2,   0,   2,   1,   1,                                &
+                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
+                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
+                  1,                                                    &
+                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
+                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
+                  0,   3,   3,   2,   1,   2,   1,   2/                  
+      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
+                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
+                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
+                 14,   0,  14,   7,   7,                                &
+                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
+                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
+                  7,                                                    &
+                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
+                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
+                  0,  21,  21,  14,   7,  14,   7,  14/                  
+      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
+                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
+                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
+                 98,   0,  98,  49,  49,                                &
+                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
+                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
+                 49,                                                    &
+                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
+                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
+                  0, 147, 147,  98,  49,  98,  49,  98/                  
+      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
+               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
+               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
+                687,   1, 687, 344, 344,                                &
+               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
+               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
+                344,                                                    &
+               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
+               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
+                  1,1030,1030, 687, 344, 687, 344, 687/                  
+      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
+                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
+                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
+                  0,   2,   1,   2,   1,                                &
+                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
+                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
+                  2,                                                    &
+                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
+                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
+                  3,   2,   1,   3,   3,   1,   2,   2/                  
+      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
+                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
+                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
+                  0,  14,   7,  14,   7,                                &
+                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
+                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
+                 14,                                                    &
+                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
+                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
+                 21,  14,   7,  21,  21,   7,  14,  14/                  
+      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
+                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
+                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
+                  0,  98,  49,  98,  49,                                &
+                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
+                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
+                 98,                                                    &
+                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
+                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
+                147,  98,  49, 147, 147,  49,  98,  98/                  
+      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
+                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
+                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
+                  1, 687, 344, 687, 344,                                &
+                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
+                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
+                687,                                                    &
+                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
+                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
+               1030, 687, 344,1030,1030, 344, 687, 687/                  
+      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
+                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
+                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
+                  2,   2,   1,   1,   2,                                &
+                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
+                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
+                  2,                                                    &
+                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
+                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
+                  3,   1,   2,   1,   2,   3,   3,   2/                  
+      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
+                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
+                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
+                 14,  14,   7,   7,  14,                                &
+                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
+                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
+                 14,                                                    &
+                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
+                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
+                 21,   7,  14,   7,  14,  21,  21,  14/                  
+      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
+                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
+                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
+                 98,  98,  49,  49,  98,                                &
+                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
+
+                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
+                 98,                                                    &
+                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
+                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
+                147,  49,  98,  49,  98, 147, 147,  98/                  
+      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
+                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
+                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
+                687, 687, 344, 344, 687,                                &
+                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
+                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
+                687,                                                    &
+                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
+                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
+               1030, 344, 687, 344, 687,1030,1030, 687/                 
+!-----------------------------------------------------------------------                                                                       
+!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION 
+      NORM = .TRUE.  
+      IF(NELEC==2) GO TO 200                                          
+!                                                                       
+!     ----- PERMUTE ISH AND JSH SHELLS, FOR THEIR TYPE                  
+!     THIS IS DONE FOR SPEED REASONS.  THE CODE GETS THE RIGHT ANSWER   
+!     WITHOUT THE ANGULAR MOMENTUM FLIPPING, AND THEREFORE A CALLING    
+!     ARGUMENT ALLOWS ONE DO EXACTLY THE integral BLOCK AS SPECIFIED,   
+!     SHOULD THAT BE DESIRED.                                           
+!                                                                       
+      IANDJ = ISH == JSH                                              
+      IF (KTYPE(ISH) < KTYPE(JSH)  .and.  FLIP) THEN                 
+       INU = JSH                                                      
+       JNU = ISH                                                      
+       NGTI = NGTH(2)                                                 
+       NGTJ = NGTH(1)                                                 
+      ELSE                                                              
+       INU = ISH                                                      
+       JNU = JSH                                                      
+       NGTI = NGTH(1)                                                 
+       NGTJ = NGTH(2)                                                 
+      END IF                                                            
+!                                                                       
+!     ----- ISHELL                                                      
+!                                                                       
+      I = KATOM(INU)                                                    
+      AX = Cxyz(1,I)                                                       
+      AY = Cxyz(2,I)                                                       
+      AZ = Cxyz(3,I)                                                       
+      I1 = KSTART(INU)                                                  
+      I2 = I1+KNG(INU)-1                                                
+      LIT = KTYPE(INU)                                                  
+      MINI = KMIN(INU)                                                  
+      MAXI = KMAX(INU)                                                  
+      LOCI = KLOC(INU)-MINI                                             
+      NGA = 0                                                           
+      DO I = I1,I2                                                  
+       NGA = NGA+1                                                    
+       GA(NGA)  = EX(I)                                                
+       CSA(NGA) = CS(I)                                               
+       CPA(NGA) = CP(I)                                               
+       CDA(NGA) = CD(I)                                               
+       CFA(NGA) = CF(I)                                               
+       CGA(NGA) = CG(I)                                               
+       CHA(NGA) = CH(I)                                               
+       CIA(NGA) = CI(I)                                               
+      END DO                                                          
+!                                                                       
+!     ----- JSHELL                                                      
+!                                                                       
+      J = KATOM(JNU)                                                    
+      BX = Cxyz(1,J)                                                       
+      BY = Cxyz(2,J)                                                       
+      BZ = Cxyz(3,J)                                                       
+      J1 = KSTART(JNU)                                                  
+      J2 = J1+KNG(JNU)-1                                                
+      LJT = KTYPE(JNU)                                                  
+      MINJ = KMIN(JNU)                                                  
+      MAXJ = KMAX(JNU)                                                  
+      LOCJ = KLOC(JNU)-MINJ                                             
+      NGB = 0                                                           
+      DO J = J1,J2                                                  
+       NGB = NGB+1                                                    
+       GB(NGB) = EX(J)                                                
+       CSB(NGB) = CS(J)                                               
+       CPB(NGB) = CP(J)                                               
+       CDB(NGB) = CD(J)                                               
+       CFB(NGB) = CF(J)                                               
+       CGB(NGB) = CG(J)                                               
+       CHB(NGB) = CH(J)                                               
+       CIB(NGB) = CI(J)                                               
+      END DO                                                          
+      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
+!                                                                       
+      IJ = 0                                                            
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       NX = IX(I)                                                     
+       NY = IY(I)                                                     
+       NZ = IZ(I)                                                     
+       IF (IANDJ) JMAX = I                                            
+       DO J = MINJ,JMAX                                           
+        IJ = IJ+1                                                   
+        IJX(IJ) = NX+JX(J)                                          
+        IJY(IJ) = NY+JY(J)                                          
+        IJZ(IJ) = NZ+JZ(J)                                          
+        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
+       END DO                                                       
+      END DO                                                          
       RETURN                                                            
-      END                                                               
+!     ******                                                            
+!                                                                       
+!        K AND L SHELL                                                  
+!                                                                       
+  200 CONTINUE                                                          
+      KANDL = KSH == LSH                                              
+      SAME = ISH == KSH .and. JSH == LSH                            
+!                                                                       
+!     ----- PERMUTE KSH AND LSH SHELLS, FOR THEIR TYPE                  
+!                                                                       
+      IF (KTYPE(KSH) < KTYPE(LSH)  .and.  FLIP) THEN                 
+       KNU = LSH                                                      
+       LNU = KSH                                                      
+       NGTK = NGTH(4)                                                 
+       NGTL = NGTH(3)                                                 
+      ELSE                                                              
+       KNU = KSH                                                      
+       LNU = LSH                                                      
+       NGTK = NGTH(3)                                                 
+       NGTL = NGTH(4)                                                 
+      END IF                                                            
+!                                                                       
+!     ----- K SHELL                                                     
+!                                                                       
+      K = KATOM(KNU)                                                    
+      CX = Cxyz(1,K)                                                       
+      CY = Cxyz(2,K)                                                       
+      CZ = Cxyz(3,K)                                                       
+      K1 = KSTART(KNU)                                                  
+      K2 = K1+KNG(KNU)-1                                                
+      LKT = KTYPE(KNU)                                                  
+      MINK = KMIN(KNU)                                                  
+      MAXK = KMAX(KNU)                                                  
+      LOCK = KLOC(KNU)-MINK                                             
+      NGC = 0                                                           
+      DO K = K1,K2                                                  
+       NGC = NGC+1                                                    
+       GC(NGC)  = EX(K)                                                
+       CSC(NGC) = CS(K)                                               
+       CPC(NGC) = CP(K)                                               
+       CDC(NGC) = CD(K)                                               
+       CFC(NGC) = CF(K)                                               
+       CGC(NGC) = CG(K)                                               
+       CHC(NGC) = CH(K)                                               
+       CIC(NGC) = CI(K)                                               
+      END DO                                                          
+!                                                                       
+!     ----- LSHELL                                                      
+!                                                                       
+      L = KATOM(LNU)                                                    
+      DX = Cxyz(1,L)                                                       
+      DY = Cxyz(2,L)                                                       
+      DZ = Cxyz(3,L)                                                       
+      L1 = KSTART(LNU)                                                  
+      L2 = L1+KNG(LNU)-1                                                
+      LLT = KTYPE(LNU)                                                  
+      MINL = KMIN(LNU)                                                  
+      MAXL = KMAX(LNU)                                                  
+      LOCL = KLOC(LNU)-MINL                                             
+      NGD = 0                                                           
+      DO L = L1,L2                                                  
+       NGD = NGD+1                                                    
+       GD(NGD) = EX(L)                                                
+       CSD(NGD) = CS(L)                                               
+       CPD(NGD) = CP(L)                                               
+       CDD(NGD) = CD(L)                                               
+       CFD(NGD) = CF(L)                                               
+       CGD(NGD) = CG(L)                                               
+       CHD(NGD) = CH(L)                                               
+       CID(NGD) = CI(L)                                               
+      END DO                                                          
+      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
+      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
+!                                                                       
+      KL = 0                                                            
+      LMAX = MAXL                                                       
+      DO K = MINK,MAXK                                              
+       NX = KX(K)                                                     
+       NY = KY(K)                                                     
+       NZ = KZ(K)                                                     
+       IF (KANDL) LMAX = K                                            
+       DO L = MINL,LMAX                                           
+        KL = KL+1                                                   
+        KLX(KL) = NX+LX(L)                                          
+        KLY(KL) = NY+LY(L)                                          
+        KLZ(KL) = NZ+LZ(L)                                          
+        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
+       END DO                                                       
+      END DO                                                          
+      MAX = KL                                                          
+      DO 320 I = 1,IJ                                                   
+      IF (SAME) MAX = I                                                 
+  320 IK(I) = MAX                                                       
+      IJKL = IJ*KL                                                      
+      IF (SAME) IJKL = IJ*(IJ+1)/2                                      
+      RETURN                                                            
+      END SUBROUTINE           
+
+! IJPRIM                                           
+      SUBROUTINE IJPRIM(DDIJ)                        
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      !LOGICAL       NORM
+      !COMMON/NORMAL/NORM
+      !LOGICAL     IANDJ,KANDL,SAME 
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON/IJGNRL/A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),          &
+      !              Y1_IJGNRL(900),Z1_IJGNRL(900),IJD(784)                                             
+      !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
+      !              CFA(30),CGA(30),CHA(30),CIA(30),                    &
+      !               GB(30),CSB(30),CPB(30),CDB(30),                    &
+      !              CFB(30),CGB(30),CHB(30),CIB(30),                    &
+      !               GC(30),CSC(30),CPC(30),CDC(30),                    &
+      !              CFC(30),CGC(30),CHC(30),CIC(30),                    &
+      !               GD(30),CSD(30),CPD(30),CDD(30),                    &
+      !              CFD(30),CGD(30),CHD(30),CID(30),                    &
+      !              AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
+      !              DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
+      !              NIJ,IJ,KL                                          
+      !COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
+!
+      INTEGER :: MAX, N, NN, NM, I, JBMAX, J, IA, JB
+      DIMENSION DDIJ(49*900)                                           
+      PARAMETER (SQRT3=1.73205080756888D0,SQRT5=2.23606797749979D0,     &                       
+                 SQRT7=2.64575131106459D0,SQRT11=3.3166247903553998D0)                             
+!-----------------------------------------------------------------------
+      MAX = MAXJ                                                        
+      N = 0                                                             
+      NN = 0                                                            
+      NM = -2**20                                                       
+      DO 180 I = MINI,MAXI                                              
+         GO TO (100,100,120,120,100,120,120,100,120,120,                &
+                100,120,120,100,120,120,120,120,120,100,                &
+                100,120,120,100,120,120,120,120,120,100,                &
+                120,120,100,120,120,                                    &
+                100,120,120,100,120,120,120,120,120,100,                &
+                120,120,120,120,120,100,120,120,100,120,                &
+                120,                                                    &
+                100,120,120,100,120,120,120,120,120,100,                &
+                120,120,120,120,120,100,120,120,100,120,                &
+                120,100,120,120,120,120,120,100),I                       
+  100    NM = NN                                                         
+  120    NN = NM                                                         
+         IF (IANDJ) MAX = I                                              
+         DO 170 J = MINJ,MAX                                             
+            GO TO (140,140,160,160,140,160,160,140,160,160,             &
+                   140,160,160,140,160,160,160,160,160,140,             &
+                   140,160,160,140,160,160,160,160,160,140,             &
+                   160,160,140,160,160,                                 &
+                   140,160,160,140,160,160,160,160,160,140,             &
+                   160,160,160,160,160,140,160,160,140,160,             &
+                   160,                                                 &
+                   140,160,160,140,160,160,160,160,160,140,             &
+                   160,160,160,160,160,140,160,160,140,160,             &
+                   160,140,160,160,160,160,160,140),J                   
+  140       NN = NN+1                                                   
+  160       N = N+1                                                     
+            IJD(N) = NN                                                 
+  170    CONTINUE                                                       
+  180 CONTINUE                                                          
+!                                                                       
+!     ----- I PRIMITIVE                                                 
+!                                                                       
+      NIJ = 0                                                           
+      JBMAX = NGB                                                       
+      DO 540 IA = 1,NGA                                                 
+         AI = GA(IA)                                                    
+         ARRI = AI*RAB                                                  
+         AXI = AI*AX                                                    
+         AYI = AI*AY                                                    
+         AZI = AI*AZ                                                    
+         CSI = CSA(IA)                                                  
+         CPI = CPA(IA)                                                  
+         CDI = CDA(IA)                                                  
+         CFI = CFA(IA)                                                  
+         CGI = CGA(IA)                                                  
+         CHI = CHA(IA)                                                  
+         CII = CIA(IA)                                                  
+!                                                                       
+!        ----- J PRIMITIVE                                              
+!                                                                       
+         IF (IANDJ) JBMAX = IA                                          
+         DO 520 JB = 1,JBMAX                                            
+            AJ = GB(JB)                                                 
+            AA = AI+AJ                                                  
+            AAINV = 1.0d0/AA                                              
+            DUM = AJ*ARRI*AAINV                                         
+            IF (DUM > SHLTOL) GO TO 520                                 
+            CSJ = CSB(JB)                                               
+            CPJ = CPB(JB)                                               
+            CDJ = CDB(JB)                                               
+            CFJ = CFB(JB)                                               
+            CGJ = CGB(JB)                                               
+            CHJ = CHB(JB)                                               
+            CIJ = CIB(JB)                                               
+            NM = 49*NIJ                                                 
+            NN = NM                                                     
+            NIJ = NIJ+1                                                 
+            R_IJGNRL(NIJ) = DUM                                                
+            A_IJGNRL(NIJ) = AA                                                 
+            X1_IJGNRL(NIJ) = (AXI+AJ*BX)*AAINV                                 
+            Y1_IJGNRL(NIJ) = (AYI+AJ*BY)*AAINV                                 
+            Z1_IJGNRL(NIJ) = (AZI+AJ*BZ)*AAINV                                 
+!                                                                       
+!           ----- DENSITY FACTOR                                        
+!                                                                       
+            DUM1 = 0.0d0                                                 
+            DUM2 = 0.0d0                                                 
+            DO 420 I = MINI,MAXI                                        
+               GO TO (200,220,420,420,240,420,420,260,420,420,          &
+                      261,420,420,262,420,420,420,420,420,263,          &
+                      264,420,420,265,420,420,420,420,420,266,          &
+                      420,420,267,420,420,                              &
+                      268,420,420,269,420,420,420,420,420,270,          &
+                      420,420,420,420,420,271,420,420,272,420,          &
+                      420,                                              &
+                      273,420,420,274,420,420,420,420,420,275,          &
+                      420,420,420,420,420,276,420,420,277,420,          &
+                      420,278,420,420,420,420,420,279),I                
+  200          DUM1 = CSI*AAINV                                         
+               GO TO 280                                                
+  220          DUM1 = CPI*AAINV                                         
+               GO TO 280                                                
+  240          DUM1 = CDI*AAINV                                         
+               GO TO 280                                                
+  260          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  261          DUM1 = CFI*AAINV                                         
+               GO TO 280                                                
+  262          IF (NORM) DUM1 = DUM1*SQRT5                              
+               GO TO 280                                                
+  263          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  264          DUM1 = CGI*AAINV                                         
+               GO TO 280                                                
+  265          IF (NORM) DUM1 = DUM1*SQRT7                              
+               GO TO 280                                                
+  266          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+               GO TO 280                                                
+  267          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  268          DUM1 = CHI*AAINV                                         
+               GO TO 280                                                
+  269          IF (NORM) DUM1 = DUM1*3.0d0                              
+               GO TO 280                                                
+  270          IF (NORM) DUM1 = DUM1*SQRT7/SQRT3                        
+               GO TO 280                                                
+  271          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  272          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+               GO TO 280                                                
+  273          DUM1 = CII*AAINV                                         
+               GO TO 280                                                
+  274          IF (NORM) DUM1 = DUM1*SQRT11                             
+               GO TO 280                                                
+  275          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  276          IF (NORM) DUM1 = DUM1*SQRT3                              
+               GO TO 280                                                
+  277          IF (NORM) DUM1 = DUM1*SQRT7/(SQRT5*SQRT3)                
+               GO TO 280                                                
+  278          IF (NORM) DUM1 = DUM1*SQRT5                              
+               GO TO 280                                                
+  279          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+!                                                                       
+  280          IF (IANDJ) MAX = I                                       
+               DO 400 J = MINJ,MAX                                      
+                  GO TO (300,320,400,400,340,400,400,360,400,400,       &
+                         361,400,400,362,400,400,400,400,400,363,       &
+                         364,400,400,365,400,400,400,400,400,366,       &
+                         400,400,367,400,400,                           &
+                         368,400,400,369,400,400,400,400,400,370,       &
+                         400,400,400,400,400,371,400,400,372,400,       &
+                         400,                                           &
+                         373,400,400,374,400,400,400,400,400,375,       &
+                         400,400,400,400,400,376,400,400,377,400,       &
+                         400,378,400,400,400,400,400,379),J             
+  300             DUM2 = DUM1*CSJ                                       
+                  GO TO 380                                             
+  320             DUM2 = DUM1*CPJ                                       
+                  GO TO 380                                             
+  340             DUM2 = DUM1*CDJ                                       
+                  GO TO 380                                             
+  360             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  361             DUM2 = DUM1*CFJ                                       
+                  GO TO 380                                             
+  362             IF (NORM) DUM2 = DUM2*SQRT5                           
+                  GO TO 380                                             
+  363             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  364             DUM2 = DUM1*CGJ                                       
+                  GO TO 380                                             
+  365             IF (NORM) DUM2 = DUM2*SQRT7                           
+                  GO TO 380                                             
+  366             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+                  GO TO 380                                             
+  367             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  368             DUM2 = DUM1*CHJ                                       
+                  GO TO 380                                             
+  369             IF (NORM) DUM2 = DUM2*3.0d0                           
+                  GO TO 380                                             
+  370             IF (NORM) DUM2 = DUM2*SQRT7/SQRT3                     
+                  GO TO 380                                             
+  371             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  372             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+                  GO TO 380                                             
+  373             DUM2 = DUM1*CIJ                                       
+                  GO TO 380                                             
+  374             IF (NORM) DUM2 = DUM2*SQRT11                          
+                  GO TO 380                                             
+  375             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  376             IF (NORM) DUM2 = DUM2*SQRT3                           
+                  GO TO 380                                             
+  377             IF (NORM) DUM2 = DUM2*SQRT7/(SQRT5*SQRT3)             
+                  GO TO 380                                             
+  378             IF (NORM) DUM2 = DUM2*SQRT5                           
+                  GO TO 380                                             
+  379             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+!                                                                       
+  380             NN = NN+1                                             
+                  DDIJ(NN) = DUM2                                       
+  400          CONTINUE                                                 
+  420       CONTINUE                                                    
+            IF ( .NOT. IANDJ) GO TO 520                                 
+            IF (IA == JB) GO TO 520                                   
+            GO TO (500,440,460,455,450,445,444),LIT                     
+  440       IF (MINI == 2) GO TO 500                                  
+            DDIJ(NM+2) = DDIJ(NM+2)+CSI*CPJ*AAINV                       
+            GO TO 480                                                   
+  444       DDIJ(NM+28) = DDIJ(NM+28)+DDIJ(NM+28)                       
+            DDIJ(NM+27) = DDIJ(NM+27)+DDIJ(NM+27)                       
+            DDIJ(NM+26) = DDIJ(NM+26)+DDIJ(NM+26)                       
+            DDIJ(NM+25) = DDIJ(NM+25)+DDIJ(NM+25)                       
+            DDIJ(NM+24) = DDIJ(NM+24)+DDIJ(NM+24)                       
+            DDIJ(NM+23) = DDIJ(NM+23)+DDIJ(NM+23)                       
+            DDIJ(NM+22) = DDIJ(NM+22)+DDIJ(NM+22)                       
+            DDIJ(NM+21) = DDIJ(NM+21)+DDIJ(NM+21)                       
+            DDIJ(NM+20) = DDIJ(NM+20)+DDIJ(NM+20)                       
+            DDIJ(NM+19) = DDIJ(NM+19)+DDIJ(NM+19)                       
+            DDIJ(NM+18) = DDIJ(NM+18)+DDIJ(NM+18)                       
+            DDIJ(NM+17) = DDIJ(NM+17)+DDIJ(NM+17)                       
+            DDIJ(NM+16) = DDIJ(NM+16)+DDIJ(NM+16)                       
+  445       DDIJ(NM+15) = DDIJ(NM+15)+DDIJ(NM+15)                       
+            DDIJ(NM+14) = DDIJ(NM+14)+DDIJ(NM+14)                       
+            DDIJ(NM+13) = DDIJ(NM+13)+DDIJ(NM+13)                       
+            DDIJ(NM+12) = DDIJ(NM+12)+DDIJ(NM+12)                       
+            DDIJ(NM+11) = DDIJ(NM+11)+DDIJ(NM+11)                       
+  450       DDIJ(NM+10) = DDIJ(NM+10)+DDIJ(NM+10)                       
+            DDIJ(NM+9) = DDIJ(NM+9)+DDIJ(NM+9)                          
+            DDIJ(NM+8) = DDIJ(NM+8)+DDIJ(NM+8)                          
+            DDIJ(NM+7) = DDIJ(NM+7)+DDIJ(NM+7)                          
+  455       DDIJ(NM+6) = DDIJ(NM+6)+DDIJ(NM+6)                          
+            DDIJ(NM+5) = DDIJ(NM+5)+DDIJ(NM+5)                          
+            DDIJ(NM+4) = DDIJ(NM+4)+DDIJ(NM+4)                          
+  460       DDIJ(NM+2) = DDIJ(NM+2)+DDIJ(NM+2)                          
+  480       DDIJ(NM+3) = DDIJ(NM+3)+DDIJ(NM+3)                          
+  500       DDIJ(NM+1) = DDIJ(NM+1)+DDIJ(NM+1)                          
+  520    CONTINUE                                                       
+  540 CONTINUE
+!-----------------------------------------------------------------------                                                          
+      RETURN                                                            
+      END SUBROUTINE
+
+! S0000                                            
+      SUBROUTINE S0000(GHONDO,DDIJ)                                     
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)    
+      INTEGER :: LGMAX, KG, LG, NN, N                           
+      !LOGICAL IANDJ,KANDL,SAME
+      !COMMON /IJGNRL/ A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),        &
+      !                Y1_IJGNRL(900),Z1_IJGNRL(900),IJD(784)                                           
+      !COMMON /MISC  / IANDJ,KANDL,SAME                                   
+      !COMMON /SHLINF/  GA(30),CSA(30),CPA(30),CDA(30),                  &
+      !                CFA(30),CGA(30),CHA(30),CIA(30),                  &
+      !                 GB(30),CSB(30),CPB(30),CDB(30),                  &
+      !                CFB(30),CGB(30),CHB(30),CIB(30),                  &
+      !                 GC(30),CSC(30),CPC(30),CDC(30),                  &
+      !                CFC(30),CGC(30),CHC(30),CIC(30),                  &
+      !                 GD(30),CSD(30),CPD(30),CDD(30),                  &
+      !                CFD(30),CGD(30),CHD(30),CID(30),                  &
+      !                AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                   &
+      !                DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                    
+      !COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,              &
+      !                MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
+      !                NIJ,IJ,KL                                    
+      !COMMON /SHLNOS1/QQ4,IJKL                         
+      !COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
+      DIMENSION GHONDO(*),DDIJ(49*900)                                 
+      PARAMETER (PI252=34.986836655250D+00, PIE4=7.85398163397448D-01)                             
+!-----------------------------------------------------------------------                                                                       
+!     SSSS integral for HONDO integrals          
+!-----------------------------------------------------------------------                                                                       
+      GGOUT = 0.0d0                                                      
+      LGMAX = NGD                                                       
+      DO 300 KG = 1,NGC                                                 
+      BK = GC(KG)                                                       
+      BRRK = BK*RCD                                                     
+      BXK = BK*CX                                                       
+      BYK = BK*CY                                                       
+      BZK = BK*CZ                                                       
+      CSK = CSC(KG)                                                     
+      IF (KANDL) LGMAX = KG                                             
+      DO 280 LG = 1,LGMAX                                               
+      BL = GD(LG)                                                       
+      BB = BK+BL                                                        
+      BBINV = 1.0d0/BB                                                    
+      DUM = BL*BRRK*BBINV                                               
+      IF (DUM > SHLTOL) GO TO 280                                       
+      BBRRK = DUM                                                       
+      D2 = CSD(LG)*CSK*BBINV                                            
+      IF (KANDL .and. LG /= KG) D2 = D2+D2                            
+      BBX = (BXK+BL*DX)*BBINV                                           
+      BBY = (BYK+BL*DY)*BBINV                                           
+      BBZ = (BZK+BL*DZ)*BBINV                                           
+      SUM = 0.0d0                                                        
+      NN = 1                                                            
+      DO 260 N = 1,NIJ                                                  
+      DUM = BBRRK+R_IJGNRL(N)                                                  
+      IF (DUM > SHLTOL) GO TO 260                                       
+      EXPE = EXP(-DUM)                                                  
+      AA = A_IJGNRL(N)                                                         
+      AB = AA+BB                                                        
+      DUM = X1_IJGNRL(N)-BBX                                                   
+      XX = DUM*DUM                                                      
+      DUM = Y1_IJGNRL(N)-BBY                                                   
+      XX = DUM*DUM+XX                                                   
+      DUM = Z1_IJGNRL(N)-BBZ                                                   
+      XX = DUM*DUM+XX                                                   
+      X = XX*AA*BB/AB                                                   
+!                                                                       
+      IF (X > 5.0D+00) GO TO 160                                     
+      IF (X > 1.0D+00) GO TO 120                                     
+      IF (X > 3.0D-07) GO TO 100                                     
+      WW1 = 1.0D+00-X/3.0D+00                                           
+      GO TO 240                                                         
+!                                                                       
+  100 CONTINUE                                                          
+      F1 = ((((((((-8.36313918003957D-08*X+1.21222603512827D-06 )*X-    &
+           1.15662609053481D-05 )*X+9.25197374512647D-05 )*X-           &
+           6.40994113129432D-04 )*X+3.78787044215009D-03 )*X-           &
+           1.85185172458485D-02 )*X+7.14285713298222D-02 )*X-           &
+           1.99999999997023D-01 )*X+3.33333333333318D-01                 
+      WW1 = (X+X)*F1+EXP(-X)                                             
+      GO TO 240                                                          
+!                                                                        
+  120 CONTINUE                                                           
+      IF (X > 3.0D+00) GO TO 140                                         
+      Y = X-2.0D+00                                                      
+      F1 = ((((((((((-1.61702782425558D-10*Y+1.96215250865776D-09 )*Y-  &
+           2.14234468198419D-08 )*Y+2.17216556336318D-07 )*Y-           &
+           1.98850171329371D-06 )*Y+1.62429321438911D-05 )*Y-           &
+           1.16740298039895D-04 )*Y+7.24888732052332D-04 )*Y-           &
+           3.79490003707156D-03 )*Y+1.61723488664661D-02 )*Y-           &
+           5.29428148329736D-02 )*Y+1.15702180856167D-01                 
+      WW1 = (X+X)*F1+EXP(-X)                                             
+      GO TO 240                                                          
+!                                                                        
+  140 CONTINUE                                                           
+      Y = X-4.0D+00                                                      
+      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y-  &
+           3.614965656163D-09)*Y+3.760256799971D-08)*Y-                 &
+           3.553558319675D-07)*Y+3.022556449731D-06)*Y-                 &
+           2.290098979647D-05)*Y+1.526537461148D-04)*Y-                 &
+           8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-           &
+           1.75257821619926D-02 )*Y+5.28406320615584D-02                 
+      WW1 = (X+X)*F1+EXP(-X)                                             
+      GO TO 240                                                          
+!                                                                        
+  160 CONTINUE                                                           
+      IF (X > 15.0D+00) GO TO 200                                        
+      E = EXP(-X)                                                        
+      IF (X > 10.0D+00) GO TO 180                                        
+      XINV = 1.0d0/X                                                      
+      WW1 = (((((( 4.6897511375022D-01*XINV-6.9955602298985D-01)*XINV + &
+           5.3689283271887D-01)*XINV-3.2883030418398D-01)*XINV +        &
+           2.4645596956002D-01)*XINV-4.9984072848436D-01)*XINV -        &
+           3.1501078774085D-06)*E + SQRT(PIE4*XINV)                      
+      GO TO 240                                                          
+!                                                                        
+  180 CONTINUE                                                           
+      XINV = 1.0d0/X                                                      
+      WW1 = (((-1.8784686463512D-01*XINV+2.2991849164985D-01)*XINV      &
+               -4.9893752514047D-01)*XINV-2.1916512131607D-05)*E        &
+               + SQRT(PIE4*XINV)                                        
+      GO TO 240                                                         
+!                                                                       
+  200 CONTINUE                                                          
+      IF (X > 33.0D+00) GO TO 220                                    
+      XINV = 1.0d0/X                                                      
+      E = EXP(-X)                                                       
+      WW1 = (( 1.9623264149430D-01*XINV-4.9695241464490D-01)*XINV -     &
+                 6.0156581186481D-05)*E + SQRT(PIE4*XINV)                     
+      GO TO 240                                                         
+!                                                                       
+  220 WW1 = SQRT(PIE4/X)                                                
+!                                                                       
+  240 CONTINUE                                                          
+      SUM = SUM+DDIJ(NN)*WW1*EXPE/SQRT(AB)                
+  260 NN = NN+49                                                        
+      GGOUT = GGOUT+D2*SUM                                              
+  280 CONTINUE                                                          
+  300 CONTINUE                                                          
+      GHONDO(1) = GGOUT*PI252*QQ4                                       
+      RETURN                                                            
+      END SUBROUTINE                                                               
+  
+         ! ERISPDFGHIL                                           
+      SUBROUTINE ERISPDFGHIL(GHONDO,DDIJ)                                    
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
+      !LOGICAL       NORM
+      !COMMON/NORMAL/NORM
+      !LOGICAL     IANDJ,KANDL,SAME 
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON/DENS/DKL(784),DIJ(784)                                 
+      !COMMON/IJGNRL/A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),         &
+      !              Y1_IJGNRL(900),Z1_IJGNRL(900),IJD(784)                                             
+      !COMMON/ROOT/XX,U(13),W(13),NROOTS                                
+      !INTEGER :: NROOTS
+      !COMMON/SETINT/INN(13),KNN(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,    &
+      !              BP01,B00,B10,XCP00,XC00,YCP00,YC00,                 &
+      !              ZCP00,ZC00,F00,                                     &
+      !              DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                        
+      !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
+      !              CFA(30),CGA(30),CHA(30),CIA(30),                    &
+      !               GB(30),CSB(30),CPB(30),CDB(30),                    &
+      !              CFB(30),CGB(30),CHB(30),CIB(30),                    &
+      !               GC(30),CSC(30),CPC(30),CDC(30),                    &
+      !              CFC(30),CGC(30),CHC(30),CIC(30),                    &
+      !               GD(30),CSD(30),CPD(30),CDD(30),                    &
+      !              CFD(30),CGD(30),CHD(30),CID(30),                    &
+      !              AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
+      !              DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
+      !              NIJ,IJ,KL                                          
+      !COMMON/SHLNOS1/QQ4,IJKL
+      !COMMON/SHLT/ SHLTOL,CUTOFF,ICOUNT
+!
+      DOUBLE PRECISION :: XX,U(13),W(13)
+      LOGICAL DOBLE                          
+      INTEGER :: IN1(13)
+      DOUBLE PRECISION :: GHONDO(*),DDIJ(*)      
+      INTEGER :: MAX, I, N, K, LGMAX, KG, L, LG, MM, NN, M
+      PARAMETER (SQRT3=1.73205080756888D0,SQRT5=2.23606797749979D0,     &
+                 SQRT7=2.64575131106459D0,PI252=34.986836655250D0,      &
+                 SQRT11=3.3166247903553998D0)               
+!-----------------------------------------------------------------------
+      FACTOR = PI252*QQ4                                                
+      NIMAX = LIT-1                                                        
+      NJMAX = LJT-1                                                        
+      NKMAX = LKT-1                                                        
+      NLMAX = LLT-1                                                        
+      DXIJ = AX-BX                                                      
+      DYIJ = AY-BY                                                      
+      DZIJ = AZ-BZ                                                      
+      DXKL = CX-DX                                                      
+      DYKL = CY-DY                                                      
+      DZKL = CZ-DZ                                                      
+      NMAX = NIMAX+NJMAX                                                      
+      MMAX = NKMAX+NLMAX                                                      
+      MAX = NMAX+1                                                      
+      DO I = 1,MAX                                                  
+       N = I-1                                                        
+       IF (N <= NIMAX) IN1(I) = 343*N+1                                
+       IF (N > NIMAX) IN1(I) = 343*NIMAX+49*(N-NIMAX)+1                     
+      END DO
+      MAX = MMAX+1                                                      
+      DO K = 1,MAX                                                  
+       N = K-1                                                        
+       IF (N <= NKMAX) KNN(K) = 7*N                                     
+       IF (N > NKMAX) KNN(K) = 7*NKMAX+N-NKMAX                               
+      END DO
+      LGMAX = NGD                                                       
+      DO KG = 1,NGC                        !      K Primitive                                                 
+       AK = GC(KG)                                                    
+       BRRK = AK*RCD                                                  
+       AKXK = AK*CX                                                   
+       AKYK = AK*CY                                                   
+       AKZK = AK*CZ                                                   
+       CSK = CSC(KG)*FACTOR                                           
+       CPK = CPC(KG)*FACTOR                                           
+       CDK = CDC(KG)*FACTOR                                           
+       CFK = CFC(KG)*FACTOR                                           
+       CGK = CGC(KG)*FACTOR                                           
+       CHK = CHC(KG)*FACTOR                                           
+       CIK = CIC(KG)*FACTOR                                           
+       IF (KANDL) LGMAX = KG                                          
+       DO LG = 1,LGMAX                     !      L Primitive
+        AL = GD(LG)                                                 
+        B = AK+AL                                                   
+        BINV = 1.0d0/B                                                
+        BBRRK = AL*BRRK*BINV                                        
+        IF(BBRRK<=SHLTOL)THEN
+         CSL = CSD(LG)                                               
+         CPL = CPD(LG)                                               
+         CDL = CDD(LG)                                               
+         CFL = CFD(LG)                                               
+         CGL = CGD(LG)                                               
+         CHL = CHD(LG)                                               
+         CIL = CID(LG)                                               
+         XB = (AKXK+AL*DX)*BINV                                      
+         YB = (AKYK+AL*DY)*BINV                                      
+         ZB = (AKZK+AL*DZ)*BINV                                      
+         BXBK = B*(XB-CX)                                            
+         BYBK = B*(YB-CY)                                            
+         BZBK = B*(ZB-CZ)                                            
+         BXBI = B*(XB-AX)                                            
+         BYBI = B*(YB-AY)                                            
+         BZBI = B*(ZB-AZ)                                            
+!        DENSITY FACTOR                                        
+         DOBLE = KANDL.and.KG/=LG                                   
+         N = 0                                                       
+         MAX = MAXL                                                  
+         DUM1 = 0.0d0                                                 
+         DUM2 = 0.0d0                                                 
+         DO K = MINK,MAXK                                        
+          GO TO (140,160,220,220,180,220,220,200,220,220,               &
+                 201,220,220,202,220,220,220,220,220,203,               &
+                 204,220,220,205,220,220,220,220,220,206,               &
+                 220,220,207,220,220,                                   &
+                 208,220,220,209,220,220,220,220,220,210,               &
+                 220,220,220,220,220,211,220,220,212,220,               &
+                 220,                                                   &
+                 213,220,220,214,220,220,220,220,220,215,               &
+                 220,220,220,220,220,216,220,220,217,220,               &
+                 220,218,220,220,220,220,220,219),K                      
+  140     DUM1 = CSK*BINV                                          
+          GO TO 220                                                
+  160     DUM1 = CPK*BINV                                          
+          GO TO 220                                                
+  180     DUM1 = CDK*BINV                                          
+          GO TO 220                                                
+  200     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  201     DUM1 = CFK*BINV                                          
+          GO TO 220                                                
+  202     IF (NORM) DUM1 = DUM1*SQRT5                              
+          GO TO 220                                                
+  203     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  204     DUM1 = CGK*BINV                                          
+          GO TO 220                                                
+  205     IF (NORM) DUM1 = DUM1*SQRT7                              
+          GO TO 220                                                
+  206     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+          GO TO 220                                                
+  207     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  208     DUM1 = CHK*BINV                                          
+          GO TO 220                                                
+  209     IF (NORM) DUM1 = DUM1*3.0d0                              
+          GO TO 220                                                
+  210     IF (NORM) DUM1 = DUM1*SQRT7/SQRT3                        
+          GO TO 220                                                
+  211     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  212     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+          GO TO 220                                                
+  213     DUM1 = CIK*BINV                                          
+          GO TO 220                                                
+  214     IF (NORM) DUM1 = DUM1*SQRT11                             
+          GO TO 220                                                
+  215     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  216     IF (NORM) DUM1 = DUM1*SQRT3                              
+          GO TO 220                                                
+  217     IF (NORM) DUM1 = DUM1*SQRT7/(SQRT5*SQRT3)                
+          GO TO 220                                                
+  218     IF (NORM) DUM1 = DUM1*SQRT5                              
+          GO TO 220                                                
+  219     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
+!                                                                  
+  220     IF (KANDL) MAX = K                                       
+          DO L = MINL,MAX                                      
+           GO TO (240,280,340,340,300,340,340,320,340,340,              &
+                  321,340,340,322,340,340,340,340,340,323,              &
+                  324,340,340,325,340,340,340,340,340,326,              &
+                  340,340,327,340,340,                                  &
+                  328,340,340,329,340,340,340,340,340,330,              &
+                  340,340,340,340,340,331,340,340,332,340,              &
+                  340,                                                  &
+                  333,340,340,334,340,340,340,340,340,335,              &
+                  340,340,340,340,340,336,340,340,337,340,              &
+                  340,338,340,340,340,340,340,339),L             
+  240      DUM2 = DUM1*CSL                                       
+           IF ( .NOT. DOBLE) GO TO 340                          
+           IF (K > 1) GO TO 260                               
+           DUM2 = DUM2+DUM2                                      
+           GO TO 340                                             
+  260      DUM2 = DUM2+CSK*CPL*BINV                              
+           GO TO 340                                             
+  280      DUM2 = DUM1*CPL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  300      DUM2 = DUM1*CDL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  320      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  321      DUM2 = DUM1*CFL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  322      IF (NORM) DUM2 = DUM2*SQRT5                           
+           GO TO 340                                             
+  323      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  324      DUM2 = DUM1*CGL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  325      IF (NORM) DUM2 = DUM2*SQRT7                           
+           GO TO 340                                             
+  326      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+           GO TO 340                                             
+  327      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  328      DUM2 = DUM1*CHL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  329      IF (NORM) DUM2 = DUM2*3.0d0                           
+           GO TO 340                                             
+  330      IF (NORM) DUM2 = DUM2*SQRT7/SQRT3                     
+           GO TO 340                                             
+  331      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  332      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+           GO TO 340                                             
+  333      DUM2 = DUM1*CIL                                       
+           IF (DOBLE) DUM2 = DUM2+DUM2                          
+           GO TO 340                                             
+  334      IF (NORM) DUM2 = DUM2*SQRT11                          
+           GO TO 340                                             
+  335      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  336      IF (NORM) DUM2 = DUM2*SQRT3                           
+           GO TO 340                                             
+  337      IF (NORM) DUM2 = DUM2*SQRT7/(SQRT5*SQRT3)             
+           GO TO 340                                             
+  338      IF (NORM) DUM2 = DUM2*SQRT5                           
+           GO TO 340                                             
+  339      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
+!                                                                
+  340      N = N+1                                               
+           DKL(N) = DUM2                                         
+          END DO
+         END DO
+!
+         NN = 0                                                      
+         DO N = 1,NIJ                      !         I,J Primitives                                
+          DUM = BBRRK+R_IJGNRL(N)                                         
+          IF(DUM<=SHLTOL)THEN
+           DO I = 1,IJ                                          
+            DIJ(I) = DDIJ(IJD(I)+NN)                              
+           END DO
+           A = A_IJGNRL(N)                                                
+           AB = A*B                                                 
+           AANDB = A+B                                              
+           EXPE = EXP(-DUM)/SQRT(AANDB)                             
+           RHO = AB/AANDB                                           
+           XA = X1_IJGNRL(N)                                               
+           YA = Y1_IJGNRL(N)                                               
+           ZA = Z1_IJGNRL(N)                                               
+           XX = RHO*((XA-XB)*(XA-XB)+(YA-YB)*(YA-YB)+(ZA-ZB)*(ZA-ZB))             
+           AXAK = A*(XA-CX)                                         
+           AYAK = A*(YA-CY)                                         
+           AZAK = A*(ZA-CZ)                                         
+           AXAI = A*(XA-AX)                                         
+           AYAI = A*(YA-AY)                                         
+           AZAI = A*(ZA-AZ)                                         
+           C1X = BXBK+AXAK                                          
+           C2X = A*BXBK                                             
+           C3X = BXBI+AXAI                                          
+           C4X = B*AXAI                                             
+           C1Y = BYBK+AYAK                                          
+           C2Y = A*BYBK                                             
+           C3Y = BYBI+AYAI                                          
+           C4Y = B*AYAI                                             
+           C1Z = BZBK+AZAK                                          
+           C2Z = A*BZBK                                             
+           C3Z = BZBI+AZAI                                          
+           C4Z = B*AZAI                                             
+           IF (NROOTS <= 3) CALL RT123(XX,U,W,NROOTS) 
+           IF (NROOTS == 4) CALL ROOT4(XX,U,W,NROOTS)                            
+           IF (NROOTS == 5) CALL ROOT5(XX,U,W,NROOTS)                            
+           IF (NROOTS >= 6) CALL ROOT6(XX,U,W,NROOTS)                            
+           MM = 0                                                   
+           MAX = NMAX+1                                             
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!          ERI for each root
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+           DO M = 1,NROOTS                                      
+            U2 = U(M)*RHO                                         
+            F00 = EXPE*W(M)                                       
+            DO I = 1,MAX                                      
+             INN(I) = IN1(I)+MM                                  
+            END DO
+            DUMINV = 1.0d0/(AB+U2*AANDB)                         
+            DM2INV = 0.5D0*DUMINV                               
+            BP01 = (A+U2)*DM2INV                               
+            B00 = U2*DM2INV                                    
+            B10 = (B+U2)*DM2INV                                
+            XCP00 = (U2*C1X+C2X)*DUMINV                        
+            XC00 = (U2*C3X+C4X)*DUMINV                         
+            YCP00 = (U2*C1Y+C2Y)*DUMINV                        
+            YC00 = (U2*C3Y+C4Y)*DUMINV                         
+            ZCP00 = (U2*C1Z+C2Z)*DUMINV                        
+            ZC00 = (U2*C3Z+C4Z)*DUMINV                         
+            CALL XYZINT                                           
+            MM = MM+2401                                          
+           END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!          Form (I,J//K,L) integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+           CALL FormIntegrals(GHONDO)                                       
+          END IF
+          NN = NN + 49
+         END DO
+        END IF                                                  
+       END DO
+      END DO
+!                                                                       
+      RETURN                                                            
+      END SUBROUTINE         
+
+! Calling by ERISPDFGHIL XYZINT                                           
+      SUBROUTINE XYZINT                                                 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      LOGICAL N0,N1,M0,M1,FIRST1,FIRST2,FIRST3,FIRST4         
+      INTEGER :: I1, I2, K2, I3, I4, I5, K3, MIN, KM
+      INTEGER :: M, N, NL, NK, K4, IA, IB, NI, NJ           
+      !COMMON /SETINT/INN(13),KNN(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,     &
+      !               BP01,B00,B10,XCP00,XC00,YCP00,YC00,ZCP00,ZC00,F00, &
+      !               DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                     
+      !COMMON /XYZ   / XINT(31213),YINT(31213),ZINT(31213)               
+!                                                                       
+      N0 = NMAX == 0                                                  
+      N1 = NMAX <= 1                                                  
+      M0 = MMAX == 0                                                  
+      M1 = MMAX <= 1                                                  
+!                                                                       
+!     ----- INN(0,0) -----                                                
+!                                                                       
+      I1 = INN(1)                                                         
+      XINT(I1) = 1.0d0                                                    
+      YINT(I1) = 1.0d0                                                    
+      ZINT(I1) = F00                                                    
+      IF (N0 .and. M0) RETURN                                           
+      I2 = INN(2)                                                         
+      K2 = KNN(2)                                                         
+      CP10 = B00                                                        
+!                                                                       
+!     ----- INN(1,0) -----                                                
+!                                                                       
+      IF (.NOT. N0) THEN                                                
+        XINT(I2) = XC00                                                 
+        YINT(I2) = YC00                                                 
+        ZINT(I2) = ZC00*F00                                             
+        IF (M0) GO TO 120                                               
+      END IF                                                            
+!                                                                       
+!     ----- INN(0,1) -----                                                
+!                                                                       
+      I3 = I1+K2                                                        
+      XINT(I3) = XCP00                                                  
+      YINT(I3) = YCP00                                                  
+      ZINT(I3) = ZCP00*F00                                              
+!                                                                       
+!     ----- INN(1,1) -----                                                
+!                                                                       
+      IF (.NOT. N0) THEN                                                
+        I3 = I2+K2                                                      
+        XINT(I3) = XCP00*XINT(I2)+CP10                                  
+        YINT(I3) = YCP00*YINT(I2)+CP10                                  
+        ZINT(I3) = ZCP00*ZINT(I2)+CP10*F00                              
+      END IF                                                            
+!                                                                       
+  120 CONTINUE                                                          
+      IF (.NOT. N1) THEN                                                
+        C10 = 0.0d0                                                      
+        I3 = I1                                                         
+        I4 = I2                                                         
+        DO 160 N = 2,NMAX                                               
+          C10 = C10+B10                                                 
+!                                                                       
+!     ----- INN(N,0) -----                                                
+!                                                                       
+          I5 = INN(N+1)                                                   
+          XINT(I5) = C10*XINT(I3)+XC00*XINT(I4)                         
+          YINT(I5) = C10*YINT(I3)+YC00*YINT(I4)                         
+          ZINT(I5) = C10*ZINT(I3)+ZC00*ZINT(I4)                         
+          IF ( .NOT. M0) THEN                                           
+            CP10 = CP10+B00                                             
+!                                                                       
+!     ----- INN(N,1) -----                                                
+!                                                                       
+            I3 = I5+K2                                                  
+            XINT(I3) = XCP00*XINT(I5)+CP10*XINT(I4)                     
+            YINT(I3) = YCP00*YINT(I5)+CP10*YINT(I4)                     
+            ZINT(I3) = ZCP00*ZINT(I5)+CP10*ZINT(I4)                     
+          END IF                                                        
+          I3 = I4                                                       
+          I4 = I5                                                       
+  160     CONTINUE                                                      
+      END IF                                                            
+      IF ( .NOT. M1) THEN                                               
+        CP01 = 0.0d0                                                     
+        C01 = B00                                                       
+        I3 = I1                                                         
+        I4 = I1+K2                                                      
+        DO 220 M = 2,MMAX                                               
+          CP01 = CP01+BP01                                              
+!                                                                       
+!     ----- INN(0,M) -----                                                
+!                                                                       
+          I5 = I1+KNN(M+1)                                                
+          XINT(I5) = CP01*XINT(I3)+XCP00*XINT(I4)                       
+          YINT(I5) = CP01*YINT(I3)+YCP00*YINT(I4)                       
+          ZINT(I5) = CP01*ZINT(I3)+ZCP00*ZINT(I4)                       
+!                                                                       
+!     ----- INN(1,M) -----                                                
+!                                                                       
+          IF (.NOT. N0) THEN                                            
+            C01 = C01+B00                                               
+            I3 = I2+KNN(M+1)                                              
+            XINT(I3) = XC00*XINT(I5)+C01*XINT(I4)                       
+            YINT(I3) = YC00*YINT(I5)+C01*YINT(I4)                       
+            ZINT(I3) = ZC00*ZINT(I5)+C01*ZINT(I4)                       
+          END IF                                                        
+          I3 = I4                                                       
+          I4 = I5                                                       
+  220   CONTINUE                                                        
+      END IF                                                            
+!                                                                       
+!     ----- INN(N,M) -----                                                
+!                                                                       
+      IF (.NOT. N1 .and. .NOT. M1) THEN                                 
+        C01 = B00                                                       
+        K3 = K2                                                         
+        DO 280 M = 2,MMAX                                               
+          K4 = KNN(M+1)                                                   
+          C01 = C01+B00                                                 
+          I3 = I1                                                       
+          I4 = I2                                                       
+          C10 = B10                                                     
+          DO 260 N = 2,NMAX                                             
+            I5 = INN(N+1)                                                 
+            XINT(I5+K4) = C10*XINT(I3+K4)+XC00*XINT(I4+K4)              &
+                          +C01*XINT(I4+K3)                              
+            YINT(I5+K4) = C10*YINT(I3+K4)+YC00*YINT(I4+K4)              &
+                          +C01*YINT(I4+K3)                              
+            ZINT(I5+K4) = C10*ZINT(I3+K4)+ZC00*ZINT(I4+K4)              &
+                          +C01*ZINT(I4+K3)                              
+            C10 = C10+B10                                               
+            I3 = I4                                                     
+            I4 = I5                                                     
+  260     CONTINUE                                                      
+          K3 = K4                                                       
+  280   CONTINUE                                                        
+      END IF                                                            
+!                                                                       
+!     ----- INN(NI,NJ,M) -----                                            
+!                                                                       
+      IF (NJMAX > 0) THEN                                            
+        M = 0                                                           
+        I5 = INN(NMAX+1)                                                  
+        FIRST1 = .TRUE.                                                 
+        DO 430 WHILE (FIRST1 .or. M <= MMAX)                          
+          MIN = NIMAX                                                   
+          KM = KNN(M+1)                                                   
+          FIRST2 = .TRUE.                                               
+          DO 360 WHILE (FIRST2 .or. MIN < NMAX)                      
+            N = NMAX                                                    
+            I3 = I5+KM                                                  
+            FIRST3 = .TRUE.                                             
+            DO 340 WHILE (FIRST3 .or. N > MIN)                       
+              I4 = INN(N)+KM                                              
+              XINT(I3) = XINT(I3)+DXIJ*XINT(I4)                         
+              YINT(I3) = YINT(I3)+DYIJ*YINT(I4)                         
+              ZINT(I3) = ZINT(I3)+DZIJ*ZINT(I4)                         
+              I3 = I4                                                   
+              N = N-1                                                   
+              FIRST3 = .FALSE.                                          
+  340       END DO                                                      
+            MIN = MIN+1                                                 
+            FIRST2 = .FALSE.                                            
+  360     END DO                                                        
+          IF (NIMAX > 0) THEN                                        
+            I3 = 49+KM+I1                                               
+            DO 400 NJ = 1,NJMAX                                         
+              I4 = I3                                                   
+              DO 380 NI = 1,NIMAX                                       
+                XINT(I4) = XINT(I4+294)+DXIJ*XINT(I4-49)                
+                YINT(I4) = YINT(I4+294)+DYIJ*YINT(I4-49)                
+                ZINT(I4) = ZINT(I4+294)+DZIJ*ZINT(I4-49)                
+                I4 = I4+343                                             
+  380         CONTINUE                                                  
+              I3 = I3+49                                                
+  400       CONTINUE                                                    
+          END IF                                                        
+          M = M+1                                                       
+          FIRST1 = .FALSE.                                              
+  430   END DO                                                          
+      END IF                                                            
+!                                                                       
+!     ----- INN(NI,NJ,NK,NL) -----                                        
+!                                                                       
+      IF (NLMAX > 0) THEN                                            
+        I5 = KNN(MMAX+1)                                                  
+        IA = I1                                                         
+        NI = 0                                                          
+        FIRST4 = .TRUE.                                                 
+        DO 580 WHILE (FIRST4 .or. NI <= NIMAX)                        
+          NJ = 0                                                        
+          IB = IA                                                       
+          FIRST1 = .TRUE.                                               
+          DO 570 WHILE (FIRST1 .or. NJ <= NJMAX)                      
+            MIN = NKMAX                                                 
+            FIRST2 = .TRUE.                                             
+            DO 530 WHILE (FIRST2 .or. MIN < MMAX)                    
+              M = MMAX                                                  
+              I3 = IB+I5                                                
+              FIRST3 = .TRUE.                                           
+              DO 520 WHILE (FIRST3 .or. M > MIN)                     
+                I4 = IB+KNN(M)                                            
+                XINT(I3) = XINT(I3)+DXKL*XINT(I4)                       
+                YINT(I3) = YINT(I3)+DYKL*YINT(I4)                       
+                ZINT(I3) = ZINT(I3)+DZKL*ZINT(I4)                       
+                I3 = I4                                                 
+                M = M-1                                                 
+                FIRST3 = .FALSE.                                        
+  520         END DO                                                    
+              MIN = MIN+1                                               
+              FIRST2 = .FALSE.                                          
+  530       END DO                                                      
+            IF (NKMAX > 0) THEN                                      
+              I3 = IB+1                                                 
+              DO 560 NL = 1,NLMAX                                       
+                I4 = I3                                                 
+                DO 540 NK = 1,NKMAX                                     
+                  XINT(I4) = XINT(I4+6)+DXKL*XINT(I4-1)                 
+                  YINT(I4) = YINT(I4+6)+DYKL*YINT(I4-1)                 
+                  ZINT(I4) = ZINT(I4+6)+DZKL*ZINT(I4-1)                 
+                  I4 = I4+7                                             
+  540           END DO                                                  
+              I3 = I3+1                                                 
+  560         END DO                                                    
+            END IF                                                      
+            NJ = NJ+1                                                   
+            IB = IB+49                                                  
+            FIRST1 = .FALSE.                                            
+  570     END DO                                                        
+          NI = NI+1                                                     
+          IA = IA+343                                                   
+          FIRST4 = .FALSE.                                              
+  580   END DO                                                          
+      END IF                                                            
+!                                                                       
+      RETURN                                                            
+      END SUBROUTINE                                                      
+
 
 ! Debut                                            
-      SUBROUTINE Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/INTFIL/NINTMX           
-      COMMON/RESTAR/NREC,IST,JST,KST,LST           
-      COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
-      COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
+      SUBROUTINE Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
+      INTEGER :: NINTMX, NAT
+      !COMMON/INTFIL/NINTMX           
+      !COMMON/RESTAR/NREC,IST,JST,KST,LST           
+      !COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
+      !COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
       INTEGER :: IDONTW,IPRINTOPT,NSHELL
       INTEGER,DIMENSION(NSHELL) :: KATOM
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz   
       DOUBLE PRECISION,DIMENSION(NSHELL,3) :: CO
+      INTEGER :: I
+      INTEGER :: NBYTES, ICC
 !-----------------------------------------------------------------------
 !     Initialize 2e- integral Calculation
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                                                                                              
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       SHLTOL = 20*2.30258D0   
       CUTOFF = 1.0D-09
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
@@ -239,12 +2958,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                                                                                              
 !     Normal Start
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IST = 1                                              
-      JST = 1                                              
-      KST = 1                                              
-      LST = 1                                              
-      NREC   = 1                                                        
-      ICOUNT = 1
+      !IST = 1                                              
+      !JST = 1                                              
+      !KST = 1                                              
+      !LST = 1                                              
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                                                                               
 !     Format Statements
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
@@ -254,24 +2971,686 @@
              ' Bytes/integral')                                        
 !-----------------------------------------------------------------------                                       
       RETURN                                                            
+      END SUBROUTINE                                                            
+
+! LASTQOUT 
+      SUBROUTINE LASTQOUT(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm, &
+                      NINTMX,NINTEGt,NREC,ICOUNT,IDONTW,        &
+                      IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT
+      INTEGER :: ICOUNT,NREC
+      INTEGER  :: IX(NINTMX)
+      DOUBLE PRECISION :: BUFP(NINTMX)
+      INTEGER :: IXC(NINTMX)
+      DOUBLE PRECISION :: BUFPC(NINTMX)
+      INTEGER,DIMENSION(NINTEGtm) :: IX2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      INTEGER :: COUNTER, NXInteg, IBUF, NXInteg2, IJBUFi, jbuf, IDX
+!-----------------------------------------------------------------------
+
+      COUNTER = MOD(NINTEGt,NINTMX)
+      NXInteg = ICOUNT-1
+      IDX = COUNTER+1
+
+      do ibuf=1,NXInteg
+        IXC(IDX) = IX(ibuf)
+        BUFPC(IDX) = BUFP(ibuf)
+        NINTEGt = NINTEGt + 1
+        IDX = IDX + 1
+
+        IF(IDX - 1 .EQ. NINTMX) THEN
+         NXInteg2 = NINTMX
+         IF(IDONTW==1)THEN
+          IJBUFi = (NREC-1)*NINTMX
+          do jbuf=1,NINTMX
+           IX2  (IJBUFi+jbuf) = IXC(jbuf)
+           BUFP2(IJBUFi+jbuf) = BUFPC(jbuf)
+          end do
+         ELSE
+          WRITE(1)NXInteg2,IXC,BUFPC
+         END IF
+         NREC = NREC+1
+         IDX = 1
+        END IF
+      end do
+
+      RETURN
+                                                              
+      END
+
+! FINALIZE                                            
+      SUBROUTINE FINALIZE(BUFPC,IXC,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,  &
+                          NREC,IDONTW,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT,NREC
+      INTEGER,DIMENSION(NINTMX) :: IXC
+      DOUBLE PRECISION,DIMENSION(NINTMX) :: BUFPC
+      INTEGER,DIMENSION(NINTEGtm) :: IX2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      INTEGER :: NXInteg, IJBUFi, ibuf
+!-----------------------------------------------------------------------
+                                                   
+      NXInteg = MOD(NINTEGt,NINTMX)
+      IF(NXInteg>=0) THEN
+       IF(IDONTW==1)THEN
+        IJBUFi = (NREC-1)*NINTMX
+        do ibuf=1,NXInteg
+         IX2  (IJBUFi+ibuf) = IXC(ibuf)
+         BUFP2(IJBUFi+ibuf) = BUFPC(ibuf)
+        end do
+       ELSE
+        NXInteg = -NXInteg
+        WRITE(1)NXInteg,IXC,BUFPC
+       END IF
+      ELSE
+       NINTEGt = NXInteg
+      ENDIF
+      IF(IPRINTOPT==1)WRITE(6,10)NINTEGt,NREC
+      RETURN
+!-----------------------------------------------------------------------                                                                       
+   10 FORMAT(I20,' 2e- integrals in ',I5,' records')
+!-----------------------------------------------------------------------  
       END                                                               
+
+! ZQOUT                                            
+      SUBROUTINE ZQOUT(GHONDO,MAXG)
+      IMPLICIT DOUBLE PRECISION(A-H,O-Z)                                
+      DOUBLE PRECISION :: GHONDO(MAXG)                                               
+      !LOGICAL IANDJ,KANDL,SAME                                          
+      !COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
+      !                KLX(784),KLY(784),KLZ(784)              
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)           
+      !COMMON /MISC  / IANDJ,KANDL,SAME                                  
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,           &
+      !               NIJ,IJ,KL                                   
+      INTEGER :: MAXG
+      INTEGER :: IJN, JMAX, I, J, N1, LMAX, K, KLN, L, NN
+!-----------------------------------------------------------------------                                                                       
+!     HONDO Conventional integral Output
+!-----------------------------------------------------------------------  
+      IJN = 0                                                           
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       IF (IANDJ) JMAX = I                                            
+       DO 1 J = MINJ,JMAX                                           
+          IJN = IJN+1                                                 
+          N1 = IJGT(IJN)                                              
+          LMAX = MAXL                                                 
+          KLN = 0                                                     
+        DO K =  MINK,MAXK                                       
+         IF (KANDL) LMAX = K                                      
+         DO L = MINL,LMAX                                     
+          KLN = KLN+1                                           
+          IF (SAME .and. KLN > IJN) GO TO 1                
+          NN = N1+KLGT(KLN)                                     
+          GHONDO(NN) = 0.0d0                                     
+         END DO
+        END DO
+    1  CONTINUE                                                       
+      END DO
+!-----------------------------------------------------------------------                                                                       
+      RETURN                                                            
+      END SUBROUTINE                     
+
+! QOUT                                             
+      SUBROUTINE QOUT(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,GHONDO,IDONTW,  &
+                      KLOC,KMIN,KMAX,NSHELL,NREC,ICOUNT)                            
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      !LOGICAL IANDJ,KANDL,SAME
+      INTEGER :: NINTEGtm,NINTMX,IDONTW,NSHELL,NREC,ICOUNT
+      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
+      INTEGER IX(NINTMX)
+      DOUBLE PRECISION BUFP(NINTMX), GHONDO(*)
+      !COMMON /ERIOUT/ ISH,JSH,KSH,LSH,NGTI,NGTJ,NGTK,NGTL           
+      !COMMON /MISC  / IANDJ,KANDL,SAME                                  
+      !COMMON /RESTAR/ NREC,IST,JST,KST,LST                               
+      INTEGER,DIMENSION(NINTEGtm) :: IX2                                 
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2     
+      INTEGER :: IJN, JMAX, I_INDEX, IJ_INDEX, I, J, LMAX, KLN, IJK_INDEX
+      INTEGER :: K,L, IJKL_INDEX, I1, I2, I3, I4, NPACK, IPACK, JPACK
+      INTEGER :: KPACK, LPACK, LABEL, NXInteg, IJBUFi, ibuf, N                 
+      !COMMON/SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
+      !                MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
+      !                NIJ,IJ,KL                                    
+      !COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
+!-----------------------------------------------------------------------                                                                       
+!     Pack 4-indices into 1 word. 
+!     Write Label & integral on Unit 1 if DONTW = .False.
+!-----------------------------------------------------------------------
+      SAME  = INU == KNU .and. JNU == LNU                           
+      IANDJ = INU == JNU                                              
+      KANDL = KNU == LNU                                              
+      MINI = KMIN(INU)                                                  
+      MINJ = KMIN(JNU)                                                  
+      MINK = KMIN(KNU)                                                  
+      MINL = KMIN(LNU)                                                  
+      MAXI = KMAX(INU)                                                  
+      MAXJ = KMAX(JNU)                                                  
+      MAXK = KMAX(KNU)                                                  
+      MAXL = KMAX(LNU)                                                  
+      LOCI = KLOC(INU)-MINI                                             
+      LOCJ = KLOC(JNU)-MINJ                                             
+      LOCK = KLOC(KNU)-MINK                                             
+      LOCL = KLOC(LNU)-MINL          
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                               
+      IJN = 0                                                           
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       I_INDEX = (I-MINI)*NGTI + 1                                   
+       IF (IANDJ) JMAX = I                                            
+       DO 1 J = MINJ,JMAX                                           
+        IJ_INDEX = (J-MINJ)*NGTJ + I_INDEX                         
+        IJN = IJN+1                                                 
+        LMAX = MAXL                                                 
+        KLN = 0                                                     
+        DO K =  MINK,MAXK                                       
+         IJK_INDEX = (K-MINK)*NGTK + IJ_INDEX                    
+         IF (KANDL) LMAX = K                                      
+         DO L = MINL,LMAX                                     
+          KLN = KLN+1                                           
+          IF(SAME.and.KLN>IJN)GO TO 1                 
+          IJKL_INDEX = (L-MINL)*NGTL + IJK_INDEX               
+          VAL = GHONDO( IJKL_INDEX ) 
+          IF(ABS(VAL)>=CUTOFF)THEN
+           I1 = LOCI+I                                           
+           I2 = LOCJ+J                                           
+           I3 = LOCK+K                                           
+           I4 = LOCL+L                                           
+           IF (I1 >= I2) GO TO 100                             
+           N = I1                                                
+           I1 = I2                                               
+           I2 = N                                                
+  100      IF (I3 >= I4) GO TO 120                             
+           N = I3                                                
+           I3 = I4                                               
+           I4 = N                                                
+  120      IF (I1-I3) 140,160,180                                
+  140      N = I1                                                
+           I1 = I3                                               
+           I3 = N                                                
+           N = I2                                                
+           I2 = I4                                               
+           I4 = N                                                
+           GO TO 180                                             
+  160      IF (I2 < I4) GO TO 140                             
+  180      CONTINUE                                              
+!                                                                
+           IF(I1 == I2) VAL = VAL*0.5D0                        
+           IF(I3 == I4) VAL = VAL*0.5D0                        
+           IF(I1 == I3 .and. I2 == I4) VAL = VAL*0.5D0       
+!                                                                
+           NPACK = ICOUNT                                        
+           IPACK = I1                                            
+           JPACK = I2                                            
+           KPACK = I3                                            
+           LPACK = I4                                            
+           LABEL = ISHFT( IPACK, 48 ) + ISHFT( JPACK, 32 ) +            &
+                   ISHFT( KPACK, 16 ) + LPACK                 
+           IX(NPACK) = LABEL                                  
+           BUFP(ICOUNT) = VAL 
+           ICOUNT = ICOUNT+1                                     
+            IF(ICOUNT > NINTMX) THEN                        
+             NXInteg = NINTMX
+             !$OMP CRITICAL
+             IF(IDONTW==1)THEN
+              IJBUFi = (NREC-1)*NINTMX
+              do ibuf=1,NINTMX
+               IX2  (IJBUFi+ibuf) = IX(ibuf)
+               BUFP2(IJBUFi+ibuf) = BUFP(ibuf)
+              end do
+             ELSE
+              WRITE(1)NXInteg,IX,BUFP
+             END IF
+             NREC = NREC+1                                   
+             !$OMP END CRITICAL
+             ICOUNT = 1                               
+            END IF
+           END IF
+         END DO
+        END DO
+    1  CONTINUE                                                       
+      END DO
+!-----------------------------------------------------------------------                                                                       
+      RETURN                                                            
+      END SUBROUTINE                                                                                                                                                                                                         
+
+! Calling by ERISPDFGHIL FormIntegrals                                            
+      SUBROUTINE FormIntegrals(GHONDO)                               
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      DOUBLE PRECISION :: GHONDO(*)                                               
+      !COMMON /DENS  / DKL(784),DIJ(784)                                 
+      !COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
+      !                KLX(784),KLY(784),KLZ(784)              
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)           
+      !COMMON/SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
+      !                MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
+      !                NIJ,IJ,KL                                    
+      !COMMON /ROOT  / XX,U(13),W(13),NROOTS                             
+      !COMMON /XYZ   / XINT(31213),YINT(31213),ZINT(31213)                 
+      INTEGER :: I, NX, NY, NZ, N1, MAX, MX, MY, MZ, N, K
+!-----------------------------------------------------------------------
+      GO TO (10,20,30,40,50,60,70,80,90,100,110,120,130),NROOTS         
+!     NROOTS=1                                            
+   10 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*(XINT(MX)*YINT(MY)*ZINT(MZ))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=2                                            
+   20 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=3                                            
+   30 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                & 
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=4                                            
+   40 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=5                                            
+   50 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=6                                            
+   60 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=7                                            
+   70 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)        &
+                +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=8                                            
+   80 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)        &
+                +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)        &
+                +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=9                                            
+   90 CONTINUE                                                          
+      DO I = 1,IJ                                                    
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                   
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)        &
+                +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)        &
+                +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807)        &
+                +   XINT(MX+19208)*YINT(MY+19208)*ZINT(MZ+19208))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=10                                           
+  100 CONTINUE                                                          
+      DO I = 1,IJ                                                   
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                  
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)        &
+                +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)        &
+                +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807)        &
+                +   XINT(MX+19208)*YINT(MY+19208)*ZINT(MZ+19208)        &
+                +   XINT(MX+21609)*YINT(MY+21609)*ZINT(MZ+21609))          
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=11                                           
+  110 CONTINUE                                                          
+      DO I = 1,IJ                                                   
+      D1 = DIJ(I)                                                       
+      NX = IJX(I)                                                       
+      NY = IJY(I)                                                       
+      NZ = IJZ(I)                                                       
+      N1 = IJGT(I)                                                      
+      MAX = IK(I)                                                       
+      DO K = 1,MAX                                                  
+      MX = NX+KLX(K)                                                    
+      MY = NY+KLY(K)                                                    
+      MZ = NZ+KLZ(K)                                                    
+      N = N1+KLGT(K)                                                    
+      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
+                  ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )        &
+                +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)        &
+                +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)        &
+                +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)        &
+                +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)        &
+                +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)        &
+                +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)        &
+                +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807)        &
+                +   XINT(MX+19208)*YINT(MY+19208)*ZINT(MZ+19208)        &
+                +   XINT(MX+21609)*YINT(MY+21609)*ZINT(MZ+21609)        &
+                +   XINT(MX+24010)*YINT(MY+24010)*ZINT(MZ+24010))       &
+                *D1*DKL(K)+GHONDO(N)                                    
+      END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=12                                           
+  120 CONTINUE                                                          
+      DO I = 1,IJ                                                   
+       D1 = DIJ(I)                                                       
+       NX = IJX(I)                                                       
+       NY = IJY(I)                                                       
+       NZ = IJZ(I)                                                       
+       N1 = IJGT(I)                                                      
+       MAX = IK(I)                                                       
+       DO K = 1,MAX                                                  
+        MX = NX+KLX(K)                                                    
+        MY = NY+KLY(K)                                                    
+        MZ = NZ+KLZ(K)                                                    
+        N = N1+KLGT(K)                                                    
+        GHONDO(N) = GHONDO(N) + D1*DKL(K)*                              &
+                    ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )      &
+                  +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)      &
+                  +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)      &
+                  +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)      &
+                  +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)      &
+                  +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)      &
+                  +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)      &
+                  +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807)      &
+                  +   XINT(MX+19208)*YINT(MY+19208)*ZINT(MZ+19208)      &
+                  +   XINT(MX+21609)*YINT(MY+21609)*ZINT(MZ+21609)      &
+                  +   XINT(MX+24010)*YINT(MY+24010)*ZINT(MZ+24010)      &
+                  +   XINT(MX+26411)*YINT(MY+26411)*ZINT(MZ+26411))     &
+                  *D1*DKL(K)+GHONDO(N)                                    
+       END DO
+      END DO
+      RETURN                                                            
+!     NROOTS=13                                           
+  130 CONTINUE
+      DO I = 1,IJ                                                   
+       D1 = DIJ(I)                                                       
+       NX = IJX(I)                                                       
+       NY = IJY(I)                                                       
+       NZ = IJZ(I)                                                       
+       N1 = IJGT(I)                                                      
+       MAX = IK(I)                                                       
+       DO K = 1,MAX                                                  
+        MX = NX+KLX(K)                                                    
+        MY = NY+KLY(K)                                                    
+        MZ = NZ+KLZ(K)                                                    
+        N = N1+KLGT(K)                                                    
+        GHONDO(N) = GHONDO(N) + D1*DKL(K)*                              &
+                    ( XINT(MX      )*YINT(MY      )*ZINT(MZ      )      &
+                  +   XINT(MX+ 2401)*YINT(MY+ 2401)*ZINT(MZ+ 2401)      &
+                  +   XINT(MX+ 4802)*YINT(MY+ 4802)*ZINT(MZ+ 4802)      &
+                  +   XINT(MX+ 7203)*YINT(MY+ 7203)*ZINT(MZ+ 7203)      &
+                  +   XINT(MX+ 9604)*YINT(MY+ 9604)*ZINT(MZ+ 9604)      &
+                  +   XINT(MX+12005)*YINT(MY+12005)*ZINT(MZ+12005)      &
+                  +   XINT(MX+14406)*YINT(MY+14406)*ZINT(MZ+14406)      &
+                  +   XINT(MX+16807)*YINT(MY+16807)*ZINT(MZ+16807)      &
+                  +   XINT(MX+19208)*YINT(MY+19208)*ZINT(MZ+19208)      &
+                  +   XINT(MX+21609)*YINT(MY+21609)*ZINT(MZ+21609)      &
+                  +   XINT(MX+24010)*YINT(MY+24010)*ZINT(MZ+24010)      &
+                  +   XINT(MX+26411)*YINT(MY+26411)*ZINT(MZ+26411)      &
+                  +   XINT(MX+28812)*YINT(MY+28812)*ZINT(MZ+28812))          
+       END DO
+      END DO
+      RETURN
+!-----------------------------------------------------------------------                                                            
+      END SUBROUTINE       
+
+! ExchangeInt                                           
+      SUBROUTINE ExchangeInt(XINTS,GHONDO,NSH2,MAXG,EX,CS,CP,CD,CF,CG,  &
+                             CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,  &
+                             KMIN,KMAX,NSHELL,Cxyz,NAT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)   
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)  
+      !COMMON/SHLNOS1/QQ4,IJKL
+      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      DIMENSION XINTS(NSH2),GHONDO(MAXG)
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DDIJ
+      LOGICAL ISHandJSH
+      INTEGER :: LMAXIMA, NANGM, NSH2, MAXG, NPRIMI, NSHELL, NAT
+      INTEGER :: I, J, ISH, JSH, MINI, MINJ, MAXI, JMAX, NN, IJIJ, IJN
+!-----------------------------------------------------------------------
+      CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
+      NANGM =  4                                          
+      IF(LMAXIMA==2) NANGM =  6                                          
+      IF(LMAXIMA==3) NANGM = 10                                          
+      IF(LMAXIMA==4) NANGM = 15                                          
+      IF(LMAXIMA==5) NANGM = 21                                          
+      IF(LMAXIMA==6) NANGM = 28                                          
+      NGTH(4) = 1                                                       
+      NGTH(3) = NGTH(4) * NANGM                                         
+      NGTH(2) = NGTH(3) * NANGM                                         
+      NGTH(1) = NGTH(2) * NANGM                                         
+      !DO I=1,3                                                       
+      ! NORGSH(I) = 0                                               
+      ! NORGSP(I) = 0                                               
+      !ENDDO                                                          
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP PARALLEL
+      !IEXCH = 1                                                         
+      QQ4   = 1.0d0 
+      !$OMP END PARALLEL      
+      !NINTEG  = 0  
+!- - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(DDIJ(49*900))                                                      
+      !$OMP PARALLEL DO PRIVATE(ISH, JSH, IJIJ, DDIJ, GHONDO, VMAX,     &
+      !$OMP MINI, MINJ, MAXI, JMAX, ISHandJSH, IJN, I, J, NN, VAL)    
+      DO ISH = 1,NSHELL                                             
+       DO JSH = 1,ISH                                             
+        IJIJ = INT(ISH * (ISH - 1) / 2) + JSH
+        CALL SHELLS(1,ISH,JSH,ISH,JSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,   &
+                    NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
+                    Cxyz,NAT)                    
+        CALL IJPRIM(DDIJ)                                           
+        CALL SHELLS(2,ISH,JSH,ISH,JSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,   &
+                    NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
+                    Cxyz,NAT)                       
+        CALL ZQOUT(GHONDO,MAXG)                                          
+        IF(IJKL==1) CALL S0000(GHONDO,DDIJ)                       
+        IF(IJKL>1) CALL ERISPDFGHIL(GHONDO,DDIJ)
+        VMAX = 0.0D+00                                                    
+        MINI = KMIN(ISH)                                               
+        MINJ = KMIN(JSH)                                               
+        MAXI = KMAX(ISH)                                               
+        JMAX = KMAX(JSH)                                               
+        ISHandJSH=ISH==JSH                                               
+        IJN = 0                                                        
+        DO I=MINI,MAXI                                             
+         IF(ISHandJSH) JMAX = I                                          
+         DO J=MINJ,JMAX                                          
+          IJN = IJN+1                                           
+          NN = IJGT(IJN) + KLGT(IJN)                            
+          VAL = GHONDO(NN)                                      
+          IF(VAL>VMAX)VMAX=VAL                                 
+         END DO
+        END DO
+        XINTS(IJIJ) = SQRT(VMAX)                                         
+       END DO
+      END DO
+      !$OMP END PARALLEL DO
+      DEALLOCATE(DDIJ)
+!-----------------------------------------------------------------------
+      RETURN                                                            
+      END SUBROUTINE                                                               
 
 ! TwoERI                                            
       SUBROUTINE TwoERI(SCHWRZ,NINTEGtm,NINTEGt,NSCHWZ,BUFP,IX,BUFP2,   &
                         IX2,XINTS,NSH2,GHONDOLIB,MAXG,IDONTW,IPRINTOPT, &
                         EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,    &
-                        KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
-      USE ISO_C_BINDING
+                        KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,NINTMX,&
+                        NREC)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!
-      COMMON/USELIBRETA/ILIBRETA      
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
       LOGICAL SCHWRZ,SCHSKP,SKIPA,SKIPB,SKIPC,NPSYM                                   
-      COMMON/INTFIL/NINTMX  
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
-      COMMON/RESTAR/NREC,IST,JST,KST,LST           
-      COMMON/SHLNOS1/QQ4,IJKL 
+      INTEGER :: NINTMX
+      INTEGER :: IEXCH, NSH2
 !      
       INTEGER :: NINTEGtm,NINTEGt,NSCHWZ,MAXG,IDONTW,IPRINTOPT
       INTEGER :: NPRIMI,NSHELL,NAT
@@ -279,16 +3658,24 @@
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DIMENSION BUFP(NINTMX),IX(NINTMX),XINTS(NSH2),GHONDOLIB(MAXG)
+      DOUBLE PRECISION :: BUFP(NINTMX)
+      INTEGER :: IX(NINTMX)
+      DOUBLE PRECISION :: XINTS(NSH2),GHONDOLIB(MAXG)
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
+      INTEGER :: LMAXIMA, NANGM, II, JJ, KK, LL, ISH, JSH, KSH, LSH
+      INTEGER :: IJIJ, KLKL, LQSUM, NREC, ICOUNT
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFPC
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IXC
 !-----------------------------------------------------------------------
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CUTOFF = 1.0D-09
-      ALLOCATE(AUX(49*900))                                                   
-!
-      IF(ILIBRETA==0)THEN
+      ALLOCATE(AUX(49*900)) 
+      ALLOCATE(BUFPC(NINTMX))  
+      ALLOCATE(IXC(NINTMX))  
+
+!      IF(ILIBCINT==0)THEN
        CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
        NANGM =  4                                          
        IF(LMAXIMA==2) NANGM =  6                                          
@@ -300,64 +3687,27 @@
        NGTH(3) = NGTH(4) * NANGM                                         
        NGTH(2) = NGTH(3) * NANGM                                         
        NGTH(1) = NGTH(2) * NANGM                                         
-       DO I=1,3                                                       
-        NORGSH(I) = 0                                               
-        NORGSP(I) = 0                                               
-       ENDDO
-      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NINTEGt  = 0                                                         
-      NSCHWZ= 0                                                         
-      SCHSKP=.FALSE.                                                    
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II = IST,NSHELL                            ! II Shell
-       J0 = JST                                     ! JJ Shell                                            
-       DO JJ = J0,II                                                 
-        JST = 1                                                           
-        K0 = KST                                                          
-        DO KK = K0,JJ                               ! KK Shell                                                 
-         KST = 1                                                           
-         L0 = LST                                                          
-         DO LL = L0,KK                              ! LL Shell
-          LST = 1                                                           
+      !$OMP PARALLEL &
+      !$OMP PRIVATE(II, JJ, KK, LL, SKIPA, SKIPB, SKIPC, NPSYM, IEXCH,  &
+      !$OMP ISH, JSH, KSH, LSH, IJIJ, KLKL, TEST, SCHSKP, NSCHWZ, LQSUM,&
+      !$OMP AUX, GHONDOLIB, IX, BUFP, ICOUNT)
+      SCHSKP=.FALSE.
+      NSCHWZ= 0
+      ICOUNT = 1
+      !$OMP DO SCHEDULE(DYNAMIC)
+      DO II = 1,NSHELL                            ! II Shell
+       DO JJ = 1,II                                ! JJ Shell
+        DO KK = 1,JJ                               ! KK Shell
+         DO LL = 1,KK                              ! LL Shell
           SKIPA =  JJ==KK                                                 
           SKIPB = (II==KK) .or. (JJ==LL)                                
           SKIPC = (II==JJ) .or. (KK==LL)                                
           NPSYM = .FALSE.                                                   
           IF(SKIPA.or.SKIPB.or.SKIPC)GO TO 1                        
           NPSYM = .TRUE.
-          IH = II                                                       
-          JH = JJ                                                       
-          IF(JH<=IH)THEN                                              
-           ID = IH                                                     
-           JD = JH                                                     
-          ELSE                                                           
-           ID = JH                                                     
-           JD = IH                                                     
-          END IF                                                         
-          IF(.NOT.SKIPA)                                                &
-          SKIPA = (ID==II .and. JD==KK) .or. (ID==JJ .and. JD==LL)               
-          IF(.NOT.SKIPB)                                                &
-          SKIPB = (ID==II .and. JD==LL) .or. (ID==JJ .and. JD==KK)               
-          IF(SKIPA .and. SKIPB)GO TO 2                               
-          KH = KK
-          IF(KH<=IH) THEN                                              
-           ID = IH                                                     
-           KD = KH                                                     
-          ELSE                                                           
-           ID = KH                                                     
-           KD = IH                                                     
-          END IF                                                         
-          IF(.NOT.SKIPC)                                                &
-          SKIPC = (ID==II .and. KD==LL) .or. (ID==JJ .and. KD==KK)               
-          IF(SKIPA .and. SKIPC) GO TO 3                                
-          IF(SKIPB .and. SKIPC) GO TO 4                                
-          GO TO 1                                                         
-    2     SKIPC = .TRUE.                                                    
-          GO TO 1                                                         
-    3     SKIPB = .TRUE.                                                    
-          GO TO 1                                                         
-    4     SKIPA = .TRUE.                                                    
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !         (II,JJ//KK,LL)                                        
 !- - - - - - - - - - - - - - - - - - - - - - - -                            
@@ -367,9 +3717,7 @@
           JSH = JJ                                                          
           KSH = KK                                                          
           LSH = LL                                                          
-          QQ4 = 1                                                          
-          IF(SKIPA .and. NPSYM) QQ4 = QQ4+1                                
-          IF(SKIPB .and. NPSYM) QQ4 = QQ4+1                                
+          QQ4 = 1     
           GO TO 5                                                         
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !         (II,KK//JJ,LL)
@@ -380,8 +3728,7 @@
           JSH = KK                                                          
           KSH = JJ                                                          
           LSH = LL                                                          
-          QQ4 = 1                                                          
-          IF (SKIPC .and. NPSYM) QQ4 = QQ4+1                               
+          QQ4 = 1
           GO TO 5                                                         
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !         (II,LL//JJ,KK)
@@ -408,35 +3755,25 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          if(ILIBRETA==0)then
            LQSUM = KTYPE(ISH) + KTYPE(JSH) + KTYPE(KSH) + KTYPE(LSH) - 4     
            CALL SHELLS(1,ISH,JSH,KSH,LSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,&
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz)                           
+                       NSHELL,Cxyz,NAT)                           
            CALL SHELLS(2,ISH,JSH,KSH,LSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,&
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz)                           
+                       NSHELL,Cxyz,NAT)                           
            CALL IJPRIM(AUX)                                          
-           NORGH = NORGSH(IEXCH)                                           
            CALL ZQOUT(GHONDOLIB,MAXG)                                
            IF(LQSUM==0) THEN                                             
-            CALL S0000(GHONDOLIB(1+NORGH),AUX)                        
+            CALL S0000(GHONDOLIB(1),AUX)                        
            ELSE                                                            
-            CALL ERISPDFGHIL(GHONDOLIB(1+NORGH),AUX)                       
+            CALL ERISPDFGHIL(GHONDOLIB(1),AUX)                       
            END IF
-          else if(ILIBRETA==1)then
-!lib           CALL ERISVAL(BASLIB,ISH,JSH,KSH,LSH,GHONDOLIB)
-          end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Write Label & Integral on File 1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          if(ILIBRETA==0)then
            CALL QOUT(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,GHONDOLIB,IDONTW,&
-                     KLOC,KMIN,KMAX,NSHELL)
-          else if(ILIBRETA==1)then
-           CALL QOUTlib(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,GHONDOLIB,    &
-                        IDONTW,ISH,JSH,KSH,LSH,KLOC,KMIN,KMAX,NSHELL)
-          endif
+                     KLOC,KMIN,KMAX,NSHELL,NREC,ICOUNT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     9     CONTINUE                                                          
           GO TO (6,7,8),IEXCH                                         
@@ -446,53 +3783,1164 @@
         END DO
        END DO
       END DO
-      DEALLOCATE(AUX)                                                                                                   
+      !$OMP END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Final Record on File 1. Calculate NINTEGt.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL FINAL(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,IDONTW,      &
-                 IPRINTOPT)            
+      !$OMP CRITICAL
+      NINTEGt = (NREC-1)*NINTMX
+      !$OMP END CRITICAL
+      !$OMP BARRIER
+      !$OMP CRITICAL
+      CALL LASTQOUT(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm,NINTMX,        &
+              NINTEGt,NREC,ICOUNT,IDONTW,IPRINTOPT)            
+      !$OMP END CRITICAL
+      !$OMP END PARALLEL
+      CALL FINALIZE(BUFPC,IXC,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,NREC,   &
+                    IDONTW,IPRINTOPT)     
+      NREC = INT(NINTEGt/NINTMX) + 1
 !-----------------------------------------------------------------------
+      DEALLOCATE(BUFPC,IXC) 
+      DEALLOCATE(AUX) 
+      RETURN                                                            
+      END        
+
+! SHELLS2C                                           
+      SUBROUTINE SHELLS2C(NELEC,ISH,KSH,Cxyz,NAT,KATOMaux,KTYPEaux,     &
+            KLOCaux,KSTARTaux,KNGaux,Exaux,Caux)                   
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      !LOGICAL       NORM
+      !COMMON/NORMAL/NORM
+      !LOGICAL     IANDJ,KANDL,SAME
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON/ERIOUT/INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
+      !COMMON/INTDEX/IJX(784),IJY(784),IJZ(784),IK(784),                 &
+      !               KLX(784),KLY(784),KLZ(784)                         
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)
+      !COMMON/ROOT/XX,U(13),W(13),NROOTS
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
+      !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
+      !              CFA(30),CGA(30),CHA(30),CIA(30),                    &
+      !               GB(30),CSB(30),CPB(30),CDB(30),                    &
+      !              CFB(30),CGB(30),CHB(30),CIB(30),                    &
+      !               GC(30),CSC(30),CPC(30),CDC(30),                    &
+      !              CFC(30),CGC(30),CHC(30),CIC(30),                    &
+      !               GD(30),CSD(30),CPD(30),CDD(30),                    &
+      !              CFD(30),CGD(30),CHD(30),CID(30),                    &
+      !              AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
+      !              DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
+      !              NIJ,IJ,KL                                          
+      !COMMON/SHLNOS1/QQ4,IJKL                                           
+!      
+      !COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+      !                KSTARTaux(700),KNGaux(700)
+      !COMMON/EXCaux/EXaux(2000),Caux(2000)
+!
+      INTEGER :: IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
+                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)
+      INTEGER :: I, I1, I2, J, J1, J2, K, K1, K2, L, L1, L2
+      INTEGER :: JMAX, NX, NY, NZ, LMAX, NELEC, MAX
+      INTEGER :: ISH, KSH, NAT
+      INTEGER :: KATOMaux(700), KTYPEaux(700), KLOCaux(700) 
+      INTEGER :: KSTARTaux(700), KNGaux(700)
+      DOUBLE PRECISION :: EXaux(2000), Caux(2000)
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      INTEGER,DIMENSION(8) :: MINF,MAXF                                  
+      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                           
+      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                           
+      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
+                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
+                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
+                  2,   0,   2,   1,   1,                                &
+                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
+                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
+                  1,                                                    &
+                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
+                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
+                  0,   3,   3,   2,   1,   2,   1,   2/                  
+      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
+                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
+                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
+                 14,   0,  14,   7,   7,                                &
+                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
+                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
+                  7,                                                    &
+                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
+                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
+                  0,  21,  21,  14,   7,  14,   7,  14/                  
+      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
+                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
+                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
+                 98,   0,  98,  49,  49,                                &
+                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
+                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
+                 49,                                                    &
+                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
+                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
+                  0, 147, 147,  98,  49,  98,  49,  98/                  
+      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
+               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
+               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
+                687,   1, 687, 344, 344,                                &
+               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
+               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
+                344,                                                    &
+               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
+               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
+                  1,1030,1030, 687, 344, 687, 344, 687/                  
+      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
+                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
+                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
+                  0,   2,   1,   2,   1,                                &
+                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
+                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
+                  2,                                                    &
+                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
+                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
+                  3,   2,   1,   3,   3,   1,   2,   2/                  
+      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
+                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
+                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
+                  0,  14,   7,  14,   7,                                &
+                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
+                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
+                 14,                                                    &
+                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
+                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
+                 21,  14,   7,  21,  21,   7,  14,  14/                  
+      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
+                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
+                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
+                  0,  98,  49,  98,  49,                                &
+                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
+                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
+                 98,                                                    &
+                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
+                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
+                147,  98,  49, 147, 147,  49,  98,  98/                  
+      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
+                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
+                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
+                  1, 687, 344, 687, 344,                                &
+                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
+                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
+                687,                                                    &
+                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
+                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
+               1030, 687, 344,1030,1030, 344, 687, 687/                 
+      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
+                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
+                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
+                  2,   2,   1,   1,   2,                                &
+                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
+                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
+                  2,                                                    &
+                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
+                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
+                  3,   1,   2,   1,   2,   3,   3,   2/                 
+      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
+                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
+                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
+                 14,  14,   7,   7,  14,                                &
+                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
+                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
+                 14,                                                    &
+                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
+                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
+                 21,   7,  14,   7,  14,  21,  21,  14/                 
+      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
+                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
+                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
+                 98,  98,  49,  49,  98,                                &
+                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
+                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
+                 98,                                                    &
+                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
+                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
+                147,  49,  98,  49,  98, 147, 147,  98/                 
+      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
+                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
+                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
+                687, 687, 344, 344, 687,                                &
+                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
+                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
+                687,                                                    &
+                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
+                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
+               1030, 344, 687, 344, 687,1030,1030, 687/                 
+!-----------------------------------------------------------------------                                                                       
+!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION        
+      NORM = .FALSE.  
+      
+      IF(NELEC==2) GO TO 200                                          
+                                                                       
+      IANDJ = .FALSE.                                         
+      INU = ISH                                                      
+      JNU = 1                                                      
+      NGTI = NGTH(1)                                                 
+      NGTJ = NGTH(2)                                                 
+!                                                                       
+!     ----- ISHELL                                                      
+!                                                                       
+      I = KATOMaux(INU)                                                 
+      AX = Cxyz(1,I)                                                       
+      AY = Cxyz(2,I)                                                       
+      AZ = Cxyz(3,I)                                          
+      I1 = KSTARTAUX(INU)   !
+      I2 = I1+KNGAUX(INU)-1 !
+      LIT = KTYPEaux(INU)                                              
+      MINI = MINF(LIT)                                                  
+      MAXI = MAXF(LIT)                                                  
+      LOCI = KLOCaux(INU)-MINI                                          
+      NGA = 0                                                           
+      DO I = I1,I2                                                  
+       NGA = NGA+1    
+       GA(NGA) = EXaux(I)                                             
+       CSA(NGA) = Caux(I)                                            
+       CPA(NGA) = Caux(I)                                           
+       CDA(NGA) = Caux(I)                                           
+       CFA(NGA) = Caux(I)                                            
+       CGA(NGA) = Caux(I)                                           
+       CHA(NGA) = Caux(I)                                           
+       CIA(NGA) = Caux(I)                                           
+      END DO
+!                                                                       
+!     ----- JSHELL (Unity Shell)                                                     
+!                                                                       
+      J = 1                                                   
+      BX = 0                                                  
+      BY = 0                                                       
+      BZ = 0                                                  
+      J1 = 1                                              
+      J2 = 1                                             
+      LJT = 1                                                  
+      MINJ = 1                                               
+      MAXJ = 1                                               
+      LOCJ = 1                                          
+      NGB = 0                                                           
+      DO J = J1,J2                                                  
+       NGB = NGB+1                                                    
+       GB(NGB) = 0                                               
+       CSB(NGB) = 1                                           
+       CPB(NGB) = 1                                          
+       CDB(NGB) = 1                                           
+       CFB(NGB) = 1                                           
+       CGB(NGB) = 1                                         
+       CHB(NGB) = 1                                         
+       CIB(NGB) = 1                                           
+      END DO                                                          
+      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
+!                                                                       
+      IJ = 0                                                            
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       NX = IX(I)                                                     
+       NY = IY(I)                                                     
+       NZ = IZ(I)                                                     
+       IF (IANDJ) JMAX = I                                            
+       DO J = MINJ,JMAX                                           
+        IJ = IJ+1                                                   
+        IJX(IJ) = NX+JX(J)                                          
+        IJY(IJ) = NY+JY(J)                                          
+        IJZ(IJ) = NZ+JZ(J)                                          
+        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
+       END DO                                                       
+      END DO                                                          
+      RETURN                                                            
+!     ******                                                            
+!                                                                       
+!        K AND L SHELL                                                  
+!                                                                       
+  200 CONTINUE                                                          
+      KANDL = .FALSE.                                        
+      SAME = ISH == KSH                           
+!                                                                       
+!     ----- PERMUTE KSH AND LSH SHELLS, FOR THEIR TYPE                  
+!                                                                       
+      KNU = KSH                                                      
+      LNU = 1                                                      
+      NGTK = NGTH(3)                                                 
+      NGTL = NGTH(4)                                                 
+!                                                                       
+!     ----- K SHELL                                                     
+!                                                                       
+      K = KATOMaux(KNU)                                                 
+      CX = Cxyz(1,K)                                                       
+      CY = Cxyz(2,K)                                                       
+      CZ = Cxyz(3,K)                                                       
+      K1 = KSTARTAUX(KNU)   !
+      K2 = K1+KNGAUX(KNU)-1 !
+      LKT = KTYPEaux(KNU) 
+      MINK = MINF(LKT)                                                  
+      MAXK = MAXF(LKT)                                                  
+      LOCK = KLOCaux(KNU)-MINK                                          
+      NGC = 0                                                           
+      DO K = K1,K2                                                  
+       NGC = NGC+1                                                    
+       GC(NGC) = EXaux(K)                                             
+       CSC(NGC) = Caux(K)                                          
+       CPC(NGC) = Caux(K)                                       
+       CDC(NGC) = Caux(K)                                       
+       CFC(NGC) = Caux(K)                                     
+       CGC(NGC) = Caux(K)                                         
+       CHC(NGC) = Caux(K)                                          
+       CIC(NGC) = Caux(K)                                          
+      END DO                                                          
+!                                                                       
+!     ----- LSHELL (Unity Shell)                                                      
+!                                                                       
+      L = 1                                          
+      DX = 0                                                    
+      DY = 0                                                  
+      DZ = 0                                                      
+      L1 = 1                                                 
+      L2 = 1                                          
+      LLT = 1                                        
+      MINL = 1                                            
+      MAXL = 1                                            
+      LOCL = 1                                       
+      NGD = 0                                                           
+      DO L = L1,L2                                                  
+       NGD = NGD+1                                                    
+       GD(NGD) = 0                                           
+       CSD(NGD) = 1                                          
+       CPD(NGD) = 1                                          
+       CDD(NGD) = 1                                           
+       CFD(NGD) = 1                                          
+       CGD(NGD) = 1                                          
+       CHD(NGD) = 1                                          
+       CID(NGD) = 1                                           
+      END DO                                                          
+      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
+      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
+!                                                                       
+      KL = 0                                                            
+      LMAX = MAXL                                                       
+      DO K = MINK,MAXK                                              
+       NX = KX(K)                                                     
+       NY = KY(K)                                                     
+       NZ = KZ(K)                                                     
+       IF (KANDL) LMAX = K                                            
+       DO L = MINL,LMAX                                           
+        KL = KL+1                                                   
+        KLX(KL) = NX+LX(L)                                          
+        KLY(KL) = NY+LY(L)                                          
+        KLZ(KL) = NZ+LZ(L)                                          
+        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
+       END DO                                                       
+      END DO                                                      
+      MAX = KL                                                          
+      DO 320 I = 1,IJ                                                   
+      IF (SAME) MAX = I                                                 
+  320 IK(I) = MAX                                                       
+      IJKL = IJ*KL        
+      IF (SAME) IJKL = IJ*(IJ+1)/2 
+!-----------------------------------------------------------------------
+      RETURN                                                            
+      END SUBROUTINE                                                               
+
+! PDPT_msqrt
+      SUBROUTINE PDPT_msqrt(GMAT,N,IPRINTOPT)
+      INTEGER :: N,IPRINTOPT,I,J,NTRUNC
+      DOUBLE PRECISION :: GMAT(N,N),TOL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,AUX,AUX2
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EIG,W
+
+      ALLOCATE(VEC(N,N),AUX(N,N),AUX2(N,N))
+      ALLOCATE(EIG(N),W(N))
+!
+      TOL = 1.0d-10
+      AUX = GMAT
+      CALL DIAG(N,AUX,VEC,EIG,W)
+!
+      NTRUNC = 0
+      AUX = 0.0d0
+      DO I=1,N
+       IF (EIG(I)<=TOL) THEN
+        NTRUNC = NTRUNC + 1
+        EIG(I) = 0.0D0
+        DO J=1,N
+         VEC(J,I) = 0.0d0
+        END DO
+       ELSE
+        AUX(I,I) = 1.0/DSQRT(EIG(I))
+       END IF
+      END DO
+
+      IF(IPRINTOPT==1.AND.NTRUNC>0) THEN
+        WRITE(6,*) "RI Warning - Number of values truncated from metric:",NTRUNC
+      END IF
+
+      DEALLOCATE(EIG,W)
+      CALL DGEMM("N","N",N,N,N,1.0D0,VEC,N,AUX,N,0.0D0,AUX2,N)
+      CALL DGEMM("N","T",N,N,N,1.0D0,AUX2,N,VEC,N,0.0D0,GMAT,N)
+      DEALLOCATE(VEC,AUX,AUX2)
+
+      END
+
+! QOUT2C                                             
+      SUBROUTINE QOUT2C(GMAT,NBFaux,GHONDO,MAXG,KTYPEaux,          &
+                        KLOCaux)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      !LOGICAL IANDJ,KANDL,SAME
+      !COMMON/MISC  /IANDJ,KANDL,SAME                                  
+      !COMMON/ERIOUT/ISH,JSH,KSH,LSH,NGTI,NGTJ,NGTK,NGTL           
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
+      !              NIJ,IJ,KL                                          
+      !COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+      !                KSTARTaux(700),KNGaux(700)
+!
+      INTEGER :: NBFaux, MAXG
+      INTEGER :: KTYPEaux(700),KLOCaux(700)
+      INTEGER :: I, I_INDEX, IK_INDEX, I1, I3, K
+      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux) :: GMAT
+      DOUBLE PRECISION,DIMENSION(MAXG) :: GHONDO
+      INTEGER,DIMENSION(8) :: MINF,MAXF
+      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                 
+      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                 
+!-----------------------------------------------------------------------                                                                       
+!     Get Auxiliary Basis Info. 
+!-----------------------------------------------------------------------
+      SAME  = INU == KNU                            
+      MINI = MINF(KTYPEaux(INU))                                        
+      MINK = MINF(KTYPEaux(KNU))                                        
+      MAXI = MAXF(KTYPEaux(INU))                                        
+      MAXK = MAXF(KTYPEaux(KNU))                                        
+      LOCI = KLOCaux(INU)-MINI                                         
+      LOCK = KLOCaux(KNU)-MINK                                          
+!-----------------------------------------------------------------------                                                                       
+!     Store (k|l) ERIs in G matrix 
+!-----------------------------------------------------------------------
+      DO 1 I = MINI,MAXI                                              
+        I_INDEX = (I-MINI)*NGTI + 1                                   
+        DO K =  MINK,MAXK                                       
+          IK_INDEX = (K-MINK)*NGTK + I_INDEX                    
+          IF(SAME.and.K>I)GO TO 1                 
+          VAL = GHONDO( IK_INDEX )
+          I1 = LOCI+I                                           
+          I3 = LOCK+K                                           
+          GMAT(I1,I3) = VAL
+          GMAT(I3,I1) = VAL
+        END DO
+    1 CONTINUE                                                       
+!-----------------------------------------------------------------------                                                                       
+      RETURN                                                            
+      END   
+
+! SHELLS3C                                           
+      SUBROUTINE SHELLS3C(NELEC,ISH,JSH,KSH,FLIP,EX,CS,CP,CD,CF,CG,CH,  &
+                          CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,   &
+                          KMAX,NSHELL,Cxyz,NAT,KATOMaux,KTYPEaux,      &
+                          KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)                   
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      !LOGICAL       NORM
+      !COMMON/NORMAL/NORM
+      !LOGICAL     IANDJ,KANDL,SAME
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON/ERIOUT/INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
+      !COMMON/INTDEX/IJX(784),IJY(784),IJZ(784),IK(784),                 &
+      !              KLX(784),KLY(784),KLZ(784)                           
+      !COMMON/INTDEX1/IJGT(784),KLGT(784)                                 
+      !COMMON/ROOT/XX,U(13),W(13),NROOTS                                 
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)                    
+      !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
+      !              CFA(30),CGA(30),CHA(30),CIA(30),                    &
+      !               GB(30),CSB(30),CPB(30),CDB(30),                    &
+      !              CFB(30),CGB(30),CHB(30),CIB(30),                    &
+      !               GC(30),CSC(30),CPC(30),CDC(30),                    &
+      !              CFC(30),CGC(30),CHC(30),CIC(30),                    &
+      !               GD(30),CSD(30),CPD(30),CDD(30),                    &
+      !              CFD(30),CGD(30),CHD(30),CID(30),                    &
+      !              AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
+      !              DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
+      !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
+      !              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
+      !              NIJ,IJ,KL                                          
+      !COMMON/SHLNOS1/QQ4,IJKL
+!      
+      !COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+      !                KSTARTaux(700),KNGaux(700)
+      !COMMON/EXCaux/EXaux(2000),Caux(2000)
+!
+      LOGICAL FLIP
+      INTEGER,DIMENSION(NSHELL)::KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      INTEGER :: IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
+                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)
+      INTEGER,DIMENSION(8) :: MINF,MAXF                                  
+      INTEGER :: I, I1, I2, J, J1, J2, K , K1, K2, L, L1, L2, NX, NY, NZ
+      INTEGER :: JMAX, LMAX, MAX
+      INTEGER :: NELEC, ISH, JSH, KSH, NPRIMI, NSHELL, NAT
+      INTEGER :: KATOMaux(700), KTYPEaux(700), KLOCaux(700) 
+      INTEGER :: KSTARTaux(700), KNGaux(700)
+      DOUBLE PRECISION :: EXaux(2000), Caux(2000)
+      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                           
+      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                           
+      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
+                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
+                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
+                  2,   0,   2,   1,   1,                                &
+                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
+                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
+                  1,                                                    &
+                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
+                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
+                  0,   3,   3,   2,   1,   2,   1,   2/                  
+      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
+                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
+                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
+                 14,   0,  14,   7,   7,                                &
+                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
+                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
+                  7,                                                    &
+                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
+                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
+                  0,  21,  21,  14,   7,  14,   7,  14/                  
+      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
+                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
+                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
+                 98,   0,  98,  49,  49,                                &
+                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
+                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
+                 49,                                                    &
+                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
+                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
+                  0, 147, 147,  98,  49,  98,  49,  98/                  
+      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
+               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
+               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
+                687,   1, 687, 344, 344,                                &
+               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
+               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
+                344,                                                    &
+               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
+               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
+                  1,1030,1030, 687, 344, 687, 344, 687/                  
+      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
+                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
+                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
+                  0,   2,   1,   2,   1,                                &
+                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
+                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
+                  2,                                                    &
+                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
+                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
+                  3,   2,   1,   3,   3,   1,   2,   2/                  
+      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
+                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
+                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
+                  0,  14,   7,  14,   7,                                &
+                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
+                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
+                 14,                                                    &
+                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
+                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
+                 21,  14,   7,  21,  21,   7,  14,  14/                  
+      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
+                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
+                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
+                  0,  98,  49,  98,  49,                                &
+                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
+                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
+                 98,                                                    &
+                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
+                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
+                147,  98,  49, 147, 147,  49,  98,  98/                  
+      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
+                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
+                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
+                  1, 687, 344, 687, 344,                                &
+                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
+                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
+                687,                                                    &
+                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
+                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
+               1030, 687, 344,1030,1030, 344, 687, 687/                  
+      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
+                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
+                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
+                  2,   2,   1,   1,   2,                                &
+                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
+                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
+                  2,                                                    &
+                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
+                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
+                  3,   1,   2,   1,   2,   3,   3,   2/                  
+      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
+                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
+                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
+                 14,  14,   7,   7,  14,                                &
+                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
+                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
+                 14,                                                    &
+                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
+                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
+                 21,   7,  14,   7,  14,  21,  21,  14/                  
+      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
+                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
+                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
+                 98,  98,  49,  49,  98,                                &
+                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
+                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
+                 98,                                                    &
+                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
+                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
+                147,  49,  98,  49,  98, 147, 147,  98/                  
+      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
+                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
+                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
+                687, 687, 344, 344, 687,                                &
+                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
+                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
+                687,                                                    &
+                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
+                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
+               1030, 344, 687, 344, 687,1030,1030, 687/                 
+!-----------------------------------------------------------------------                                                                       
+!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION                   
+      IF(NELEC==2) GO TO 200      
+      NORM = .TRUE.  
+!                                                                       
+!     ----- PERMUTE ISH AND JSH SHELLS, FOR THEIR TYPE                  
+!     THIS IS DONE FOR SPEED REASONS.  THE CODE GETS THE RIGHT ANSWER   
+!     WITHOUT THE ANGULAR MOMENTUM FLIPPING, AND THEREFORE A CALLING    
+!     ARGUMENT ALLOWS ONE DO EXACTLY THE integral BLOCK AS SPECIFIED,   
+!     SHOULD THAT BE DESIRED.                                           
+!                                                                       
+      IANDJ = ISH == JSH                                              
+      IF (KTYPE(ISH) < KTYPE(JSH)  .and.  FLIP) THEN                 
+       INU = JSH                                                      
+       JNU = ISH                                                      
+       NGTI = NGTH(2)                                                 
+       NGTJ = NGTH(1)                                                 
+      ELSE                                                              
+       INU = ISH                                                      
+       JNU = JSH                                                      
+       NGTI = NGTH(1)                                                 
+       NGTJ = NGTH(2)                                                 
+      END IF                                                            
+!                                                                       
+!     ----- ISHELL                                                      
+!                                                                       
+      I = KATOM(INU)                                                    
+      AX = Cxyz(1,I)                                                       
+      AY = Cxyz(2,I)                                                       
+      AZ = Cxyz(3,I)                                                       
+      I1 = KSTART(INU)                                                  
+      I2 = I1+KNG(INU)-1                                                
+      LIT = KTYPE(INU)                                                  
+      MINI = KMIN(INU)                                                  
+      MAXI = KMAX(INU)                                                  
+      LOCI = KLOC(INU)-MINI                                             
+      NGA = 0                                                           
+      DO I = I1,I2                                                  
+       NGA = NGA+1                                                    
+       GA(NGA) = EX(I)                                                
+       CSA(NGA) = CS(I)                                               
+       CPA(NGA) = CP(I)                                               
+       CDA(NGA) = CD(I)                                               
+       CFA(NGA) = CF(I)                                               
+       CGA(NGA) = CG(I)                                               
+       CHA(NGA) = CH(I)                                               
+       CIA(NGA) = CI(I)                                               
+      END DO                                                          
+!                                                                       
+!     ----- JSHELL                                                      
+!                                                                       
+      J = KATOM(JNU)                                                    
+      BX = Cxyz(1,J)                                                       
+      BY = Cxyz(2,J)                                                       
+      BZ = Cxyz(3,J)                                                       
+      J1 = KSTART(JNU)                                                  
+      J2 = J1+KNG(JNU)-1                                                
+      LJT = KTYPE(JNU)                                                  
+      MINJ = KMIN(JNU)                                                  
+      MAXJ = KMAX(JNU)                                                  
+      LOCJ = KLOC(JNU)-MINJ                                             
+      NGB = 0                                                           
+      DO J = J1,J2                                                  
+       NGB = NGB+1                                                    
+       GB(NGB) = EX(J)                                                
+       CSB(NGB) = CS(J)                                               
+       CPB(NGB) = CP(J)                                               
+       CDB(NGB) = CD(J)                                               
+       CFB(NGB) = CF(J)                                               
+       CGB(NGB) = CG(J)                                               
+       CHB(NGB) = CH(J)                                               
+       CIB(NGB) = CI(J)                                               
+      END DO                                                          
+      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
+!                                                                       
+      IJ = 0                                                            
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       NX = IX(I)                                                     
+       NY = IY(I)                                                     
+       NZ = IZ(I)                                                     
+       IF (IANDJ) JMAX = I                                            
+       DO J = MINJ,JMAX                                           
+        IJ = IJ+1                                                   
+        IJX(IJ) = NX+JX(J)                                          
+        IJY(IJ) = NY+JY(J)                                          
+        IJZ(IJ) = NZ+JZ(J)                                          
+        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
+       END DO                                                   
+      END DO                                                         
+      RETURN                                                            
+!     ******                                                            
+!                                                                       
+!        K AND L SHELL                                                  
+!                                                                       
+  200 CONTINUE    
+      NORM  = .FALSE.      
+      KANDL = .FALSE.                                 
+      SAME  = .FALSE.          
+
+      KNU = KSH                                                      
+      LNU = 1                                                      
+      NGTK = NGTH(3)                                                 
+      NGTL = NGTH(4)                                                 
+!                                                                       
+!     ----- K SHELL                                                     
+!                                                                       
+      K = KATOMaux(KNU)                                                 
+      CX = Cxyz(1,K)                                                       
+      CY = Cxyz(2,K)                                                       
+      CZ = Cxyz(3,K)                                                       
+      K1 = KSTARTAUX(KNU)   !
+      K2 = K1+KNGAUX(KNU)-1 !
+      LKT = KTYPEaux(KNU)                                               
+      MINK = MINF(LKT)                                                  
+      MAXK = MAXF(LKT)                                                  
+      LOCK = KLOCaux(KNU)-MINK                                          
+      NGC = 0                                                           
+      DO K = K1,K2                                                  
+       NGC = NGC+1                                                    
+       GC(NGC) = EXaux(K)                                             
+       CSC(NGC) = Caux(K)                                            
+       CPC(NGC) = Caux(K)                                         
+       CDC(NGC) = Caux(K)                                             
+       CFC(NGC) = Caux(K)                                             
+       CGC(NGC) = Caux(K)                                             
+       CHC(NGC) = Caux(K)                                             
+       CIC(NGC) = Caux(K)                                             
+      END DO                                                          
+!                                                                       
+!     ----- LSHELL (Unity Shell)                                                     
+!                                                                       
+      L = 1                                                    
+      DX = 0                                                       
+      DY = 0                                                       
+      DZ = 0                                                       
+      L1 = 1                                                
+      L2 = 1                                                
+      LLT = 1                                                  
+      MINL = 1                                                  
+      MAXL = 1                                                  
+      LOCL = 1                                             
+      NGD = 0                                                           
+      DO L = L1,L2                                                  
+       NGD = NGD+1                                                    
+       GD(NGD) = 0                                                
+       CSD(NGD) = 1                                             
+       CPD(NGD) = 1                                              
+       CDD(NGD) = 1                                               
+       CFD(NGD) = 1                                               
+       CGD(NGD) = 1                                               
+       CHD(NGD) = 1                                               
+       CID(NGD) = 1                                               
+      END DO                                                          
+      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
+      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
+!                                                                       
+!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
+!                                                                       
+      KL = 0                                                            
+      LMAX = MAXL                                                       
+      DO K = MINK,MAXK                                              
+       NX = KX(K)                                                     
+       NY = KY(K)                                                     
+       NZ = KZ(K)                                                     
+       IF (KANDL) LMAX = K                                            
+       DO L = MINL,LMAX                                           
+        KL = KL+1                                                   
+        KLX(KL) = NX+LX(L)                                          
+        KLY(KL) = NY+LY(L)                                          
+        KLZ(KL) = NZ+LZ(L)                                          
+        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
+       END DO                                                       
+      END DO                                                          
+      MAX = KL                                                          
+      DO 320 I = 1,IJ                                                   
+      IF (SAME) MAX = I                                                 
+  320 IK(I) = MAX                                                       
+      IJKL = IJ*KL                                                      
+      IF (SAME) IJKL = IJ*(IJ+1)/2
+
+      RETURN                                                            
+      END SUBROUTINE       
+
+! QOUT3C                                     
+      SUBROUTINE QOUT3C(BUFP2,GHONDO,MAXG,GMAT,NBF,NBFaux,              &
+                        KLOC,KMIN,KMAX,NSHELL,KTYPEaux,KLOCaux)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      !LOGICAL IANDJ,KANDL,SAME
+      !COMMON/MISC/IANDJ,KANDL,SAME                                  
+      !COMMON/ERIOUT/ISH,JSH,KSH,LSH,NGTI,NGTJ,NGTK,NGTL           
+      !COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+      !                KSTARTaux(700),KNGaux(700)
+!
+      INTEGER :: NBF, NBFaux, MAXG, NSHELL
+      INTEGER :: KTYPEaux(700),KLOCaux(700)
+      INTEGER :: JMAX, I_INDEX, I, J, IJ_INDEX, M, N, KK, MM, IJK_INDEX
+      INTEGER :: MN, K, L, T
+      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux)::GMAT
+      DOUBLE PRECISION,DIMENSION(MAXG)::GHONDO
+      INTEGER,DIMENSION(8) :: MINF,MAXF
+      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                 
+      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/      
+!-----------------------------------------------------------------------                                                                       
+!     Get Basis and Auxiliary Basis Info. 
+!-----------------------------------------------------------------------
+      IANDJ = INU == JNU                                              
+      MINI = KMIN(INU)                                                  
+      MINJ = KMIN(JNU)                                                  
+      MINK = MINF(KTYPEaux(KNU))                                        
+      MAXI = KMAX(INU)                                                  
+      MAXJ = KMAX(JNU)                                                  
+      MAXK = MAXF(KTYPEaux(KNU))                                        
+      LOCI = KLOC(INU)-MINI                                             
+      LOCJ = KLOC(JNU)-MINJ                                             
+      LOCK = KLOCaux(KNU)-MINK                                          
+!-----------------------------------------------------------------------                                                                       
+!     Build B tensor (Only Upper Triangular)
+!      b_mn^l = sum_k (mn|k) G^{-1/2}_{kl}
+!-----------------------------------------------------------------------
+      JMAX = MAXJ                                                       
+      DO I = MINI,MAXI                                              
+       I_INDEX = (I-MINI)*NGTI + 1                                   
+       IF (IANDJ) JMAX = I                                            
+       DO J = MINJ,JMAX                                           
+        IJ_INDEX = (J-MINJ)*NGTJ + I_INDEX                         
+        DO K = MINK,MAXK                                       
+          IJK_INDEX = (K-MINK)*NGTK + IJ_INDEX                    
+          VAL = GHONDO( IJK_INDEX ) 
+          M = LOCI+I                                           
+          N = LOCJ+J                                           
+          KK = LOCK+K                                           
+          IF (M <= N) GO TO 100                             
+          T = M                                                
+          M = N                                               
+          N = T                                                
+  100     MN = M + N*(N-1)/2
+          DO L=1,NBFaux
+           BUFP2(MN,L) = BUFP2(MN,L) + VAL*GMAT(KK,L)
+          END DO
+        END DO
+       END DO                                                       
+      END DO
+!-----------------------------------------------------------------------                                                                       
+      RETURN 
+      END SUBROUTINE                                                               
+
+! QOUT3CModChol
+      SUBROUTINE QOUT3CModChol(BUFP2,GHONDO,MAXG,NBF,NBFaux,            &
+                               KLOC,KMIN,KMAX,NSHELL,KTYPEaux,KLOCaux)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      !LOGICAL IANDJ,KANDL,SAME
+      !COMMON/MISC/IANDJ,KANDL,SAME
+      !COMMON/ERIOUT/ISH,JSH,KSH,LSH,NGTI,NGTJ,NGTK,NGTL
+      !COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+      !                KSTARTaux(700),KNGaux(700)
+!
+      INTEGER :: NBF, NBFaux, MAXG, NSHELL
+      INTEGER :: KTYPEaux(700),KLOCaux(700)
+      INTEGER :: JMAX, I_INDEX, I, J, IJ_INDEX, M, N, KK, MM, IJK_INDEX
+      INTEGER :: MN, K, L, MT
+      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(MAXG)::GHONDO
+      INTEGER,DIMENSION(8) :: MINF,MAXF
+      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/
+      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/
+!-----------------------------------------------------------------------                                                                       
+!     Get Basis and Auxiliary Basis Info. 
+!-----------------------------------------------------------------------
+      IANDJ = INU == JNU
+      MINI = KMIN(INU)
+      MINJ = KMIN(JNU)
+      MINK = MINF(KTYPEaux(KNU))
+      MAXI = KMAX(INU)
+      MAXJ = KMAX(JNU)
+      MAXK = MAXF(KTYPEaux(KNU))
+      LOCI = KLOC(INU)-MINI
+      LOCJ = KLOC(JNU)-MINJ
+      LOCK = KLOCaux(KNU)-MINK
+!-----------------------------------------------------------------------                                                                       
+!     Store (mn|P) (Only Upper Triangular)
+!-----------------------------------------------------------------------
+      JMAX = MAXJ
+      DO I = MINI,MAXI
+       I_INDEX = (I-MINI)*NGTI + 1
+       IF (IANDJ) JMAX = I
+       DO 1 J = MINJ,JMAX
+        IJ_INDEX = (J-MINJ)*NGTJ + I_INDEX
+        DO K =  MINK,MAXK
+          IJK_INDEX = (K-MINK)*NGTK + IJ_INDEX
+          VAL = GHONDO( IJK_INDEX )
+          M = LOCI+I
+          N = LOCJ+J
+          KK = LOCK+K
+          IF (M <= N) GO TO 100
+          MT = M
+          M = N
+          N = MT
+  100     MN = M + N*(N-1)/2
+          BUFP2(MN,KK) = VAL
+        END DO
+    1  CONTINUE
+      END DO
+!-----------------------------------------------------------------------                                                                       
+      RETURN
+      END SUBROUTINE
+
+END MODULE AOINTS                                                           
+
+! OneElecInt                                           
+      SUBROUTINE OneElecInt(Cxyz,H,S,TKIN,DInteg,NBFT,IPRINTOPT,        &
+                            EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,      &
+                            KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,ZAN,  &
+                            NAT,IECP,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/USELIBCINT/ILIBCINT      
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3)
+!      
+      INTEGER :: NAT, IECP
+      INTEGER :: NBFT,IPRINTOPT,NPRIMI,NSHELL
+      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN    
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
+      INTEGER :: CR, CM, timestartoneE, timefinishoneE
+      DOUBLE PRECISION :: RATE
+
+      INTEGER :: SIZE_ENV,NBAS           !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)  !LIBCINT
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS) !LIBCINT
+      INTEGER :: IGTYP                   !LIBCINT
+!-----------------------------------------------------------------------
+      IF(IPRINTOPT==1)WRITE(6,'(/1X,A13/,1X,13(1H-))')'1e- integrals'
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(timestartoneE)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+!     H, S & T integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ILIBCINT==0) THEN
+        CALL HSandT(H,S,TKIN,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,       &
+                    KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,       &
+                    ZAN,Cxyz)
+      ELSE IF(ILIBCINT==1) THEN
+        CALL HSandTlib(H,S,TKIN,NBFT,SIZE_ENV,ENV,NAT,ATM,NSHELL,       &
+                NBAS,BAS,IGTYP)
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ECP integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF( 1<=IECP .and. IECP<=3 )THEN
+        CALL ECPINT(H,NBFT,EX,CS,CP,CD,CF,CG,NPRIMI,KSTART,KATOM,KNG,   &
+                   KLOC,KMIN,KMAX,NSHELL,Cxyz)
+        IF(ILIBCINT==1) THEN
+          WRITE(*,*) "WARNING: LIBCINT version no compatible with ECP"
+          STOP
+        END IF
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Add Electric Field Contribution to 1e Hamiltonian
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(EFLDL)THEN
+       CALL DipInt(DInteg,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,          &
+                   KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,        &
+                   Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       CALL ElecFieldInt(H,DInteg,NBFT)              
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL SYSTEM_CLOCK(timefinishoneE)
+      DeltaToneE = (timefinishoneE - timestartoneE)/RATE
+      IF(IPRINTOPT==1)                                                  &
+       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE                                                                                                    
+!-----------------------------------------------------------------------
+      RETURN                                                            
+  END SUBROUTINE
+
+! DipInt                                           
+      SUBROUTINE DipInt(DInteg,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,     &
+                        KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,   &
+                        Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      COMMON/USELIBCINT/ILIBCINT            
+      COMMON/ELPROP/IEMOM      
+      COMMON/TRANSF/XP,YP,ZP
+      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: AUX
+
+      INTEGER :: IGTYP                    !LIBCINT
+      INTEGER :: SIZE_ENV,NBAS            !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Dipole integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      XP = 0.0d0                                                           
+      YP = 0.0d0
+      ZP = 0.0d0                                                        
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IEMSV = IEMOM                                                  
+      IEMOM = 1    
+      ALLOCATE(AUX(3*784))
+      IF (ILIBCINT==0) THEN
+        CALL PRCALC(DInteg,AUX,3,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,   &
+                    KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz)                   
+      ELSE IF(ILIBCINT==1) THEN
+        CALL PRCALClib(DInteg,3,NBFT,SIZE_ENV,ENV,NAT,ATM,NSHELL,       &
+                NBAS,BAS,IGTYP) 
+      END IF
+      IEMOM = IEMSV                                                  
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DEALLOCATE(AUX)                                                                                  
       RETURN                                                            
       END                                                               
 
-! FINAL                                            
-      SUBROUTINE FINAL(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,       &
-                       IDONTW,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT
-      DIMENSION BUFP(NINTMX),IX(NINTMX)
-      COMMON /RESTAR/ NREC,IST,JST,KST,LST          
-      INTEGER,DIMENSION(NINTEGtm) :: IX2
-      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
-      COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
-!-----------------------------------------------------------------------                                                                       
-      IST = 1                                                           
-      JST = 1                                                           
-      KST = 1                                                           
-      LST = 1                                                           
-      NXInteg = ICOUNT-1                                                    
-      IF(NXInteg>=0) THEN                                            
-       IF(IDONTW==1)THEN
-        IJBUFi = (NREC-1)*NINTMX
-        do ibuf=1,NXInteg
-         IX2  (IJBUFi+ibuf) = IX(ibuf)
-         BUFP2(IJBUFi+ibuf) = BUFP(ibuf)
-        end do
-       ELSE
-        NXInteg = -NXInteg 
-        WRITE(1)NXInteg,IX,BUFP
-       END IF
-       NINTEGt = NINTMX*(NREC-1) + ICOUNT-1
-      ELSE                                                              
-       NINTEGt = NXInteg                                                     
-      ENDIF                                                             
-      IF(IPRINTOPT==1)WRITE(6,10)NINTEGt,NREC                                 
+! ElecFieldInt
+      SUBROUTINE ElecFieldInt(H,DInteg,NBFT)   
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+      LOGICAL EFLDL                                                  
+      COMMON/EFLDC_1/EFLDL
+      COMMON/EFLDC_2/EVEC(3) 
+      DOUBLE PRECISION,DIMENSION(NBFT) :: H
+      DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
+!-----------------------------------------------------------------------
+      WRITE(6,'(1X,A16,3F10.5)')'Electric Field =',(EVEC(I),I=1,3)                     
+      IF(EVEC(1)/=0.0d0)CALL DAXPY(NBFT,EVEC(1),DInteg(1       ),1,H,1)              
+      IF(EVEC(2)/=0.0d0)CALL DAXPY(NBFT,EVEC(2),DInteg(1+  NBFT),1,H,1)              
+      IF(EVEC(3)/=0.0d0)CALL DAXPY(NBFT,EVEC(3),DInteg(1+2*NBFT),1,H,1)              
+!----------------------------------------------------------------------- 
       RETURN                                                            
-!-----------------------------------------------------------------------                                                                       
-   10 FORMAT(I20,' 2e- integrals in ',I5,' records')
-!-----------------------------------------------------------------------                                                                       
       END                                                               
+
+! JandK                                            
+      SUBROUTINE JandK(BUFP2,IX2,NINTEGtm,NINTEGt,NREC,XINTS,NSH2,     &
+                       IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI, &
+                       KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,    &
+                       Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+      USE AOINTS
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      COMMON/USELIBCINT/ILIBCINT      
+      COMMON/INTFIL/NINTMX           
+      COMMON/INTOPT/ISCHWZ,IECP,NECP            
+!      
+      LOGICAL SCHWRZ
+      INTEGER :: NINTEGtm,NINTEGt,NREC,NSH2,IDONTW,IPRINTOPT,IGTYP
+      INTEGER :: NPRIMI,NSHELL,NAT
+      INTEGER,DIMENSION(NINTEGtm) :: IX2
+      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
+!
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: IX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFP,GHONDOLIB
+      INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
+      DOUBLE PRECISION :: RATE
+
+      INTEGER :: SIZE_ENV, NBAS            !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)    !LIBCINT
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS) !LIBCINT
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(timestarttwoE)
+!----------------------------------------------------------------------- 
+!     Driver for 2e integrals 
+!----------------------------------------------------------------------
+      CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
+      MAXG = 4**4                                                                                  
+      IF(LMAXIMA==2)MAXG =  6**4 
+      IF(LMAXIMA==3)MAXG = 10**4 
+      IF(LMAXIMA==4)MAXG = 15**4 
+      IF(LMAXIMA==5)MAXG = 21**4 
+      IF(LMAXIMA==6)MAXG = 28**4
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Debut
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Schwarz inequality
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(GHONDOLIB(MAXG))
+      SCHWRZ = ISCHWZ>0 
+      IF(SCHWRZ)THEN
+       if(ILIBCINT==0)then
+        CALL ExchangeInt(XINTS,GHONDOLIB,NSH2,MAXG,EX,CS,CP,CD,CF,CG,   &
+                         CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN, &
+                         KMAX,NSHELL,Cxyz,NAT)                          
+       else if(ILIBCINT==1)then
+        CALL ExchangeIntlib(XINTS,NSH2,SIZE_ENV,ENV,NAT,ATM,NSHELL,     &
+                NBAS,BAS,IGTYP)
+       end if
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     2e integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(BUFP(NINTMX),IX(NINTMX))
+      NREC = 1
+      if(ILIBCINT==0)then
+        CALL TwoERI(SCHWRZ,NINTEGtm,NINTEGt,NSCHWZ,BUFP,IX,BUFP2,IX2,   &
+                  XINTS,NSH2,GHONDOLIB,MAXG,IDONTW,IPRINTOPT,EX,CS,     &
+                  CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,      &
+                  KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,NINTMX,NREC)
+       else if(ILIBCINT==1)then
+         CALL TwoERIlib(SCHWRZ,NINTEGtm,NINTEGt,NSCHWZ,BUFP,IX,BUFP2,   &
+                  IX2,XINTS,NSH2,IDONTW,IPRINTOPT,NSHELL,Cxyz,NAT,      &
+                  NINTMX,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NREC)
+
+       end if
+      DEALLOCATE(BUFP,IX,GHONDOLIB)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL SYSTEM_CLOCK(timefinishtwoE)
+      DeltaTtwoE = (timefinishtwoE - timestarttwoE)/RATE
+      IF(IPRINTOPT==1)                                                  &
+       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
+!-----------------------------------------------------------------------
+      RETURN                                                            
+      END                                                                                                                        
 
 ! OTTOINTEGR
       SUBROUTINE OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
@@ -516,7 +4964,8 @@
 !                                                                      !
 !          04/26/2013 module developed by Eduard Matito                !
 !          06/28/2017 module modified by Ion Mitxelena                 !
-!          11/15/2020 module modified by Juan Felipe Huan Lew Yee      !                                                                     !                                                                      !                                                                      !
+!          11/15/2020 module modified by Juan Felipe Huan Lew Yee      !                    
+!                                                                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 !                                                                      !
 !   INIMPI: Initializion of the parallel or serial version of the code !
@@ -535,7 +4984,13 @@
       Implicit None
 #include "mpip.h"
 #ifdef MPI
-      Write(6,'(A)')' This is the parallel version of the code'
+#ifdef _OPENMP
+      !$OMP PARALLEL
+      Write(6,'(A)')' This is the MPI/OpenMP version of the code'
+      !$OMP END PARALLEL
+#else
+      Write(6,'(A)')' This is the MPI version of the code'
+#endif
       CALL MPI_INIT (IERR)
       CALL MPI_COMM_RANK (MPI_COMM_WORLD,MY_ID,IERR)
       CALL MPI_COMM_SIZE (MPI_COMM_WORLD,NPROCS,IERR)
@@ -549,7 +5004,13 @@
       ENDIF
 
 #else
-      Write(6,'(A)')' This is the serial version of the code'
+#ifdef _OPENMP
+      !$OMP PARALLEL
+      Write(6,'(A)')' This is the OpenMP version of the code'
+      !$OMP END PARALLEL
+#else
+      Write(6,'(A)')' This is the Serial version of the code'
+#endif
       NPROCS=1
       MY_ID=0
       LMASTR=.True.
@@ -1340,6 +5801,7 @@
       SUBROUTINE HSandT(H,S,TKIN,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,   &
                         KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,   &
                         ZAN,C)        
+      USE AOINTS
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DOUBLE PRECISION,PARAMETER :: PI212 = 1.1283791670955D0      
       LOGICAL DOBLE
@@ -1349,24 +5811,26 @@
       COMMON/ZMAT/LINEAR      
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                            
       COMMON/HERMIT/H1(55),W1(55)                                        
-      COMMON/ROOT/XXROOT,U(13),W(13),NROOTS    ! XX = XXROOT             
+      !COMMON/ROOT/XXROOT,U(13),W(13),NROOTS    ! XX = XXROOT
+      DOUBLE PRECISION :: XXROOT,U(13),W(13)
+      !INTEGER :: NROOTS
       COMMON/SHLNRM/PNRM(84)                                             
       COMMON/STV/XINTT,YINTT,ZINTT,TAA,X0X0,Y0Y0,Z0Z0,                  &       
                  XIXI,YIYI,ZIZI,XJXJ,YJYJ,ZJZJ,NINI,NJNJ 
-      LOGICAL                                         IIANDJJ
-      COMMON/SYMIND/II,JJ,LIT,LJT,MINI,MINJ,MAXI,MAXJ,IIANDJJ            
-      INTEGER,ALLOCATABLE,DIMENSION(:)::IJX,IJY,IJZ
+      !LOGICAL                                         IIANDJJ
+      !COMMON/SYMIND/II,JJ,LIT,LJT,MINI,MINJ,MAXI,MAXJ,IIANDJJ            
+      !INTEGER,ALLOCATABLE,DIMENSION(:)::IJX,IJY,IJZ !!!!FLY: REVISAR
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: C      
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Z,ESP1E,SBLK,TBLK
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: VBLK,ZBLK,FT
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DIJ,XIN,YIN,ZIN
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: XIN,YIN,ZIN!,DIJ
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CONI,CONJ
-      ALLOCATE(IJX(784),IJY(784),IJZ(784))
+      !ALLOCATE(IJX(784),IJY(784),IJZ(784))   !!!!FLY: REVISAR
       ALLOCATE(Z(NBFT),ESP1E(NBFT))
-      ALLOCATE(SBLK(784),TBLK(784),VBLK(784),ZBLK(784),FT(784),DIJ(784))
+      ALLOCATE(SBLK(784),TBLK(784),VBLK(784),ZBLK(784),FT(784))!,DIJ(784))
       ALLOCATE(XIN(343),YIN(343),ZIN(343),CONI(84),CONJ(84))
 !-----------------------------------------------------------------------
       DATA IX / 1, 8, 1, 1,15, 1, 1, 8, 8, 1,                           &
@@ -1601,10 +6065,10 @@
             CY = C(2,IC)                                    
             CZ = C(3,IC)                                    
             XXROOT = AA*((AX-CX)**2+(AY-CY)**2+(AZ-CZ)**2)         
-            IF (NROOTS<=3) CALL RT123                        
-            IF (NROOTS==4) CALL ROOT4                        
-            IF (NROOTS==5) CALL ROOT5                        
-            IF (NROOTS>=6) CALL ROOT6                        
+            IF (NROOTS<=3) CALL RT123(XXROOT,U,W,NROOTS)
+            IF (NROOTS==4) CALL ROOT4(XXROOT,U,W,NROOTS)                        
+            IF (NROOTS==5) CALL ROOT5(XXROOT,U,W,NROOTS)                        
+            IF (NROOTS>=6) CALL ROOT6(XXROOT,U,W,NROOTS)                        
             MM = 0                                             
             DO K = 1,NROOTS                                
              UU = AA*U(K)                                    
@@ -1669,9 +6133,9 @@
        END DO
       END DO
 !-----------------------------------------------------------------------
-      DEALLOCATE(IJX,IJY,IJZ)
+      !DEALLOCATE(IJX,IJY,IJZ)
       DEALLOCATE(Z,ESP1E,SBLK,TBLK,VBLK,ZBLK,FT)
-      DEALLOCATE(DIJ,XIN,YIN,ZIN,CONI,CONJ)              
+      DEALLOCATE(XIN,YIN,ZIN,CONI,CONJ)!,DIJ)              
       RETURN                                                            
       END                                                               
       
@@ -1680,8 +6144,8 @@
                  NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,   &
                  Cxyz)                
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      LOGICAL                                         IIANDJJ
-      COMMON/SYMIND/II,JJ,LIT,LJT,MINI,MINJ,MAXI,MAXJ,IIANDJJ  
+      !LOGICAL                                         IIANDJJ
+      !COMMON/SYMIND/II,JJ,LIT,LJT,MINI,MINJ,MAXI,MAXJ,IIANDJJ  
       COMMON/XYZORB/TXYZ,X00,Y00,Z00,XI,YI,ZI,XJ,YJ,ZJ,NI,NJ
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                     
       LOGICAL IIIandJJJ,NORMA,DOUBLE
@@ -1963,6 +6427,7 @@
 
 ! INIINTQUAD
       SUBROUTINE INIINTQUAD
+      USE AOINTS
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       DOUBLE PRECISION,PARAMETER :: SQRT3 = 1.73205080756887729353D0
       DOUBLE PRECISION,PARAMETER :: SQRT5 = 2.23606797749978969641D0
@@ -2394,3358 +6859,7 @@
       END DO
 !-----------------------------------------------------------------------
       RETURN                                                            
-      END                                                               
-
-! Calling by HSandT & ERISPDFGHIL: RT123 
-      SUBROUTINE RT123
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON /ROOT  / X,U(13),W(13),NROOTS
-      EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
-      EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
-      DATA R12,PIE4/2.75255128608411D-01, 7.85398163397448D-01/
-      DATA R22,W22/ 2.72474487139158D+00, 9.17517095361369D-02/
-      DATA R13/     1.90163509193487D-01/
-      DATA R23,W23/ 1.78449274854325D+00, 1.77231492083829D-01/
-      DATA R33,W33/ 5.52534374226326D+00, 5.11156880411248D-03/
-!
-      IF (X > 5.0D+00) GO TO 400
-      IF (X > 1.0D+00) GO TO 280
-      IF (X > 3.0D-07) GO TO 180
-!     X IS APPROXIMATELY 0.0d0.         NROOTS=1,2, OR 3
-      IF (NROOTS-2) 120,140,160
-  120 RT1 = 0.5D+00 -X/5.0D+00
-      WW1 = 1.0D+00 -X/3.0D+00
-      RETURN
-  140 RT1 = 1.30693606237085D-01 -2.90430236082028D-02 *X
-      RT2 = 2.86930639376291D+00 -6.37623643058102D-01 *X
-      WW1 = 6.52145154862545D-01 -1.22713621927067D-01 *X
-      WW2 = 3.47854845137453D-01 -2.10619711404725D-01 *X
-      RETURN
-  160 RT1 = 6.03769246832797D-02 -9.28875764357368D-03 *X
-      RT2 = 7.76823355931043D-01 -1.19511285527878D-01 *X
-      RT3 = 6.66279971938567D+00 -1.02504611068957D+00 *X
-      WW1 = 4.67913934572691D-01 -5.64876917232519D-02 *X
-      WW2 = 3.60761573048137D-01 -1.49077186455208D-01 *X
-      WW3 = 1.71324492379169D-01 -1.27768455150979D-01 *X
-      RETURN
-!     X = 0.0 TO 1.0                   NROOTS=1,2, OR 3
-  180 IF (NROOTS == 3) GO TO 220
-      F1 = ((((((((-8.36313918003957D-08*X+1.21222603512827D-06 )*X-    &
-           1.15662609053481D-05 )*X+9.25197374512647D-05 )*X-           &
-           6.40994113129432D-04 )*X+3.78787044215009D-03 )*X-           &
-           1.85185172458485D-02 )*X+7.14285713298222D-02 )*X-           &
-           1.99999999997023D-01 )*X+3.33333333333318D-01                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      IF (NROOTS == 2) GO TO 200                                         
-      RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  200 RT1 = (((((((-2.35234358048491D-09*X+2.49173650389842D-08)*X-     &
-           4.558315364581D-08)*X-2.447252174587D-06)*X+                 &
-           4.743292959463D-05)*X-5.33184749432408D-04 )*X+              &
-           4.44654947116579D-03 )*X-2.90430236084697D-02 )*X+           &
-           1.30693606237085D-01                                          
-      RT2 = (((((((-2.47404902329170D-08*X+2.36809910635906D-07)*X+     &
-           1.835367736310D-06)*X-2.066168802076D-05)*X-                 &
-           1.345693393936D-04)*X-5.88154362858038D-05 )*X+              &
-           5.32735082098139D-02 )*X-6.37623643056745D-01 )*X+           &
-           2.86930639376289D+00                                          
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  220 RT1 = ((((((-5.10186691538870D-10*X+2.40134415703450D-08)*X-      &
-           5.01081057744427D-07 )*X+7.58291285499256D-06 )*X-           &
-           9.55085533670919D-05 )*X+1.02893039315878D-03 )*X-           &
-           9.28875764374337D-03 )*X+6.03769246832810D-02                 
-      RT2 = ((((((-1.29646524960555D-08*X+7.74602292865683D-08)*X+      &
-           1.56022811158727D-06 )*X-1.58051990661661D-05 )*X-           &
-           3.30447806384059D-04 )*X+9.74266885190267D-03 )*X-           &
-           1.19511285526388D-01 )*X+7.76823355931033D-01                 
-      RT3 = ((((((-9.28536484109606D-09*X-3.02786290067014D-07)*X-      &
-           2.50734477064200D-06 )*X-7.32728109752881D-06 )*X+           &
-           2.44217481700129D-04 )*X+4.94758452357327D-02 )*X-           &
-           1.02504611065774D+00 )*X+6.66279971938553D+00                 
-      F2 = ((((((((-7.60911486098850D-08*X+1.09552870123182D-06 )*X-    &
-           1.03463270693454D-05 )*X+8.16324851790106D-05 )*X-           &
-           5.55526624875562D-04 )*X+3.20512054753924D-03 )*X-           &
-           1.51515139838540D-02 )*X+5.55555554649585D-02 )*X-           &
-           1.42857142854412D-01 )*X+1.99999999999986D-01                 
-  240 E = EXP(-X)                                                        
-      F1 = ((X+X)*F2+E)/3.0D+00                                          
-      WW1 = (X+X)*F1+E                                                   
-  260 T1 = RT1/(RT1+1.0D+00)                                             
-      T2 = RT2/(RT2+1.0D+00)                                             
-      T3 = RT3/(RT3+1.0D+00)                                             
-      A2 = F2-T1*F1                                                      
-      A1 = F1-T1*WW1                                                     
-      WW3 = (A2-T2*A1)/((T3-T2)*(T3-T1))                                 
-      WW2 = (T3*A1-A2)/((T3-T2)*(T2-T1))                                 
-      WW1 = WW1-WW2-WW3                                                  
-      RETURN                                                             
-  280 IF (X > 3.0D+00) GO TO 340                                         
-!     X = 1.0 TO 3.0                   NROOTS=1,2, OR 3                  
-      Y = X-2.0D+00                                                      
-      IF (NROOTS == 3) GO TO 320                                         
-      F1 = ((((((((((-1.61702782425558D-10*Y+1.96215250865776D-09 )*Y-  &
-           2.14234468198419D-08 )*Y+2.17216556336318D-07 )*Y-           &
-           1.98850171329371D-06 )*Y+1.62429321438911D-05 )*Y-           &
-           1.16740298039895D-04 )*Y+7.24888732052332D-04 )*Y-           &
-           3.79490003707156D-03 )*Y+1.61723488664661D-02 )*Y-           &
-           5.29428148329736D-02 )*Y+1.15702180856167D-01                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      IF (NROOTS == 2) GO TO 300                                         
-      RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  300 RT1 = (((((((((-6.36859636616415D-12*Y+8.47417064776270D-11)*Y-   &
-           5.152207846962D-10)*Y-3.846389873308D-10)*Y+                 &
-           8.472253388380D-08)*Y-1.85306035634293D-06 )*Y+              &
-           2.47191693238413D-05 )*Y-2.49018321709815D-04 )*Y+           &
-           2.19173220020161D-03 )*Y-1.63329339286794D-02 )*Y+           &
-           8.68085688285261D-02                                          
-      RT2 = ((((((((( 1.45331350488343D-10*Y+2.07111465297976D-09)*Y-   &
-           1.878920917404D-08)*Y-1.725838516261D-07)*Y+                 &
-           2.247389642339D-06)*Y+9.76783813082564D-06 )*Y-              &
-           1.93160765581969D-04 )*Y-1.58064140671893D-03 )*Y+           &
-           4.85928174507904D-02 )*Y-4.30761584997596D-01 )*Y+           &
-           1.80400974537950D+00                                          
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  320 RT1 = (((((((( 1.44687969563318D-12*Y+4.85300143926755D-12)*Y-    &
-           6.55098264095516D-10 )*Y+1.56592951656828D-08 )*Y-           &
-           2.60122498274734D-07 )*Y+3.86118485517386D-06 )*Y-           &
-           5.13430986707889D-05 )*Y+6.03194524398109D-04 )*Y-           &
-           6.11219349825090D-03 )*Y+4.52578254679079D-02                 
-      RT2 = ((((((( 6.95964248788138D-10*Y-5.35281831445517D-09)*Y-     &
-           6.745205954533D-08)*Y+1.502366784525D-06)*Y+                 &
-           9.923326947376D-07)*Y-3.89147469249594D-04 )*Y+              &
-           7.51549330892401D-03 )*Y-8.48778120363400D-02 )*Y+           &
-           5.73928229597613D-01                                          
-      RT3 = ((((((((-2.81496588401439D-10*Y+3.61058041895031D-09)*Y+    &
-           4.53631789436255D-08 )*Y-1.40971837780847D-07 )*Y-           &
-           6.05865557561067D-06 )*Y-5.15964042227127D-05 )*Y+           &
-           3.34761560498171D-05 )*Y+5.04871005319119D-02 )*Y-           &
-           8.24708946991557D-01 )*Y+4.81234667357205D+00                 
-      F2 = ((((((((((-1.48044231072140D-10*Y+1.78157031325097D-09 )*Y-  &
-           1.92514145088973D-08 )*Y+1.92804632038796D-07 )*Y-           &
-           1.73806555021045D-06 )*Y+1.39195169625425D-05 )*Y-           &
-           9.74574633246452D-05 )*Y+5.83701488646511D-04 )*Y-           &
-           2.89955494844975D-03 )*Y+1.13847001113810D-02 )*Y-           &
-           3.23446977320647D-02 )*Y+5.29428148329709D-02                 
-      GO TO 240                                                          
-!     X = 3.0 TO 5.0                   NROOTS =1,2, OR 3                 
-  340 Y = X-4.0D+00                                                      
-      IF (NROOTS == 3) GO TO 380                                         
-      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y-  &
-           3.614965656163D-09)*Y+3.760256799971D-08)*Y-                 &
-           3.553558319675D-07)*Y+3.022556449731D-06)*Y-                 &
-           2.290098979647D-05)*Y+1.526537461148D-04)*Y-                 &
-           8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-           &
-           1.75257821619926D-02 )*Y+5.28406320615584D-02                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      IF (NROOTS == 2) GO TO 360                                         
-      RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  360 RT1 = ((((((((-4.11560117487296D-12*Y+7.10910223886747D-11)*Y-    &
-           1.73508862390291D-09 )*Y+5.93066856324744D-08 )*Y-           &
-           9.76085576741771D-07 )*Y+1.08484384385679D-05 )*Y-           &
-           1.12608004981982D-04 )*Y+1.16210907653515D-03 )*Y-           &
-           9.89572595720351D-03 )*Y+6.12589701086408D-02                 
-      RT2 = (((((((((-1.80555625241001D-10*Y+5.44072475994123D-10)*Y+   &
-           1.603498045240D-08)*Y-1.497986283037D-07)*Y-                 &
-           7.017002532106D-07)*Y+1.85882653064034D-05 )*Y-              &
-           2.04685420150802D-05 )*Y-2.49327728643089D-03 )*Y+           &
-           3.56550690684281D-02 )*Y-2.60417417692375D-01 )*Y+           &
-           1.12155283108289D+00                                          
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  380 RT1 = ((((((( 1.44265709189601D-11*Y-4.66622033006074D-10)*Y+     &
-           7.649155832025D-09)*Y-1.229940017368D-07)*Y+                 &
-           2.026002142457D-06)*Y-2.87048671521677D-05 )*Y+              &
-           3.70326938096287D-04 )*Y-4.21006346373634D-03 )*Y+           &
-           3.50898470729044D-02                                          
-      RT2 = ((((((((-2.65526039155651D-11*Y+1.97549041402552D-10)*Y+    &
-           2.15971131403034D-09 )*Y-7.95045680685193D-08 )*Y+           &
-           5.15021914287057D-07 )*Y+1.11788717230514D-05 )*Y-           &
-           3.33739312603632D-04 )*Y+5.30601428208358D-03 )*Y-           &
-           5.93483267268959D-02 )*Y+4.31180523260239D-01                 
-      RT3 = ((((((((-3.92833750584041D-10*Y-4.16423229782280D-09)*Y+    &
-           4.42413039572867D-08 )*Y+6.40574545989551D-07 )*Y-           &
-           3.05512456576552D-06 )*Y-1.05296443527943D-04 )*Y-           &
-           6.14120969315617D-04 )*Y+4.89665802767005D-02 )*Y-           &
-           6.24498381002855D-01 )*Y+3.36412312243724D+00                 
-      F2 = ((((((((((-2.36788772599074D-11*Y+2.89147476459092D-10 )*Y-  &
-           3.18111322308846D-09 )*Y+3.25336816562485D-08 )*Y-           &
-           3.00873821471489D-07 )*Y+2.48749160874431D-06 )*Y-           &
-           1.81353179793672D-05 )*Y+1.14504948737066D-04 )*Y-           &
-           6.10614987696677D-04 )*Y+2.64584212770942D-03 )*Y-           &
-           8.66415899015349D-03 )*Y+1.75257821619922D-02                 
-      GO TO 240                                                          
-  400 IF (X > 15.0D+00) GO TO 560                                        
-      E = EXP(-X)                                                        
-      IF (X > 10.0D+00) GO TO 480                                        
-!     X = 5.0 TO 10.0                  NROOTS =1,2, OR 3                 
-      WW1 = (((((( 4.6897511375022D-01/X-6.9955602298985D-01)/X +       &
-           5.3689283271887D-01)/X-3.2883030418398D-01)/X +              &
-           2.4645596956002D-01)/X-4.9984072848436D-01)/X -              &
-           3.1501078774085D-06)*E + SQRT(PIE4/X)                         
-      F1 = (WW1-E)/(X+X)                                                 
-      IF (NROOTS-2) 420,440,460                                          
-  420 RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  440 Y = X-7.5D+00                                                      
-      RT1 = (((((((((((((-1.43632730148572D-16*Y+2.38198922570405D-16)* &
-           Y+1.358319618800D-14)*Y-7.064522786879D-14)*Y-               &
-           7.719300212748D-13)*Y+7.802544789997D-12)*Y+                 &
-           6.628721099436D-11)*Y-1.775564159743D-09)*Y+                 &
-           1.713828823990D-08)*Y-1.497500187053D-07)*Y+                 &
-           2.283485114279D-06)*Y-3.76953869614706D-05 )*Y+              &
-           4.74791204651451D-04 )*Y-4.60448960876139D-03 )*Y+           &
-           3.72458587837249D-02                                          
-      RT2 = (((((((((((( 2.48791622798900D-14*Y-1.36113510175724D-13)*Y-&
-           2.224334349799D-12)*Y+4.190559455515D-11)*Y-                 &
-           2.222722579924D-10)*Y-2.624183464275D-09)*Y+                 &
-           6.128153450169D-08)*Y-4.383376014528D-07)*Y-                 &
-           2.49952200232910D-06 )*Y+1.03236647888320D-04 )*Y-           &
-           1.44614664924989D-03 )*Y+1.35094294917224D-02 )*Y-           &
-           9.53478510453887D-02 )*Y+5.44765245686790D-01                 
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  460 F2 = (F1+F1+F1-E)/(X+X)                                            
-      Y = X-7.5D+00                                                      
-      RT1 = ((((((((((( 5.74429401360115D-16*Y+7.11884203790984D-16)*Y- &
-           6.736701449826D-14)*Y-6.264613873998D-13)*Y+                 &
-           1.315418927040D-11)*Y-4.23879635610964D-11 )*Y+              &
-           1.39032379769474D-09 )*Y-4.65449552856856D-08 )*Y+           &
-           7.34609900170759D-07 )*Y-1.08656008854077D-05 )*Y+           &
-           1.77930381549953D-04 )*Y-2.39864911618015D-03 )*Y+           &
-           2.39112249488821D-02                                          
-      RT2 = ((((((((((( 1.13464096209120D-14*Y+6.99375313934242D-15)*Y- &
-           8.595618132088D-13)*Y-5.293620408757D-12)*Y-                 &
-           2.492175211635D-11)*Y+2.73681574882729D-09 )*Y-              &
-           1.06656985608482D-08 )*Y-4.40252529648056D-07 )*Y+           &
-           9.68100917793911D-06 )*Y-1.68211091755327D-04 )*Y+           &
-           2.69443611274173D-03 )*Y-3.23845035189063D-02 )*Y+           &
-           2.75969447451882D-01                                          
-      RT3 = (((((((((((( 6.66339416996191D-15*Y+1.84955640200794D-13)*Y-&
-           1.985141104444D-12)*Y-2.309293727603D-11)*Y+                 &
-           3.917984522103D-10)*Y+1.663165279876D-09)*Y-                 &
-           6.205591993923D-08)*Y+8.769581622041D-09)*Y+                 &
-           8.97224398620038D-06 )*Y-3.14232666170796D-05 )*Y-           &
-           1.83917335649633D-03 )*Y+3.51246831672571D-02 )*Y-           &
-           3.22335051270860D-01 )*Y+1.73582831755430D+00                 
-      GO TO 260                                                          
-!     X = 10.0 TO 15.0                 NROOTS=1,2, OR 3                  
-  480 WW1 = (((-1.8784686463512D-01/X+2.2991849164985D-01)/X -          &
-           4.9893752514047D-01)/X-2.1916512131607D-05)*E + SQRT(PIE4/X)  
-      F1 = (WW1-E)/(X+X)                                                 
-      IF (NROOTS-2) 500,520,540                                          
-  500 RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  520 RT1 = ((((-1.01041157064226D-05*X+1.19483054115173D-03)*X -       &
-           6.73760231824074D-02)*X+1.25705571069895D+00)*X + (((-       &
-           8.57609422987199D+03/X+5.91005939591842D+03)/X -             &
-           1.70807677109425D+03)/X+2.64536689959503D+02)/X -            &
-           2.38570496490846D+01)*E + R12/(X-R12)                         
-      RT2 = ((( 3.39024225137123D-04*X-9.34976436343509D-02)*X -        &
-           4.22216483306320D+00)*X + (((-2.08457050986847D+03/X -       &
-           1.04999071905664D+03)/X+3.39891508992661D+02)/X -            &
-           1.56184800325063D+02)/X+8.00839033297501D+00)*E + R22/(X-R22) 
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  540 F2 = (F1+F1+F1-E)/(X+X)                                            
-      Y = X-12.5D+00                                                     
-      RT1 = ((((((((((( 4.42133001283090D-16*Y-2.77189767070441D-15)*Y- &
-           4.084026087887D-14)*Y+5.379885121517D-13)*Y+                 &
-           1.882093066702D-12)*Y-8.67286219861085D-11 )*Y+              &
-           7.11372337079797D-10 )*Y-3.55578027040563D-09 )*Y+           &
-           1.29454702851936D-07 )*Y-4.14222202791434D-06 )*Y+           &
-           8.04427643593792D-05 )*Y-1.18587782909876D-03 )*Y+           &
-           1.53435577063174D-02                                          
-      RT2 = ((((((((((( 6.85146742119357D-15*Y-1.08257654410279D-14)*Y- &
-           8.579165965128D-13)*Y+6.642452485783D-12)*Y+                 &
-           4.798806828724D-11)*Y-1.13413908163831D-09 )*Y+              &
-           7.08558457182751D-09 )*Y-5.59678576054633D-08 )*Y+           &
-           2.51020389884249D-06 )*Y-6.63678914608681D-05 )*Y+           &
-           1.11888323089714D-03 )*Y-1.45361636398178D-02 )*Y+           &
-           1.65077877454402D-01                                          
-      RT3 = (((((((((((( 3.20622388697743D-15*Y-2.73458804864628D-14)*Y-&
-           3.157134329361D-13)*Y+8.654129268056D-12)*Y-                 &
-           5.625235879301D-11)*Y-7.718080513708D-10)*Y+                 &
-           2.064664199164D-08)*Y-1.567725007761D-07)*Y-                 &
-           1.57938204115055D-06 )*Y+6.27436306915967D-05 )*Y-           &
-           1.01308723606946D-03 )*Y+1.13901881430697D-02 )*Y-           &
-           1.01449652899450D-01 )*Y+7.77203937334739D-01                 
-      GO TO 260                                                          
-  560 IF (X > 33.0D+00) GO TO 660                                        
-!     X = 15.0 TO 33.0                 NROOTS=1,2, OR 3                  
-      E = EXP(-X)                                                        
-      WW1 = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
-           6.0156581186481D-05)*E + SQRT(PIE4/X)                         
-      F1 = (WW1-E)/(X+X)                                                 
-      IF (NROOTS-2) 580,600,620                                          
-  580 RT1 = F1/(WW1-F1)                                                  
-      RETURN                                                             
-  600 RT1 = ((((-1.14906395546354D-06*X+1.76003409708332D-04)*X -       &
-           1.71984023644904D-02)*X-1.37292644149838D-01)*X + (-         &
-           4.75742064274859D+01/X+9.21005186542857D+00)/X -             &
-           2.31080873898939D-02)*E + R12/(X-R12)                         
-      RT2 = ((( 3.64921633404158D-04*X-9.71850973831558D-02)*X -        &
-           4.02886174850252D+00)*X + (-1.35831002139173D+02/X -         &
-           8.66891724287962D+01)/X+2.98011277766958D+00)*E + R22/(X-R22) 
-      WW2 = ((F1-WW1)*RT1+F1)*(1.0D+00+RT2)/(RT2-RT1)                    
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  620 F2 = (F1+F1+F1-E)/(X+X)                                            
-      IF (X > 20.0D+00) GO TO 640                                        
-      RT1 = ((((((-2.43270989903742D-06*X+3.57901398988359D-04)*X -     &
-           2.34112415981143D-02)*X+7.81425144913975D-01)*X -            &
-           1.73209218219175D+01)*X+2.43517435690398D+02)*X + (-         &
-           1.97611541576986D+04/X+9.82441363463929D+03)/X -             &
-           2.07970687843258D+03)*E + R13/(X-R13)                         
-      RT2 = (((((-2.62627010965435D-04*X+3.49187925428138D-02)*X -      &
-           3.09337618731880D+00)*X+1.07037141010778D+02)*X -            &
-           2.36659637247087D+03)*X + ((-2.91669113681020D+06/X +        &
-           1.41129505262758D+06)/X-2.91532335433779D+05)/X +            &
-           3.35202872835409D+04)*E + R23/(X-R23)                         
-      RT3 = ((((( 9.31856404738601D-05*X-2.87029400759565D-02)*X -      &
-           7.83503697918455D-01)*X-1.84338896480695D+01)*X +            &
-           4.04996712650414D+02)*X + (-1.89829509315154D+05/X +         &
-           5.11498390849158D+04)/X-6.88145821789955D+03)*E + R33/(X-R33) 
-      GO TO 260                                                          
-  640 RT1 = ((((-4.97561537069643D-04*X-5.00929599665316D-02)*X +       &
-           1.31099142238996D+00)*X-1.88336409225481D+01)*X -            &
-           6.60344754467191D+02 /X+1.64931462413877D+02)*E + R13/(X-R13) 
-      RT2 = ((((-4.48218898474906D-03*X-5.17373211334924D-01)*X +       &
-           1.13691058739678D+01)*X-1.65426392885291D+02)*X -            &
-           6.30909125686731D+03 /X+1.52231757709236D+03)*E + R23/(X-R23) 
-      RT3 = ((((-1.38368602394293D-02*X-1.77293428863008D+00)*X +       &
-           1.73639054044562D+01)*X-3.57615122086961D+02)*X -            &
-           1.45734701095912D+04 /X+2.69831813951849D+03)*E + R33/(X-R33) 
-      GO TO 260                                                          
-!     X = 33.0 TO INFINITY             NROOTS=1,2, OR 3                  
-  660 WW1 = SQRT(PIE4/X)                                                 
-      IF (NROOTS-2) 680,700,720                                          
-  680 RT1 = 0.5D+00/(X-0.5D+00)                                          
-      RETURN                                                             
-  700 IF (X > 40.0D+00) GO TO 740                                        
-      E = EXP(-X)                                                        
-      RT1 = (-8.78947307498880D-01*X+1.09243702330261D+01)*E + R12/(X-  &
-           R12)                                                          
-      RT2 = (-9.28903924275977D+00*X+8.10642367843811D+01)*E + R22/(X-  &
-           R22)                                                          
-      WW2 = ( 4.46857389308400D+00*X-7.79250653461045D+01)*E + W22*WW1   
-      WW1 = WW1-WW2                                                      
-      RETURN                                                             
-  720 IF (X > 47.0D+00) GO TO 760                                        
-      E = EXP(-X)                                                        
-      RT1 = ((-7.39058467995275D+00*X+3.21318352526305D+02)*X -         &
-           3.99433696473658D+03)*E + R13/(X-R13)                         
-      RT2 = ((-7.38726243906513D+01*X+3.13569966333873D+03)*X -         &
-           3.86862867311321D+04)*E + R23/(X-R23)                         
-      RT3 = ((-2.63750565461336D+02*X+1.04412168692352D+04)*X -         &
-           1.28094577915394D+05)*E + R33/(X-R33)                         
-      WW3 = ((( 1.52258947224714D-01*X-8.30661900042651D+00)*X +        &
-           1.92977367967984D+02)*X-1.67787926005344D+03)*E + W33*WW1     
-      WW2 = (( 6.15072615497811D+01*X-2.91980647450269D+03)*X +         &
-           3.80794303087338D+04)*E + W23*WW1
-      WW1 = WW1-WW2-WW3
-      RETURN
-  740 RT1 = R12/(X-R12)
-      RT2 = R22/(X-R22)
-      WW2 = W22*WW1
-      WW1 = WW1-WW2
-      RETURN
-  760 RT1 = R13/(X-R13)
-      RT2 = R23/(X-R23)
-      RT3 = R33/(X-R33)
-      WW2 = W23*WW1
-      WW3 = W33*WW1
-      WW1 = WW1-WW2-WW3
-      RETURN
-      END
-
-! Calling by HSandT & ERISPDFGHIL: ROOT4 
-      SUBROUTINE ROOT4
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON /ROOT  / X,U(13),W(13),NROOTS
-      EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
-      EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
-      DATA R14,PIE4/1.45303521503316D-01, 7.85398163397448D-01/
-      DATA R24,W24/ 1.33909728812636D+00, 2.34479815323517D-01/
-      DATA R34,W34/ 3.92696350135829D+00, 1.92704402415764D-02/
-      DATA R44,W44/ 8.58863568901199D+00, 2.25229076750736D-04/
-!
-      IF (X > 15.0D+00) GO TO 180
-      IF (X > 5.0D+00) GO TO 140
-      IF (X > 1.0D+00) GO TO 120
-      IF (X > 3.0D-07) GO TO 100
-!     X IS APPROXIMATELY 0.0d0.                   NROOTS = 4
-      RT1 = 3.48198973061471D-02 -4.09645850660395D-03 *X
-      RT2 = 3.81567185080042D-01 -4.48902570656719D-02 *X
-      RT3 = 1.73730726945891D+00 -2.04389090547327D-01 *X
-      RT4 = 1.18463056481549D+01 -1.39368301742312D+00 *X
-      WW1 = 3.62683783378362D-01 -3.13844305713928D-02 *X
-      WW2 = 3.13706645877886D-01 -8.98046242557724D-02 *X
-      WW3 = 2.22381034453372D-01 -1.29314370958973D-01 *X
-      WW4 = 1.01228536290376D-01 -8.28299075414321D-02 *X
-      RETURN
-!
-!     X=0.0 TO 1.0                               NROOTS = 4
-  100 RT1 = ((((((-1.95309614628539D-10*X+5.19765728707592D-09)*X-      &
-           1.01756452250573D-07 )*X+1.72365935872131D-06 )*X-           &
-           2.61203523522184D-05 )*X+3.52921308769880D-04 )*X-           &
-           4.09645850658433D-03 )*X+3.48198973061469D-02                 
-      RT2 = (((((-1.89554881382342D-08*X+3.07583114342365D-07)*X+       &
-           1.270981734393D-06)*X-1.417298563884D-04)*X+                 &
-           3.226979163176D-03)*X-4.48902570678178D-02 )*X+              &
-           3.81567185080039D-01                                          
-      RT3 = (((((( 1.77280535300416D-09*X+3.36524958870615D-08)*X-      &
-           2.58341529013893D-07 )*X-1.13644895662320D-05 )*X-           &
-           7.91549618884063D-05 )*X+1.03825827346828D-02 )*X-           &
-           2.04389090525137D-01 )*X+1.73730726945889D+00                 
-      RT4 = (((((-5.61188882415248D-08*X-2.49480733072460D-07)*X+       &
-           3.428685057114D-06)*X+1.679007454539D-04)*X+                 &
-           4.722855585715D-02)*X-1.39368301737828D+00 )*X+              &
-           1.18463056481543D+01                                          
-      WW1 = ((((((-1.14649303201279D-08*X+1.88015570196787D-07)*X-      &
-           2.33305875372323D-06 )*X+2.68880044371597D-05 )*X-           &
-           2.94268428977387D-04 )*X+3.06548909776613D-03 )*X-           &
-           3.13844305680096D-02 )*X+3.62683783378335D-01                 
-      WW2 = ((((((((-4.11720483772634D-09*X+6.54963481852134D-08)*X-    &
-           7.20045285129626D-07 )*X+6.93779646721723D-06 )*X-           &
-           6.05367572016373D-05 )*X+4.74241566251899D-04 )*X-           &
-           3.26956188125316D-03 )*X+1.91883866626681D-02 )*X-           &
-           8.98046242565811D-02 )*X+3.13706645877886D-01                 
-      WW3 = ((((((((-3.41688436990215D-08*X+5.07238960340773D-07)*X-    &
-           5.01675628408220D-06 )*X+4.20363420922845D-05 )*X-           &
-           3.08040221166823D-04 )*X+1.94431864731239D-03 )*X-           &
-           1.02477820460278D-02 )*X+4.28670143840073D-02 )*X-           &
-           1.29314370962569D-01 )*X+2.22381034453369D-01                 
-      WW4 = ((((((((( 4.99660550769508D-09*X-7.94585963310120D-08)*X+   &
-           8.359072409485D-07)*X-7.422369210610D-06)*X+                 &
-           5.763374308160D-05)*X-3.86645606718233D-04 )*X+              &
-           2.18417516259781D-03 )*X-9.99791027771119D-03 )*X+           &
-           3.48791097377370D-02 )*X-8.28299075413889D-02 )*X+           &
-           1.01228536290376D-01                                          
-      RETURN
-!                                                                        
-!     X= 1.0 TO 5.0                              NROOTS = 4              
-  120 Y = X-3.0D+00                                                      
-      RT1 = (((((((((-1.48570633747284D-15*Y-1.33273068108777D-13)*Y+   &
-           4.068543696670D-12)*Y-9.163164161821D-11)*Y+                 &
-           2.046819017845D-09)*Y-4.03076426299031D-08 )*Y+              &
-           7.29407420660149D-07 )*Y-1.23118059980833D-05 )*Y+           &
-           1.88796581246938D-04 )*Y-2.53262912046853D-03 )*Y+           &
-           2.51198234505021D-02                                          
-      RT2 = ((((((((( 1.35830583483312D-13*Y-2.29772605964836D-12)*Y-   &
-           3.821500128045D-12)*Y+6.844424214735D-10)*Y-                 &
-           1.048063352259D-08)*Y+1.50083186233363D-08 )*Y+              &
-           3.48848942324454D-06 )*Y-1.08694174399193D-04 )*Y+           &
-           2.08048885251999D-03 )*Y-2.91205805373793D-02 )*Y+           &
-           2.72276489515713D-01                                          
-      RT3 = ((((((((( 5.02799392850289D-13*Y+1.07461812944084D-11)*Y-   &
-           1.482277886411D-10)*Y-2.153585661215D-09)*Y+                 &
-           3.654087802817D-08)*Y+5.15929575830120D-07 )*Y-              &
-           9.52388379435709D-06 )*Y-2.16552440036426D-04 )*Y+           &
-           9.03551469568320D-03 )*Y-1.45505469175613D-01 )*Y+           &
-           1.21449092319186D+00                                          
-      RT4 = (((((((((-1.08510370291979D-12*Y+6.41492397277798D-11)*Y+   &
-           7.542387436125D-10)*Y-2.213111836647D-09)*Y-                 &
-           1.448228963549D-07)*Y-1.95670833237101D-06 )*Y-              &
-           1.07481314670844D-05 )*Y+1.49335941252765D-04 )*Y+           &
-           4.87791531990593D-02 )*Y-1.10559909038653D+00 )*Y+           &
-           8.09502028611780D+00                                          
-      WW1 = ((((((((((-4.65801912689961D-14*Y+7.58669507106800D-13)*Y-  &
-           1.186387548048D-11)*Y+1.862334710665D-10)*Y-                 &
-           2.799399389539D-09)*Y+4.148972684255D-08)*Y-                 &
-           5.933568079600D-07)*Y+8.168349266115D-06)*Y-                 &
-           1.08989176177409D-04 )*Y+1.41357961729531D-03 )*Y-           &
-           1.87588361833659D-02 )*Y+2.89898651436026D-01                 
-      WW2 = ((((((((((((-1.46345073267549D-14*Y+2.25644205432182D-13)*Y-&
-           3.116258693847D-12)*Y+4.321908756610D-11)*Y-                 &
-           5.673270062669D-10)*Y+7.006295962960D-09)*Y-                 &
-           8.120186517000D-08)*Y+8.775294645770D-07)*Y-                 &
-           8.77829235749024D-06 )*Y+8.04372147732379D-05 )*Y-           &
-           6.64149238804153D-04 )*Y+4.81181506827225D-03 )*Y-           &
-           2.88982669486183D-02 )*Y+1.56247249979288D-01                 
-      WW3 = ((((((((((((( 9.06812118895365D-15*Y-1.40541322766087D-13)* &
-           Y+1.919270015269D-12)*Y-2.605135739010D-11)*Y+               &
-           3.299685839012D-10)*Y-3.86354139348735D-09 )*Y+              &
-           4.16265847927498D-08 )*Y-4.09462835471470D-07 )*Y+           &
-           3.64018881086111D-06 )*Y-2.88665153269386D-05 )*Y+           &
-           2.00515819789028D-04 )*Y-1.18791896897934D-03 )*Y+           &
-           5.75223633388589D-03 )*Y-2.09400418772687D-02 )*Y+           &
-           4.85368861938873D-02                                          
-      WW4 = ((((((((((((((-9.74835552342257D-16*Y+1.57857099317175D-14)*&
-           Y-2.249993780112D-13)*Y+3.173422008953D-12)*Y-               &
-           4.161159459680D-11)*Y+5.021343560166D-10)*Y-                 &
-           5.545047534808D-09)*Y+5.554146993491D-08)*Y-                 &
-           4.99048696190133D-07 )*Y+3.96650392371311D-06 )*Y-           &
-           2.73816413291214D-05 )*Y+1.60106988333186D-04 )*Y-           &
-           7.64560567879592D-04 )*Y+2.81330044426892D-03 )*Y-           &
-           7.16227030134947D-03 )*Y+9.66077262223353D-03                 
-      RETURN
-!                                                                        
-  140 IF (X > 10.0D+00) GO TO 160                                        
-!     X=5.0 TO 10.0                              NROOTS = 4              
-      Y = X-7.5D+00                                                      
-      RT1 = ((((((((( 4.64217329776215D-15*Y-6.27892383644164D-15)*Y+   &
-           3.462236347446D-13)*Y-2.927229355350D-11)*Y+                 &
-           5.090355371676D-10)*Y-9.97272656345253D-09 )*Y+              &
-           2.37835295639281D-07 )*Y-4.60301761310921D-06 )*Y+           &
-           8.42824204233222D-05 )*Y-1.37983082233081D-03 )*Y+           &
-           1.66630865869375D-02                                          
-      RT2 = ((((((((( 2.93981127919047D-14*Y+8.47635639065744D-13)*Y-   &
-           1.446314544774D-11)*Y-6.149155555753D-12)*Y+                 &
-           8.484275604612D-10)*Y-6.10898827887652D-08 )*Y+              &
-           2.39156093611106D-06 )*Y-5.35837089462592D-05 )*Y+           &
-           1.00967602595557D-03 )*Y-1.57769317127372D-02 )*Y+           &
-           1.74853819464285D-01                                          
-      RT3 = (((((((((( 2.93523563363000D-14*Y-6.40041776667020D-14)*Y-  &
-           2.695740446312D-12)*Y+1.027082960169D-10)*Y-                 &
-           5.822038656780D-10)*Y-3.159991002539D-08)*Y+                 &
-           4.327249251331D-07)*Y+4.856768455119D-06)*Y-                 &
-           2.54617989427762D-04 )*Y+5.54843378106589D-03 )*Y-           &
-           7.95013029486684D-02 )*Y+7.20206142703162D-01                 
-      RT4 = (((((((((((-1.62212382394553D-14*Y+7.68943641360593D-13)*Y+ &
-           5.764015756615D-12)*Y-1.380635298784D-10)*Y-                 &
-           1.476849808675D-09)*Y+1.84347052385605D-08 )*Y+              &
-           3.34382940759405D-07 )*Y-1.39428366421645D-06 )*Y-           &
-           7.50249313713996D-05 )*Y-6.26495899187507D-04 )*Y+           &
-           4.69716410901162D-02 )*Y-6.66871297428209D-01 )*Y+           &
-           4.11207530217806D+00                                          
-      WW1 = ((((((((((-1.65995045235997D-15*Y+6.91838935879598D-14)*Y-  &
-           9.131223418888D-13)*Y+1.403341829454D-11)*Y-                 &
-           3.672235069444D-10)*Y+6.366962546990D-09)*Y-                 &
-           1.039220021671D-07)*Y+1.959098751715D-06)*Y-                 &
-           3.33474893152939D-05 )*Y+5.72164211151013D-04 )*Y-           &
-           1.05583210553392D-02 )*Y+2.26696066029591D-01                 
-      WW2 = ((((((((((((-3.57248951192047D-16*Y+6.25708409149331D-15)*Y-&
-           9.657033089714D-14)*Y+1.507864898748D-12)*Y-                 &
-           2.332522256110D-11)*Y+3.428545616603D-10)*Y-                 &
-           4.698730937661D-09)*Y+6.219977635130D-08)*Y-                 &
-           7.83008889613661D-07 )*Y+9.08621687041567D-06 )*Y-           &
-           9.86368311253873D-05 )*Y+9.69632496710088D-04 )*Y-           &
-           8.14594214284187D-03 )*Y+8.50218447733457D-02                 
-      WW3 = ((((((((((((( 1.64742458534277D-16*Y-2.68512265928410D-15)* &
-           Y+3.788890667676D-14)*Y-5.508918529823D-13)*Y+               &
-           7.555896810069D-12)*Y-9.69039768312637D-11 )*Y+              &
-           1.16034263529672D-09 )*Y-1.28771698573873D-08 )*Y+           &
-           1.31949431805798D-07 )*Y-1.23673915616005D-06 )*Y+           &
-           1.04189803544936D-05 )*Y-7.79566003744742D-05 )*Y+           &
-           5.03162624754434D-04 )*Y-2.55138844587555D-03 )*Y+           &
-           1.13250730954014D-02                                          
-      WW4 = ((((((((((((((-1.55714130075679D-17*Y+2.57193722698891D-16)*&
-           Y-3.626606654097D-15)*Y+5.234734676175D-14)*Y-               &
-           7.067105402134D-13)*Y+8.793512664890D-12)*Y-                 &
-           1.006088923498D-10)*Y+1.050565098393D-09)*Y-                 &
-           9.91517881772662D-09 )*Y+8.35835975882941D-08 )*Y-           &
-           6.19785782240693D-07 )*Y+3.95841149373135D-06 )*Y-           &
-           2.11366761402403D-05 )*Y+9.00474771229507D-05 )*Y-           &
-           2.78777909813289D-04 )*Y+5.26543779837487D-04                 
-      RETURN
-!                                                                        
-!     X=10.0 TO 15.0                             NROOTS = 4              
-  160 Y = X-12.5D+00                                                     
-      RT1 = ((((((((((( 4.94869622744119D-17*Y+8.03568805739160D-16)*Y- &
-           5.599125915431D-15)*Y-1.378685560217D-13)*Y+                 &
-           7.006511663249D-13)*Y+1.30391406991118D-11 )*Y+              &
-           8.06987313467541D-11 )*Y-5.20644072732933D-09 )*Y+           &
-           7.72794187755457D-08 )*Y-1.61512612564194D-06 )*Y+           &
-           4.15083811185831D-05 )*Y-7.87855975560199D-04 )*Y+           &
-           1.14189319050009D-02                                          
-      RT2 = ((((((((((( 4.89224285522336D-16*Y+1.06390248099712D-14)*Y- &
-           5.446260182933D-14)*Y-1.613630106295D-12)*Y+                 &
-           3.910179118937D-12)*Y+1.90712434258806D-10 )*Y+              &
-           8.78470199094761D-10 )*Y-5.97332993206797D-08 )*Y+           &
-           9.25750831481589D-07 )*Y-2.02362185197088D-05 )*Y+           &
-           4.92341968336776D-04 )*Y-8.68438439874703D-03 )*Y+           &
-           1.15825965127958D-01                                          
-      RT3 = (((((((((( 6.12419396208408D-14*Y+1.12328861406073D-13)*Y-  &
-           9.051094103059D-12)*Y-4.781797525341D-11)*Y+                 &
-           1.660828868694D-09)*Y+4.499058798868D-10)*Y-                 &
-           2.519549641933D-07)*Y+4.977444040180D-06)*Y-                 &
-           1.25858350034589D-04 )*Y+2.70279176970044D-03 )*Y-           &
-           3.99327850801083D-02 )*Y+4.33467200855434D-01                 
-      RT4 = ((((((((((( 4.63414725924048D-14*Y-4.72757262693062D-14)*Y- &
-           1.001926833832D-11)*Y+6.074107718414D-11)*Y+                 &
-           1.576976911942D-09)*Y-2.01186401974027D-08 )*Y-              &
-           1.84530195217118D-07 )*Y+5.02333087806827D-06 )*Y+           &
-           9.66961790843006D-06 )*Y-1.58522208889528D-03 )*Y+           &
-           2.80539673938339D-02 )*Y-2.78953904330072D-01 )*Y+           &
-           1.82835655238235D+00                                          
-      WW4 = ((((((((((((( 2.90401781000996D-18*Y-4.63389683098251D-17)* &
-           Y+6.274018198326D-16)*Y-8.936002188168D-15)*Y+               &
-           1.194719074934D-13)*Y-1.45501321259466D-12 )*Y+              &
-           1.64090830181013D-11 )*Y-1.71987745310181D-10 )*Y+           &
-           1.63738403295718D-09 )*Y-1.39237504892842D-08 )*Y+           &
-           1.06527318142151D-07 )*Y-7.27634957230524D-07 )*Y+           &
-           4.12159381310339D-06 )*Y-1.74648169719173D-05 )*Y+           &
-           8.50290130067818D-05                                          
-      WW3 = ((((((((((((-4.19569145459480D-17*Y+5.94344180261644D-16)*Y-&
-           1.148797566469D-14)*Y+1.881303962576D-13)*Y-                 &
-           2.413554618391D-12)*Y+3.372127423047D-11)*Y-                 &
-           4.933988617784D-10)*Y+6.116545396281D-09)*Y-                 &
-           6.69965691739299D-08 )*Y+7.52380085447161D-07 )*Y-           &
-           8.08708393262321D-06 )*Y+6.88603417296672D-05 )*Y-           &
-           4.67067112993427D-04 )*Y+5.42313365864597D-03                 
-      WW2 = ((((((((((-6.22272689880615D-15*Y+1.04126809657554D-13)*Y-  &
-           6.842418230913D-13)*Y+1.576841731919D-11)*Y-                 &
-           4.203948834175D-10)*Y+6.287255934781D-09)*Y-                 &
-           8.307159819228D-08)*Y+1.356478091922D-06)*Y-                 &
-           2.08065576105639D-05 )*Y+2.52396730332340D-04 )*Y-           &
-           2.94484050194539D-03 )*Y+6.01396183129168D-02                 
-      WW1 = (((-1.8784686463512D-01/X+2.2991849164985D-01)/X -          &
-           4.9893752514047D-01)/X-2.1916512131607D-05)*EXP(-X) +        &
-           SQRT(PIE4/X)-WW4-WW3-WW2                                      
-      RETURN
-!                                                                        
-  180 WW1 = SQRT(PIE4/X)                                                 
-      IF (X > 35.0D+00) GO TO 220                                        
-      IF (X > 20.0D+00) GO TO 200                                        
-!     X=15.0 TO 20.0                             NROOTS = 4              
-      Y = X-17.5D+00                                                     
-      RT1 = ((((((((((( 4.36701759531398D-17*Y-1.12860600219889D-16)*Y- &
-           6.149849164164D-15)*Y+5.820231579541D-14)*Y+                 &
-           4.396602872143D-13)*Y-1.24330365320172D-11 )*Y+              &
-           6.71083474044549D-11 )*Y+2.43865205376067D-10 )*Y+           &
-           1.67559587099969D-08 )*Y-9.32738632357572D-07 )*Y+           &
-           2.39030487004977D-05 )*Y-4.68648206591515D-04 )*Y+           &
-           8.34977776583956D-03                                          
-      RT2 = ((((((((((( 4.98913142288158D-16*Y-2.60732537093612D-16)*Y- &
-           7.775156445127D-14)*Y+5.766105220086D-13)*Y+                 &
-           6.432696729600D-12)*Y-1.39571683725792D-10 )*Y+              &
-           5.95451479522191D-10 )*Y+2.42471442836205D-09 )*Y+           &
-           2.47485710143120D-07 )*Y-1.14710398652091D-05 )*Y+           &
-           2.71252453754519D-04 )*Y-4.96812745851408D-03 )*Y+           &
-           8.26020602026780D-02                                          
-      RT3 = ((((((((((( 1.91498302509009D-15*Y+1.48840394311115D-14)*Y- &
-           4.316925145767D-13)*Y+1.186495793471D-12)*Y+                 &
-           4.615806713055D-11)*Y-5.54336148667141D-10 )*Y+              &
-           3.48789978951367D-10 )*Y-2.79188977451042D-09 )*Y+           &
-           2.09563208958551D-06 )*Y-6.76512715080324D-05 )*Y+           &
-           1.32129867629062D-03 )*Y-2.05062147771513D-02 )*Y+           &
-           2.88068671894324D-01                                          
-      RT4 = (((((((((((-5.43697691672942D-15*Y-1.12483395714468D-13)*Y+ &
-           2.826607936174D-12)*Y-1.266734493280D-11)*Y-                 &
-           4.258722866437D-10)*Y+9.45486578503261D-09 )*Y-              &
-           5.86635622821309D-08 )*Y-1.28835028104639D-06 )*Y+           &
-           4.41413815691885D-05 )*Y-7.61738385590776D-04 )*Y+           &
-           9.66090902985550D-03 )*Y-1.01410568057649D-01 )*Y+           &
-           9.54714798156712D-01                                          
-      WW4 = ((((((((((((-7.56882223582704D-19*Y+7.53541779268175D-18)*Y-&
-           1.157318032236D-16)*Y+2.411195002314D-15)*Y-                 &
-           3.601794386996D-14)*Y+4.082150659615D-13)*Y-                 &
-           4.289542980767D-12)*Y+5.086829642731D-11)*Y-                 &
-           6.35435561050807D-10 )*Y+6.82309323251123D-09 )*Y-           &
-           5.63374555753167D-08 )*Y+3.57005361100431D-07 )*Y-           &
-           2.40050045173721D-06 )*Y+4.94171300536397D-05                 
-      WW3 = (((((((((((-5.54451040921657D-17*Y+2.68748367250999D-16)*Y+ &
-           1.349020069254D-14)*Y-2.507452792892D-13)*Y+                 &
-           1.944339743818D-12)*Y-1.29816917658823D-11 )*Y+              &
-           3.49977768819641D-10 )*Y-8.67270669346398D-09 )*Y+           &
-           1.31381116840118D-07 )*Y-1.36790720600822D-06 )*Y+           &
-           1.19210697673160D-05 )*Y-1.42181943986587D-04 )*Y+           &
-           4.12615396191829D-03                                          
-      WW2 = (((((((((((-1.86506057729700D-16*Y+1.16661114435809D-15)*Y+ &
-           2.563712856363D-14)*Y-4.498350984631D-13)*Y+                 &
-           1.765194089338D-12)*Y+9.04483676345625D-12 )*Y+              &
-           4.98930345609785D-10 )*Y-2.11964170928181D-08 )*Y+           &
-           3.98295476005614D-07 )*Y-5.49390160829409D-06 )*Y+           &
-           7.74065155353262D-05 )*Y-1.48201933009105D-03 )*Y+           &
-           4.97836392625268D-02                                          
-      WW1 = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
-           6.0156581186481D-05)*EXP(-X)+WW1-WW2-WW3-WW4                  
-      RETURN
-!                                                                        
-!     X=20.0 TO 35.0                             NROOTS = 4              
-  200 E = EXP(-X)                                                        
-      RT1 = ((((((-4.45711399441838D-05*X+1.27267770241379D-03)*X -     &
-           2.36954961381262D-01)*X+1.54330657903756D+01)*X -            &
-           5.22799159267808D+02)*X+1.05951216669313D+04)*X + (-         &
-           2.51177235556236D+06/X+8.72975373557709D+05)/X -             &
-           1.29194382386499D+05)*E + R14/(X-R14)                         
-      RT2 = (((((-7.85617372254488D-02*X+6.35653573484868D+00)*X -      &
-           3.38296938763990D+02)*X+1.25120495802096D+04)*X -            &
-           3.16847570511637D+05)*X + ((-1.02427466127427D+09/X +        &
-           3.70104713293016D+08)/X-5.87119005093822D+07)/X +            &
-           5.38614211391604D+06)*E + R24/(X-R24)                         
-      RT3 = (((((-2.37900485051067D-01*X+1.84122184400896D+01)*X -      &
-           1.00200731304146D+03)*X+3.75151841595736D+04)*X -            &
-           9.50626663390130D+05)*X + ((-2.88139014651985D+09/X +        &
-           1.06625915044526D+09)/X-1.72465289687396D+08)/X +            &
-           1.60419390230055D+07)*E + R34/(X-R34)                         
-      RT4 = ((((((-6.00691586407385D-04*X-3.64479545338439D-01)*X +     &
-           1.57496131755179D+01)*X-6.54944248734901D+02)*X +            &
-           1.70830039597097D+04)*X-2.90517939780207D+05)*X + (+         &
-           3.49059698304732D+07/X-1.64944522586065D+07)/X +             &
-           2.96817940164703D+06)*E + R44/(X-R44)                         
-      IF (X <= 25.0D+00) WW4 = ((((((( 2.33766206773151D-07*X-          &
-           3.81542906607063D-05)*X +3.51416601267000D-03)*X-            &
-           1.66538571864728D-01)*X +4.80006136831847D+00)*X-            &
-           8.73165934223603D+01)*X +9.77683627474638D+02)*X +           &
-           1.66000945117640D+04/X -6.14479071209961D+03)*E + W44*WW1     
-      IF (X > 25.0D+00) WW4 = (((((( 5.74245945342286D-06*X-            &
-           7.58735928102351D-05)*X +2.35072857922892D-04)*X-            &
-           3.78812134013125D-03)*X +3.09871652785805D-01)*X-            &
-           7.11108633061306D+00)*X +5.55297573149528D+01)*E + W44*WW1    
-      WW3 = (((((( 2.36392855180768D-04*X-9.16785337967013D-03)*X +     &
-           4.62186525041313D-01)*X-1.96943786006540D+01)*X +            &
-           4.99169195295559D+02)*X-6.21419845845090D+03)*X + ((+        &
-           5.21445053212414D+07/X-1.34113464389309D+07)/X +             &
-           1.13673298305631D+06)/X-2.81501182042707D+03)*E + W34*WW1     
-      WW2 = (((((( 7.29841848989391D-04*X-3.53899555749875D-02)*X +     &
-           2.07797425718513D+00)*X-1.00464709786287D+02)*X +            &
-           3.15206108877819D+03)*X-6.27054715090012D+04)*X + (+         &
-           1.54721246264919D+07/X-5.26074391316381D+06)/X +             &
-           7.67135400969617D+05)*E + W24*WW1                             
-      WW1 = (( 1.9623264149430D-01/X-4.9695241464490D-01)/X -           &
-           6.0156581186481D-05)*E + WW1-WW2-WW3-WW4                      
-      RETURN
-!                                                                        
-  220 IF (X > 53.0D+00) GO TO 240                                        
-!     X=35.0 TO 53.0                             NROOTS = 4              
-      E = EXP(-X)*(X*X)**2                                               
-      RT4 = ((-2.19135070169653D-03*X-1.19108256987623D-01)*X -         &
-           7.50238795695573D-01)*E + R44/(X-R44)                         
-      RT3 = ((-9.65842534508637D-04*X-4.49822013469279D-02)*X +         &
-           6.08784033347757D-01)*E + R34/(X-R34)                         
-      RT2 = ((-3.62569791162153D-04*X-9.09231717268466D-03)*X +         &
-           1.84336760556262D-01)*E + R24/(X-R24)                         
-      RT1 = ((-4.07557525914600D-05*X-6.88846864931685D-04)*X +         &
-           1.74725309199384D-02)*E + R14/(X-R14)                         
-      WW4 = (( 5.76631982000990D-06*X-7.89187283804890D-05)*X +         &
-           3.28297971853126D-04)*E + W44*WW1                             
-      WW3 = (( 2.08294969857230D-04*X-3.77489954837361D-03)*X +         &
-           2.09857151617436D-02)*E + W34*WW1                             
-      WW2 = (( 6.16374517326469D-04*X-1.26711744680092D-02)*X +         &
-          8.14504890732155D-02)*E + W24*WW1
-      WW1 = WW1-WW2-WW3-WW4
-      RETURN
-!
-!     X=47.0 TO INFINITY                         NROOTS = 4
-  240 RT1 = R14/(X-R14)
-      RT2 = R24/(X-R24)
-      RT3 = R34/(X-R34)
-      RT4 = R44/(X-R44)
-      WW4 = W44*WW1
-      WW3 = W34*WW1
-      WW2 = W24*WW1
-      WW1 = WW1-WW2-WW3-WW4
-      RETURN
-      END
-
-! Calling by HSandT & ERISPDFGHIL: ROOT5 
-      SUBROUTINE ROOT5
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON /ROOT  / X,U(13),W(13),NROOTS
-      EQUIVALENCE (U(1),RT1),(U(2),RT2),(U(3),RT3),(U(4),RT4),(U(5),RT5)
-      EQUIVALENCE (W(1),WW1),(W(2),WW2),(W(3),WW3),(W(4),WW4),(W(5),WW5)
-      DATA R15,PIE4/1.17581320211778D-01, 7.85398163397448D-01/
-      DATA R25,W25/ 1.07456201243690D+00, 2.70967405960535D-01/
-      DATA R35,W35/ 3.08593744371754D+00, 3.82231610015404D-02/
-      DATA R45,W45/ 6.41472973366203D+00, 1.51614186862443D-03/
-      DATA R55,W55/ 1.18071894899717D+01, 8.62130526143657D-06/
-!
-      IF (X > 15.0D+00) GO TO 180
-      IF (X > 5.0D+00) GO TO 140
-      IF (X > 1.0D+00) GO TO 120
-      IF (X > 3.0D-07) GO TO 100
-!     X IS APPROXIMATELY 0.0d0.                   NROOTS = 5
-      RT1 = 2.26659266316985D-02 -2.15865967920897D-03 *X
-      RT2 = 2.31271692140903D-01 -2.20258754389745D-02 *X
-      RT3 = 8.57346024118836D-01 -8.16520023025515D-02 *X
-      RT4 = 2.97353038120346D+00 -2.83193369647137D-01 *X
-      RT5 = 1.84151859759051D+01 -1.75382723579439D+00 *X
-      WW1 = 2.95524224714752D-01 -1.96867576909777D-02 *X
-      WW2 = 2.69266719309995D-01 -5.61737590184721D-02 *X
-      WW3 = 2.19086362515981D-01 -9.71152726793658D-02 *X
-      WW4 = 1.49451349150580D-01 -1.02979262193565D-01 *X
-      WW5 = 6.66713443086877D-02 -5.73782817488315D-02 *X
-      RETURN
-!
-!     X=0.0 TO 1.0                               NROOTS = 5
-  100 RT1 = ((((((-4.46679165328413D-11*X+1.21879111988031D-09)*X-      &
-           2.62975022612104D-08 )*X+5.15106194905897D-07 )*X-           &
-           9.27933625824749D-06 )*X+1.51794097682482D-04 )*X-           &
-           2.15865967920301D-03 )*X+2.26659266316985D-02                 
-      RT2 = (((((( 1.93117331714174D-10*X-4.57267589660699D-09)*X+      &
-           2.48339908218932D-08 )*X+1.50716729438474D-06 )*X-           &
-           6.07268757707381D-05 )*X+1.37506939145643D-03 )*X-           &
-           2.20258754419939D-02 )*X+2.31271692140905D-01                 
-      RT3 = ((((( 4.84989776180094D-09*X+1.31538893944284D-07)*X-       &
-           2.766753852879D-06)*X-7.651163510626D-05)*X+                 &
-           4.033058545972D-03)*X-8.16520022916145D-02 )*X+              &
-           8.57346024118779D-01                                          
-      RT4 = ((((-2.48581772214623D-07*X-4.34482635782585D-06)*X-        &
-           7.46018257987630D-07 )*X+1.01210776517279D-02 )*X-           &
-           2.83193369640005D-01 )*X+2.97353038120345D+00                 
-      RT5 = (((((-8.92432153868554D-09*X+1.77288899268988D-08)*X+       &
-           3.040754680666D-06)*X+1.058229325071D-04)*X+                 &
-           4.596379534985D-02)*X-1.75382723579114D+00 )*X+              &
-           1.84151859759049D+01                                          
-      WW1 = ((((((-2.03822632771791D-09*X+3.89110229133810D-08)*X-      &
-           5.84914787904823D-07 )*X+8.30316168666696D-06 )*X-           &
-           1.13218402310546D-04 )*X+1.49128888586790D-03 )*X-           &
-           1.96867576904816D-02 )*X+2.95524224714749D-01                 
-      WW2 = ((((((( 8.62848118397570D-09*X-1.38975551148989D-07)*X+     &
-           1.602894068228D-06)*X-1.646364300836D-05)*X+                 &
-           1.538445806778D-04)*X-1.28848868034502D-03 )*X+              &
-           9.38866933338584D-03 )*X-5.61737590178812D-02 )*X+           &
-           2.69266719309991D-01                                          
-      WW3 = ((((((((-9.41953204205665D-09*X+1.47452251067755D-07)*X-    &
-           1.57456991199322D-06 )*X+1.45098401798393D-05 )*X-           &
-           1.18858834181513D-04 )*X+8.53697675984210D-04 )*X-           &
-           5.22877807397165D-03 )*X+2.60854524809786D-02 )*X-           &
-           9.71152726809059D-02 )*X+2.19086362515979D-01                 
-      WW4 = ((((((((-3.84961617022042D-08*X+5.66595396544470D-07)*X-    &
-           5.52351805403748D-06 )*X+4.53160377546073D-05 )*X-           &
-           3.22542784865557D-04 )*X+1.95682017370967D-03 )*X-           &
-           9.77232537679229D-03 )*X+3.79455945268632D-02 )*X-           &
-           1.02979262192227D-01 )*X+1.49451349150573D-01                 
-      WW5 = ((((((((( 4.09594812521430D-09*X-6.47097874264417D-08)*X+   &
-           6.743541482689D-07)*X-5.917993920224D-06)*X+                 &
-           4.531969237381D-05)*X-2.99102856679638D-04 )*X+              &
-           1.65695765202643D-03 )*X-7.40671222520653D-03 )*X+           &
-           2.50889946832192D-02 )*X-5.73782817487958D-02 )*X+           &
-           6.66713443086877D-02                                          
-      RETURN
-                                                                        
-!     X=1.0 TO 5.0                               NROOTS = 5              
-  120 Y = X-3.0D+00                                                      
-      RT1 = ((((((((-2.58163897135138D-14*Y+8.14127461488273D-13)*Y-    &
-           2.11414838976129D-11 )*Y+5.09822003260014D-10 )*Y-           &
-           1.16002134438663D-08 )*Y+2.46810694414540D-07 )*Y-           &
-           4.92556826124502D-06 )*Y+9.02580687971053D-05 )*Y-           &
-           1.45190025120726D-03 )*Y+1.73416786387475D-02                 
-      RT2 = ((((((((( 1.04525287289788D-14*Y+5.44611782010773D-14)*Y-   &
-           4.831059411392D-12)*Y+1.136643908832D-10)*Y-                 &
-           1.104373076913D-09)*Y-2.35346740649916D-08 )*Y+              &
-           1.43772622028764D-06 )*Y-4.23405023015273D-05 )*Y+           &
-           9.12034574793379D-04 )*Y-1.52479441718739D-02 )*Y+           &
-           1.76055265928744D-01                                          
-      RT3 = (((((((((-6.89693150857911D-14*Y+5.92064260918861D-13)*Y+   &
-           1.847170956043D-11)*Y-3.390752744265D-10)*Y-                 &
-           2.995532064116D-09)*Y+1.57456141058535D-07 )*Y-              &
-           3.95859409711346D-07 )*Y-9.58924580919747D-05 )*Y+           &
-           3.23551502557785D-03 )*Y-5.97587007636479D-02 )*Y+           &
-           6.46432853383057D-01                                          
-      RT4 = ((((((((-3.61293809667763D-12*Y-2.70803518291085D-11)*Y+    &
-           8.83758848468769D-10 )*Y+1.59166632851267D-08 )*Y-           &
-           1.32581997983422D-07 )*Y-7.60223407443995D-06 )*Y-           &
-           7.41019244900952D-05 )*Y+9.81432631743423D-03 )*Y-           &
-           2.23055570487771D-01 )*Y+2.21460798080643D+00                 
-      RT5 = ((((((((( 7.12332088345321D-13*Y+3.16578501501894D-12)*Y-   &
-           8.776668218053D-11)*Y-2.342817613343D-09)*Y-                 &
-           3.496962018025D-08)*Y-3.03172870136802D-07 )*Y+              &
-           1.50511293969805D-06 )*Y+1.37704919387696D-04 )*Y+           &
-           4.70723869619745D-02 )*Y-1.47486623003693D+00 )*Y+           &
-           1.35704792175847D+01                                          
-      WW1 = ((((((((( 1.04348658616398D-13*Y-1.94147461891055D-12)*Y+   &
-           3.485512360993D-11)*Y-6.277497362235D-10)*Y+                 &
-           1.100758247388D-08)*Y-1.88329804969573D-07 )*Y+              &
-           3.12338120839468D-06 )*Y-5.04404167403568D-05 )*Y+           &
-           8.00338056610995D-04 )*Y-1.30892406559521D-02 )*Y+           &
-           2.47383140241103D-01                                          
-      WW2 = ((((((((((( 3.23496149760478D-14*Y-5.24314473469311D-13)*Y+ &
-           7.743219385056D-12)*Y-1.146022750992D-10)*Y+                 &
-           1.615238462197D-09)*Y-2.15479017572233D-08 )*Y+              &
-           2.70933462557631D-07 )*Y-3.18750295288531D-06 )*Y+           &
-           3.47425221210099D-05 )*Y-3.45558237388223D-04 )*Y+           &
-           3.05779768191621D-03 )*Y-2.29118251223003D-02 )*Y+           &
-           1.59834227924213D-01                                          
-      WW3 = ((((((((((((-3.42790561802876D-14*Y+5.26475736681542D-13)*Y-&
-           7.184330797139D-12)*Y+9.763932908544D-11)*Y-                 &
-           1.244014559219D-09)*Y+1.472744068942D-08)*Y-                 &
-           1.611749975234D-07)*Y+1.616487851917D-06)*Y-                 &
-           1.46852359124154D-05 )*Y+1.18900349101069D-04 )*Y-           &
-           8.37562373221756D-04 )*Y+4.93752683045845D-03 )*Y-           &
-           2.25514728915673D-02 )*Y+6.95211812453929D-02                 
-      WW4 = ((((((((((((( 1.04072340345039D-14*Y-1.60808044529211D-13)* &
-           Y+2.183534866798D-12)*Y-2.939403008391D-11)*Y+               &
-           3.679254029085D-10)*Y-4.23775673047899D-09 )*Y+              &
-           4.46559231067006D-08 )*Y-4.26488836563267D-07 )*Y+           &
-           3.64721335274973D-06 )*Y-2.74868382777722D-05 )*Y+           &
-           1.78586118867488D-04 )*Y-9.68428981886534D-04 )*Y+           &
-           4.16002324339929D-03 )*Y-1.28290192663141D-02 )*Y+           &
-           2.22353727685016D-02                                          
-      WW5 = ((((((((((((((-8.16770412525963D-16*Y+1.31376515047977D-14)*&
-           Y-1.856950818865D-13)*Y+2.596836515749D-12)*Y-               &
-           3.372639523006D-11)*Y+4.025371849467D-10)*Y-                 &
-           4.389453269417D-09)*Y+4.332753856271D-08)*Y-                 &
-           3.82673275931962D-07 )*Y+2.98006900751543D-06 )*Y-           &
-           2.00718990300052D-05 )*Y+1.13876001386361D-04 )*Y-           &
-           5.23627942443563D-04 )*Y+1.83524565118203D-03 )*Y-           &
-           4.37785737450783D-03 )*Y+5.36963805223095D-03                 
-      RETURN
-                                                                        
-  140 IF (X > 10.0D+00) GO TO 160                                        
-!     X=5.0 TO 10.0                              NROOTS = 5              
-      Y = X-7.5D+00                                                      
-      RT1 = ((((((((-1.13825201010775D-14*Y+1.89737681670375D-13)*Y-    &
-           4.81561201185876D-12 )*Y+1.56666512163407D-10 )*Y-           &
-           3.73782213255083D-09 )*Y+9.15858355075147D-08 )*Y-           &
-           2.13775073585629D-06 )*Y+4.56547356365536D-05 )*Y-           &
-           8.68003909323740D-04 )*Y+1.22703754069176D-02                 
-      RT2 = (((((((((-3.67160504428358D-15*Y+1.27876280158297D-14)*Y-   &
-           1.296476623788D-12)*Y+1.477175434354D-11)*Y+                 &
-           5.464102147892D-10)*Y-2.42538340602723D-08 )*Y+              &
-           8.20460740637617D-07 )*Y-2.20379304598661D-05 )*Y+           &
-           4.90295372978785D-04 )*Y-9.14294111576119D-03 )*Y+           &
-           1.22590403403690D-01                                          
-      RT3 = ((((((((( 1.39017367502123D-14*Y-6.96391385426890D-13)*Y+   &
-           1.176946020731D-12)*Y+1.725627235645D-10)*Y-                 &
-           3.686383856300D-09)*Y+2.87495324207095D-08 )*Y+              &
-           1.71307311000282D-06 )*Y-7.94273603184629D-05 )*Y+           &
-           2.00938064965897D-03 )*Y-3.63329491677178D-02 )*Y+           &
-           4.34393683888443D-01                                          
-      RT4 = ((((((((((-1.27815158195209D-14*Y+1.99910415869821D-14)*Y+  &
-           3.753542914426D-12)*Y-2.708018219579D-11)*Y-                 &
-           1.190574776587D-09)*Y+1.106696436509D-08)*Y+                 &
-           3.954955671326D-07)*Y-4.398596059588D-06)*Y-                 &
-           2.01087998907735D-04 )*Y+7.89092425542937D-03 )*Y-           &
-           1.42056749162695D-01 )*Y+1.39964149420683D+00                 
-      RT5 = ((((((((((-1.19442341030461D-13*Y-2.34074833275956D-12)*Y+  &
-           6.861649627426D-12)*Y+6.082671496226D-10)*Y+                 &
-           5.381160105420D-09)*Y-6.253297138700D-08)*Y-                 &
-           2.135966835050D-06)*Y-2.373394341886D-05)*Y+                 &
-           2.88711171412814D-06 )*Y+4.85221195290753D-02 )*Y-           &
-           1.04346091985269D+00 )*Y+7.89901551676692D+00                 
-      WW1 = ((((((((( 7.95526040108997D-15*Y-2.48593096128045D-13)*Y+   &
-           4.761246208720D-12)*Y-9.535763686605D-11)*Y+                 &
-           2.225273630974D-09)*Y-4.49796778054865D-08 )*Y+              &
-           9.17812870287386D-07 )*Y-1.86764236490502D-05 )*Y+           &
-           3.76807779068053D-04 )*Y-8.10456360143408D-03 )*Y+           &
-           2.01097936411496D-01                                          
-      WW2 = ((((((((((( 1.25678686624734D-15*Y-2.34266248891173D-14)*Y+ &
-           3.973252415832D-13)*Y-6.830539401049D-12)*Y+                 &
-           1.140771033372D-10)*Y-1.82546185762009D-09 )*Y+              &
-           2.77209637550134D-08 )*Y-4.01726946190383D-07 )*Y+           &
-           5.48227244014763D-06 )*Y-6.95676245982121D-05 )*Y+           &
-           8.05193921815776D-04 )*Y-8.15528438784469D-03 )*Y+           &
-           9.71769901268114D-02                                          
-      WW3 = ((((((((((((-8.20929494859896D-16*Y+1.37356038393016D-14)*Y-&
-           2.022863065220D-13)*Y+3.058055403795D-12)*Y-                 &
-           4.387890955243D-11)*Y+5.923946274445D-10)*Y-                 &
-           7.503659964159D-09)*Y+8.851599803902D-08)*Y-                 &
-           9.65561998415038D-07 )*Y+9.60884622778092D-06 )*Y-           &
-           8.56551787594404D-05 )*Y+6.66057194311179D-04 )*Y-           &
-           4.17753183902198D-03 )*Y+2.25443826852447D-02                 
-      WW4 = ((((((((((((((-1.08764612488790D-17*Y+1.85299909689937D-16)*&
-           Y-2.730195628655D-15)*Y+4.127368817265D-14)*Y-               &
-           5.881379088074D-13)*Y+7.805245193391D-12)*Y-                 &
-           9.632707991704D-11)*Y+1.099047050624D-09)*Y-                 &
-           1.15042731790748D-08 )*Y+1.09415155268932D-07 )*Y-           &
-           9.33687124875935D-07 )*Y+7.02338477986218D-06 )*Y-           &
-           4.53759748787756D-05 )*Y+2.41722511389146D-04 )*Y-           &
-           9.75935943447037D-04 )*Y+2.57520532789644D-03                 
-      WW5 = ((((((((((((((( 7.28996979748849D-19*Y-1.26518146195173D-17)&
-           *Y+1.886145834486D-16)*Y-2.876728287383D-15)*Y+              &
-           4.114588668138D-14)*Y-5.44436631413933D-13 )*Y+              &
-           6.64976446790959D-12 )*Y-7.44560069974940D-11 )*Y+           &
-           7.57553198166848D-10 )*Y-6.92956101109829D-09 )*Y+           &
-           5.62222859033624D-08 )*Y-3.97500114084351D-07 )*Y+           &
-           2.39039126138140D-06 )*Y-1.18023950002105D-05 )*Y+           &
-           4.52254031046244D-05 )*Y-1.21113782150370D-04 )*Y+           &
-           1.75013126731224D-04                                          
-      RETURN
-                                                                        
-!     X=10.0 TO 15.0                             NROOTS = 5              
-  160 Y = X-12.5D+00                                                     
-      RT1 = ((((((((((-4.16387977337393D-17*Y+7.20872997373860D-16)*Y+  &
-           1.395993802064D-14)*Y+3.660484641252D-14)*Y-                 &
-           4.154857548139D-12)*Y+2.301379846544D-11)*Y-                 &
-           1.033307012866D-09)*Y+3.997777641049D-08)*Y-                 &
-           9.35118186333939D-07 )*Y+2.38589932752937D-05 )*Y-           &
-           5.35185183652937D-04 )*Y+8.85218988709735D-03                 
-      RT2 = ((((((((((-4.56279214732217D-16*Y+6.24941647247927D-15)*Y+  &
-           1.737896339191D-13)*Y+8.964205979517D-14)*Y-                 &
-           3.538906780633D-11)*Y+9.561341254948D-11)*Y-                 &
-           9.772831891310D-09)*Y+4.240340194620D-07)*Y-                 &
-           1.02384302866534D-05 )*Y+2.57987709704822D-04 )*Y-           &
-           5.54735977651677D-03 )*Y+8.68245143991948D-02                 
-      RT3 = ((((((((((-2.52879337929239D-15*Y+2.13925810087833D-14)*Y+  &
-           7.884307667104D-13)*Y-9.023398159510D-13)*Y-                 &
-           5.814101544957D-11)*Y-1.333480437968D-09)*Y-                 &
-           2.217064940373D-08)*Y+1.643290788086D-06)*Y-                 &
-           4.39602147345028D-05 )*Y+1.08648982748911D-03 )*Y-           &
-           2.13014521653498D-02 )*Y+2.94150684465425D-01                 
-      RT4 = ((((((((((-6.42391438038888D-15*Y+5.37848223438815D-15)*Y+  &
-           8.960828117859D-13)*Y+5.214153461337D-11)*Y-                 &
-           1.106601744067D-10)*Y-2.007890743962D-08)*Y+                 &
-           1.543764346501D-07)*Y+4.520749076914D-06)*Y-                 &
-           1.88893338587047D-04 )*Y+4.73264487389288D-03 )*Y-           &
-           7.91197893350253D-02 )*Y+8.60057928514554D-01                 
-      RT5 = (((((((((((-2.24366166957225D-14*Y+4.87224967526081D-14)*Y+ &
-           5.587369053655D-12)*Y-3.045253104617D-12)*Y-                 &
-           1.223983883080D-09)*Y-2.05603889396319D-09 )*Y+              &
-           2.58604071603561D-07 )*Y+1.34240904266268D-06 )*Y-           &
-           5.72877569731162D-05 )*Y-9.56275105032191D-04 )*Y+           &
-           4.23367010370921D-02 )*Y-5.76800927133412D-01 )*Y+           &
-           3.87328263873381D+00                                          
-      WW1 = ((((((((( 8.98007931950169D-15*Y+7.25673623859497D-14)*Y+   &
-           5.851494250405D-14)*Y-4.234204823846D-11)*Y+                 &
-           3.911507312679D-10)*Y-9.65094802088511D-09 )*Y+              &
-           3.42197444235714D-07 )*Y-7.51821178144509D-06 )*Y+           &
-           1.94218051498662D-04 )*Y-5.38533819142287D-03 )*Y+           &
-           1.68122596736809D-01                                          
-      WW2 = ((((((((((-1.05490525395105D-15*Y+1.96855386549388D-14)*Y-  &
-           5.500330153548D-13)*Y+1.003849567976D-11)*Y-                 &
-           1.720997242621D-10)*Y+3.533277061402D-09)*Y-                 &
-           6.389171736029D-08)*Y+1.046236652393D-06)*Y-                 &
-           1.73148206795827D-05 )*Y+2.57820531617185D-04 )*Y-           &
-           3.46188265338350D-03 )*Y+7.03302497508176D-02                 
-      WW3 = ((((((((((( 3.60020423754545D-16*Y-6.24245825017148D-15)*Y+ &
-           9.945311467434D-14)*Y-1.749051512721D-12)*Y+                 &
-           2.768503957853D-11)*Y-4.08688551136506D-10 )*Y+              &
-           6.04189063303610D-09 )*Y-8.23540111024147D-08 )*Y+           &
-           1.01503783870262D-06 )*Y-1.20490761741576D-05 )*Y+           &
-           1.26928442448148D-04 )*Y-1.05539461930597D-03 )*Y+           &
-           1.15543698537013D-02                                          
-      WW4 = ((((((((((((( 2.51163533058925D-18*Y-4.31723745510697D-17)* &
-           Y+6.557620865832D-16)*Y-1.016528519495D-14)*Y+               &
-           1.491302084832D-13)*Y-2.06638666222265D-12 )*Y+              &
-           2.67958697789258D-11 )*Y-3.23322654638336D-10 )*Y+           &
-           3.63722952167779D-09 )*Y-3.75484943783021D-08 )*Y+           &
-           3.49164261987184D-07 )*Y-2.92658670674908D-06 )*Y+           &
-           2.12937256719543D-05 )*Y-1.19434130620929D-04 )*Y+           &
-           6.45524336158384D-04                                          
-      WW5 = ((((((((((((((-1.29043630202811D-19*Y+2.16234952241296D-18)*&
-           Y-3.107631557965D-17)*Y+4.570804313173D-16)*Y-               &
-           6.301348858104D-15)*Y+8.031304476153D-14)*Y-                 &
-           9.446196472547D-13)*Y+1.018245804339D-11)*Y-                 &
-           9.96995451348129D-11 )*Y+8.77489010276305D-10 )*Y-           &
-           6.84655877575364D-09 )*Y+4.64460857084983D-08 )*Y-           &
-           2.66924538268397D-07 )*Y+1.24621276265907D-06 )*Y-           &
-           4.30868944351523D-06 )*Y+9.94307982432868D-06                 
-      RETURN
-                                                                        
-  180 IF (X > 25.0D+00) GO TO 220                                        
-      IF (X > 20.0D+00) GO TO 200                                        
-!     X=15.0 TO 20.0                             NROOTS = 5              
-      Y = X-17.5D+00                                                     
-      RT1 = (((((((((( 1.91875764545740D-16*Y+7.8357401095707D-16)*Y-   &
-           3.260875931644D-14)*Y-1.186752035569D-13)*Y+                 &
-           4.275180095653D-12)*Y+3.357056136731D-11)*Y-                 &
-           1.123776903884D-09)*Y+1.231203269887D-08)*Y-                 &
-           3.99851421361031D-07 )*Y+1.45418822817771D-05 )*Y-           &
-           3.49912254976317D-04 )*Y+6.67768703938812D-03                 
-      RT2 = (((((((((( 2.02778478673555D-15*Y+1.01640716785099D-14)*Y-  &
-           3.385363492036D-13)*Y-1.615655871159D-12)*Y+                 &
-           4.527419140333D-11)*Y+3.853670706486D-10)*Y-                 &
-           1.184607130107D-08)*Y+1.347873288827D-07)*Y-                 &
-           4.47788241748377D-06 )*Y+1.54942754358273D-04 )*Y-           &
-           3.55524254280266D-03 )*Y+6.44912219301603D-02                 
-      RT3 = (((((((((( 7.79850771456444D-15*Y+6.00464406395001D-14)*Y-  &
-           1.249779730869D-12)*Y-1.020720636353D-11)*Y+                 &
-           1.814709816693D-10)*Y+1.766397336977D-09)*Y-                 &
-           4.603559449010D-08)*Y+5.863956443581D-07)*Y-                 &
-           2.03797212506691D-05 )*Y+6.31405161185185D-04 )*Y-           &
-           1.30102750145071D-02 )*Y+2.10244289044705D-01                 
-      RT4 = (((((((((((-2.92397030777912D-15*Y+1.94152129078465D-14)*Y+ &
-           4.859447665850D-13)*Y-3.217227223463D-12)*Y-                 &
-           7.484522135512D-11)*Y+7.19101516047753D-10 )*Y+              &
-           6.88409355245582D-09 )*Y-1.44374545515769D-07 )*Y+           &
-           2.74941013315834D-06 )*Y-1.02790452049013D-04 )*Y+           &
-           2.59924221372643D-03 )*Y-4.35712368303551D-02 )*Y+           &
-           5.62170709585029D-01                                          
-      RT5 = ((((((((((( 1.17976126840060D-14*Y+1.24156229350669D-13)*Y- &
-           3.892741622280D-12)*Y-7.755793199043D-12)*Y+                 &
-           9.492190032313D-10)*Y-4.98680128123353D-09 )*Y-              &
-           1.81502268782664D-07 )*Y+2.69463269394888D-06 )*Y+           &
-           2.50032154421640D-05 )*Y-1.33684303917681D-03 )*Y+           &
-           2.29121951862538D-02 )*Y-2.45653725061323D-01 )*Y+           &
-           1.89999883453047D+00                                          
-      WW1 = (((((((((( 1.74841995087592D-15*Y-6.95671892641256D-16)*Y-  &
-           3.000659497257D-13)*Y+2.021279817961D-13)*Y+                 &
-           3.853596935400D-11)*Y+1.461418533652D-10)*Y-                 &
-           1.014517563435D-08)*Y+1.132736008979D-07)*Y-                 &
-           2.86605475073259D-06 )*Y+1.21958354908768D-04 )*Y-           &
-           3.86293751153466D-03 )*Y+1.45298342081522D-01                 
-      WW2 = ((((((((((-1.11199320525573D-15*Y+1.85007587796671D-15)*Y+  &
-           1.220613939709D-13)*Y+1.275068098526D-12)*Y-                 &
-           5.341838883262D-11)*Y+6.161037256669D-10)*Y-                 &
-           1.009147879750D-08)*Y+2.907862965346D-07)*Y-                 &
-           6.12300038720919D-06 )*Y+1.00104454489518D-04 )*Y-           &
-           1.80677298502757D-03 )*Y+5.78009914536630D-02                 
-      WW3 = ((((((((((-9.49816486853687D-16*Y+6.67922080354234D-15)*Y+  &
-           2.606163540537D-15)*Y+1.983799950150D-12)*Y-                 &
-           5.400548574357D-11)*Y+6.638043374114D-10)*Y-                 &
-           8.799518866802D-09)*Y+1.791418482685D-07)*Y-                 &
-           2.96075397351101D-06 )*Y+3.38028206156144D-05 )*Y-           &
-           3.58426847857878D-04 )*Y+8.39213709428516D-03                 
-      WW4 = ((((((((((( 1.33829971060180D-17*Y-3.44841877844140D-16)*Y+ &
-           4.745009557656D-15)*Y-6.033814209875D-14)*Y+                 &
-           1.049256040808D-12)*Y-1.70859789556117D-11 )*Y+              &
-           2.15219425727959D-10 )*Y-2.52746574206884D-09 )*Y+           &
-           3.27761714422960D-08 )*Y-3.90387662925193D-07 )*Y+           &
-           3.46340204593870D-06 )*Y-2.43236345136782D-05 )*Y+           &
-           3.54846978585226D-04                                          
-      WW5 = ((((((((((((( 2.69412277020887D-20*Y-4.24837886165685D-19)* &
-           Y+6.030500065438D-18)*Y-9.069722758289D-17)*Y+               &
-           1.246599177672D-15)*Y-1.56872999797549D-14 )*Y+              &
-           1.87305099552692D-13 )*Y-2.09498886675861D-12 )*Y+           &
-           2.11630022068394D-11 )*Y-1.92566242323525D-10 )*Y+           &
-           1.62012436344069D-09 )*Y-1.23621614171556D-08 )*Y+           &
-           7.72165684563049D-08 )*Y-3.59858901591047D-07 )*Y+           &
-           2.43682618601000D-06                                          
-      RETURN
-                                                                        
-!     X=20.0 TO 25.0                             NROOTS = 5              
-  200 Y = X-22.5D+00                                                     
-      RT1 = (((((((((-1.13927848238726D-15*Y+7.39404133595713D-15)*Y+   &
-           1.445982921243D-13)*Y-2.676703245252D-12)*Y+                 &
-           5.823521627177D-12)*Y+2.17264723874381D-10 )*Y+              &
-           3.56242145897468D-09 )*Y-3.03763737404491D-07 )*Y+           &
-           9.46859114120901D-06 )*Y-2.30896753853196D-04 )*Y+           &
-           5.24663913001114D-03                                          
-      RT2 = (((((((((( 2.89872355524581D-16*Y-1.22296292045864D-14)*Y+  &
-           6.184065097200D-14)*Y+1.649846591230D-12)*Y-                 &
-           2.729713905266D-11)*Y+3.709913790650D-11)*Y+                 &
-           2.216486288382D-09)*Y+4.616160236414D-08)*Y-                 &
-           3.32380270861364D-06 )*Y+9.84635072633776D-05 )*Y-           &
-           2.30092118015697D-03 )*Y+5.00845183695073D-02                 
-      RT3 = (((((((((( 1.97068646590923D-15*Y-4.89419270626800D-14)*Y+  &
-           1.136466605916D-13)*Y+7.546203883874D-12)*Y-                 &
-           9.635646767455D-11)*Y-8.295965491209D-11)*Y+                 &
-           7.534109114453D-09)*Y+2.699970652707D-07)*Y-                 &
-           1.42982334217081D-05 )*Y+3.78290946669264D-04 )*Y-           &
-           8.03133015084373D-03 )*Y+1.58689469640791D-01                 
-      RT4 = (((((((((( 1.33642069941389D-14*Y-1.55850612605745D-13)*Y-  &
-           7.522712577474D-13)*Y+3.209520801187D-11)*Y-                 &
-           2.075594313618D-10)*Y-2.070575894402D-09)*Y+                 &
-           7.323046997451D-09)*Y+1.851491550417D-06)*Y-                 &
-           6.37524802411383D-05 )*Y+1.36795464918785D-03 )*Y-           &
-           2.42051126993146D-02 )*Y+3.97847167557815D-01                 
-      RT5 = ((((((((((-6.07053986130526D-14*Y+1.04447493138843D-12)*Y-  &
-           4.286617818951D-13)*Y-2.632066100073D-10)*Y+                 &
-           4.804518986559D-09)*Y-1.835675889421D-08)*Y-                 &
-           1.068175391334D-06)*Y+3.292234974141D-05)*Y-                 &
-           5.94805357558251D-04 )*Y+8.29382168612791D-03 )*Y-           &
-           9.93122509049447D-02 )*Y+1.09857804755042D+00                 
-      WW1 = (((((((((-9.10338640266542D-15*Y+1.00438927627833D-13)*Y+   &
-           7.817349237071D-13)*Y-2.547619474232D-11)*Y+                 &
-           1.479321506529D-10)*Y+1.52314028857627D-09 )*Y+              &
-           9.20072040917242D-09 )*Y-2.19427111221848D-06 )*Y+           &
-           8.65797782880311D-05 )*Y-2.82718629312875D-03 )*Y+           &
-           1.28718310443295D-01                                          
-      WW2 = ((((((((( 5.52380927618760D-15*Y-6.43424400204124D-14)*Y-   &
-           2.358734508092D-13)*Y+8.261326648131D-12)*Y+                 &
-           9.229645304956D-11)*Y-5.68108973828949D-09 )*Y+              &
-           1.22477891136278D-07 )*Y-2.11919643127927D-06 )*Y+           &
-           4.23605032368922D-05 )*Y-1.14423444576221D-03 )*Y+           &
-           5.06607252890186D-02                                          
-      WW3 = ((((((((( 3.99457454087556D-15*Y-5.11826702824182D-14)*Y-   &
-           4.157593182747D-14)*Y+4.214670817758D-12)*Y+                 &
-           6.705582751532D-11)*Y-3.36086411698418D-09 )*Y+              &
-           6.07453633298986D-08 )*Y-7.40736211041247D-07 )*Y+           &
-           8.84176371665149D-06 )*Y-1.72559275066834D-04 )*Y+           &
-           7.16639814253567D-03                                          
-      WW4 = (((((((((((-2.14649508112234D-18*Y-2.45525846412281D-18)*Y+ &
-           6.126212599772D-16)*Y-8.526651626939D-15)*Y+                 &
-           4.826636065733D-14)*Y-3.39554163649740D-13 )*Y+              &
-           1.67070784862985D-11 )*Y-4.42671979311163D-10 )*Y+           &
-           6.77368055908400D-09 )*Y-7.03520999708859D-08 )*Y+           &
-           6.04993294708874D-07 )*Y-7.80555094280483D-06 )*Y+           &
-           2.85954806605017D-04                                          
-      WW5 = ((((((((((((-5.63938733073804D-21*Y+6.92182516324628D-20)*Y-&
-           1.586937691507D-18)*Y+3.357639744582D-17)*Y-                 &
-           4.810285046442D-16)*Y+5.386312669975D-15)*Y-                 &
-           6.117895297439D-14)*Y+8.441808227634D-13)*Y-                 &
-           1.18527596836592D-11 )*Y+1.36296870441445D-10 )*Y-           &
-           1.17842611094141D-09 )*Y+7.80430641995926D-09 )*Y-           &
-           5.97767417400540D-08 )*Y+1.65186146094969D-06                 
-      RETURN
-                                                                        
-  220 WW1 = SQRT(PIE4/X)                                                 
-      IF (X > 40.0D+00) GO TO 240                                        
-!     X=25.0 TO 40.0                             NROOTS = 5              
-      E = EXP(-X)                                                        
-      RT1 = ((((((((-1.73363958895356D-06*X+1.19921331441483D-04)*X -   &
-           1.59437614121125D-02)*X+1.13467897349442D+00)*X -            &
-           4.47216460864586D+01)*X+1.06251216612604D+03)*X -            &
-           1.52073917378512D+04)*X+1.20662887111273D+05)*X -            &
-           4.07186366852475D+05)*E + R15/(X-R15)                         
-      RT2 = ((((((((-1.60102542621710D-05*X+1.10331262112395D-03)*X -   &
-           1.50043662589017D-01)*X+1.05563640866077D+01)*X -            &
-           4.10468817024806D+02)*X+9.62604416506819D+03)*X -            &
-           1.35888069838270D+05)*X+1.06107577038340D+06)*X -            &
-           3.51190792816119D+06)*E + R25/(X-R25)                         
-      RT3 = ((((((((-4.48880032128422D-05*X+2.69025112122177D-03)*X -   &
-           4.01048115525954D-01)*X+2.78360021977405D+01)*X -            &
-           1.04891729356965D+03)*X+2.36985942687423D+04)*X -            &
-           3.19504627257548D+05)*X+2.34879693563358D+06)*X -            &
-           7.16341568174085D+06)*E + R35/(X-R35)                         
-      RT4 = ((((((((-6.38526371092582D-05*X-2.29263585792626D-03)*X -   &
-           7.65735935499627D-02)*X+9.12692349152792D+00)*X -            &
-           2.32077034386717D+02)*X+2.81839578728845D+02)*X +            &
-           9.59529683876419D+04)*X-1.77638956809518D+06)*X +            &
-           1.02489759645410D+07)*E + R45/(X-R45)                         
-      RT5 = ((((((((-3.59049364231569D-05*X-2.25963977930044D-02)*X +   &
-           1.12594870794668D+00)*X-4.56752462103909D+01)*X +            &
-           1.05804526830637D+03)*X-1.16003199605875D+04)*X -            &
-           4.07297627297272D+04)*X+2.22215528319857D+06)*X -            &
-           1.61196455032613D+07)*E + R55/(X-R55)                         
-      WW5 = (((((((((-4.61100906133970D-10*X+1.43069932644286D-07)*X -  &
-           1.63960915431080D-05)*X+1.15791154612838D-03)*X -            &
-           5.30573476742071D-02)*X+1.61156533367153D+00)*X -            &
-           3.23248143316007D+01)*X+4.12007318109157D+02)*X -            &
-           3.02260070158372D+03)*X+9.71575094154768D+03)*E + W55*WW1     
-      WW4 = (((((((((-2.40799435809950D-08*X+8.12621667601546D-06)*X -  &
-           9.04491430884113D-04)*X+6.37686375770059D-02)*X -            &
-           2.96135703135647D+00)*X+9.15142356996330D+01)*X -            &
-           1.86971865249111D+03)*X+2.42945528916947D+04)*X -            &
-           1.81852473229081D+05)*X+5.96854758661427D+05)*E + W45*WW1     
-      WW3 = (((((((( 1.83574464457207D-05*X-1.54837969489927D-03)*X +   &
-           1.18520453711586D-01)*X-6.69649981309161D+00)*X +            &
-           2.44789386487321D+02)*X-5.68832664556359D+03)*X +            &
-           8.14507604229357D+04)*X-6.55181056671474D+05)*X +            &
-           2.26410896607237D+06)*E + W35*WW1                             
-      WW2 = (((((((( 2.77778345870650D-05*X-2.22835017655890D-03)*X +   &
-           1.61077633475573D-01)*X-8.96743743396132D+00)*X +            &
-           3.28062687293374D+02)*X-7.65722701219557D+03)*X +            &
-           1.10255055017664D+05)*X-8.92528122219324D+05)*X +            &
-           3.10638627744347D+06)*E + W25*WW1                             
-      WW1 = WW1-0.01962D+00*E-WW2-WW3-WW4-WW5                            
-      RETURN
-                                                                        
-  240 IF (X > 59.0D+00) GO TO 260                                        
-!     X=40.0 TO 59.0                             NROOTS = 5              
-      XXX = X**3                                                         
-      E = XXX*EXP(-X)                                                    
-      RT1 = (((-2.43758528330205D-02*X+2.07301567989771D+00)*X -        &
-           6.45964225381113D+01)*X+7.14160088655470D+02)*E + R15/(X-R15) 
-      RT2 = (((-2.28861955413636D-01*X+1.93190784733691D+01)*X -        &
-           5.99774730340912D+02)*X+6.61844165304871D+03)*E + R25/(X-R25) 
-      RT3 = (((-6.95053039285586D-01*X+5.76874090316016D+01)*X -        &
-           1.77704143225520D+03)*X+1.95366082947811D+04)*E + R35/(X-R35) 
-      RT4 = (((-1.58072809087018D+00*X+1.27050801091948D+02)*X -        &
-           3.86687350914280D+03)*X+4.23024828121420D+04)*E + R45/(X-R45) 
-      RT5 = (((-3.33963830405396D+00*X+2.51830424600204D+02)*X -        &
-           7.57728527654961D+03)*X+8.21966816595690D+04)*E + R55/(X-R55) 
-      E = XXX*E                                                          
-      WW5 = (( 1.35482430510942D-08*X-3.27722199212781D-07)*X +         &
-           2.41522703684296D-06)*E + W55*WW1                             
-      WW4 = (( 1.23464092261605D-06*X-3.55224564275590D-05)*X +         &
-           3.03274662192286D-04)*E + W45*WW1                             
-      WW3 = (( 1.34547929260279D-05*X-4.19389884772726D-04)*X +         &
-           3.87706687610809D-03)*E + W35*WW1                             
-      WW2 = (( 2.09539509123135D-05*X-6.87646614786982D-04)*X +         &
-           6.68743788585688D-03)*E + W25*WW1
-      WW1 = WW1-WW2-WW3-WW4-WW5
-      RETURN
-
-!     X=59.0 TO INFINITY                         NROOTS = 5
-  260 RT1 = R15/(X-R15)
-      RT2 = R25/(X-R25)
-      RT3 = R35/(X-R35)
-      RT4 = R45/(X-R45)
-      RT5 = R55/(X-R55)
-      WW2 = W25*WW1
-      WW3 = W35*WW1
-      WW4 = W45*WW1
-      WW5 = W55*WW1
-      WW1 = WW1-WW2-WW3-WW4-WW5
-      RETURN
-      END
-
-! Calling by HSandT & ERISPDFGHIL: ROOT6 
-      SUBROUTINE ROOT6
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      PARAMETER (MXAUX=55)
-      DIMENSION RGRID(MXAUX),WGRID(MXAUX),P0(MXAUX),P1(MXAUX),          &
-                P2(MXAUX),RTS(13),WTS(13),WRK(13),ALPHA(0:12),BETA(0:12)
-      COMMON /ROOT  / XX,UF(13),WF(13),NROOTS
-      COMMON /RYSPAR/ XASYMP(13),RTSASY(13,13),WTSASY(13,13),           &
-                      NAUXS(13),MAPRYS(13),RTSAUX(55,8),WTSAUX(55,8)
-!-----------------------------------------------------------------------
-      IF(XX>=XASYMP(NROOTS)) THEN
-       FACTR = 1.0d0/XX
-       FACTW = SQRT(FACTR)
-       DO I=1,NROOTS
-         RTS(I)= FACTR * RTSASY(I,NROOTS)
-         WTS(I)= FACTW * WTSASY(I,NROOTS)
-       ENDDO
-      ELSE
-       NAUX=NAUXS(NROOTS)
-       MAP=MAPRYS(NROOTS)
-       DO I=1,NAUX
-          T2 = RTSAUX(I,MAP)*RTSAUX(I,MAP)
-          RGRID(I) = T2
-          WGRID(I) = WTSAUX(I,MAP)*EXP(-XX*T2)
-       ENDDO
-       EPS = 1.0D-14
-       CALL RYSDS(NROOTS,NAUX,RGRID,WGRID,ALPHA,BETA,IERR,P0,P1,P2)
-       CALL RYSGW(NROOTS,ALPHA,BETA,EPS,RTS,WTS,IERR,WRK)
-      END IF
-      DO K=1,NROOTS
-       DUM  = RTS(K)
-       UF(K)= DUM/(1.0d0-DUM)
-       WF(K)= WTS(K)
-      ENDDO
-!-----------------------------------------------------------------------
-      RETURN
-      END
-
-! RYSDS
-      SUBROUTINE RYSDS(N,NCAP,X,W,ALPHA,BETA,IERR,P0,P1,P2)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION X(NCAP),W(NCAP),ALPHA(N),BETA(N),P0(NCAP),              &
-                P1(NCAP),P2(NCAP)
-
-      TINY = 1.0D-40
-      HUGE = 1.0D+40
-
-      IERR=0
-      IF(N<=0 .or. N>NCAP) THEN
-        IERR=1
-        RETURN
-      END IF
-      NM1=N-1
-
-      SUM0=0.0D+00
-      SUM1=0.0D+00
-      DO 10 M=1,NCAP
-        SUM0=SUM0+W(M)
-        SUM1=SUM1+W(M)*X(M)
-   10 CONTINUE
-      ALPHA(1)=SUM1/SUM0
-      BETA(1)=SUM0
-      IF(N==1) RETURN
-
-      DO 20 M=1,NCAP
-        P1(M)=0.0D+00
-        P2(M)=1.0D+00
-   20 CONTINUE
-      DO 40 K=1,NM1
-        SUM1=0.0D+00
-        SUM2=0.0D+00
-        DO 30 M=1,NCAP
-
-          IF(W(M)==0.0D+00) GOTO 30
-          P0(M)=P1(M)
-          P1(M)=P2(M)
-          P2(M)=(X(M)-ALPHA(K))*P1(M)-BETA(K)*P0(M)
-
-          IF(ABS(P2(M))>HUGE .or. ABS(SUM2)>HUGE) THEN
-            IERR=K
-            RETURN
-          END IF
-          T=W(M)*P2(M)*P2(M)
-          SUM1=SUM1+T
-          SUM2=SUM2+T*X(M)
-   30   CONTINUE
-
-        IF(ABS(SUM1)<TINY) THEN
-          IERR=-K
-          RETURN
-        END IF
-        ALPHA(K+1)=SUM2/SUM1
-        BETA(K+1)=SUM1/SUM0
-        SUM0=SUM1
-   40 CONTINUE
-
-      RETURN
-      END
-      
-! RYSGW
-      SUBROUTINE RYSGW(N,ALPHA,BETA,EPS,ROOTS,WEIGHT,IERR,WRK)
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)
-      DIMENSION ALPHA(N),BETA(N),ROOTS(N),WEIGHT(N),WRK(N)
-
-      IF(N<1) THEN
-        IERR=-1
-        RETURN
-      END IF
-
-      IERR=0
-      ROOTS(1)=ALPHA(1)
-      IF(BETA(1)<0.0D+00) THEN
-        IERR=-2
-        RETURN
-      END IF
-      WEIGHT(1)=BETA(1)
-      IF (N==1) RETURN
-
-      WEIGHT(1)=1.0D+00
-      WRK(N)=0.0D+00
-      DO 100 K=2,N
-        ROOTS(K)=ALPHA(K)
-        IF(BETA(K)<0.0D+00) THEN
-          IERR=-2
-          RETURN
-        END IF
-        WRK(K-1)=SQRT(BETA(K))
-        WEIGHT(K)=0.0D+00
-  100 CONTINUE
-
-      DO 240 L=1,N
-        J=0
-
-  105   DO 110 M=L,N
-         IF(M==N) GO TO 120
-         IF(ABS(WRK(M))<=EPS*(ABS(ROOTS(M))+ABS(ROOTS(M+1))))GOTO 120
-  110   CONTINUE
-  120   DP=ROOTS(L)
-        IF(M==L) GO TO 240
-        IF(J==30) GO TO 400
-        J=J+1
-
-        DG=(ROOTS(L+1)-DP)/(2.0D+00*WRK(L))
-        DR=SQRT(DG*DG+1.0D+00)
-        DG=ROOTS(M)-DP+WRK(L)/(DG+SIGN(DR,DG))
-        DS=1.0D+00
-        DC=1.0D+00
-        DP=0.0D+00
-        MML=M-L
-
-        DO 200 II=1,MML
-          I=M-II
-          DF=DS*WRK(I)
-          DB=DC*WRK(I)
-          IF(ABS(DF)<ABS(DG)) GO TO 150
-          DC=DG/DF
-          DR=SQRT(DC*DC+1.0D+00)
-          WRK(I+1)=DF*DR
-          DS=1.0D+00/DR
-          DC=DC*DS
-          GO TO 160
-  150     DS=DF/DG
-          DR=SQRT(DS*DS+1.0D+00)
-          WRK(I+1)=DG*DR
-          DC=1.0D+00/DR
-          DS=DS*DC
-  160     DG=ROOTS(I+1)-DP
-          DR=(ROOTS(I)-DG)*DS+2.0D+00*DC*DB
-          DP=DS*DR
-          ROOTS(I+1)=DG+DP
-          DG=DC*DR-DB
-
-          DF=WEIGHT(I+1)
-          WEIGHT(I+1)=DS*WEIGHT(I)+DC*DF
-          WEIGHT(I)=DC*WEIGHT(I)-DS*DF
-  200   CONTINUE
-        ROOTS(L)=ROOTS(L)-DP
-        WRK(L)=DG
-        WRK(M)=0.0D+00
-        GO TO 105
-  240 CONTINUE
-
-      DO 300 II=2,N
-        I=II-1
-        K=I
-        DP=ROOTS(I)
-        DO 260 J=II,N
-          IF(ROOTS(J)>=DP) GO TO 260
-          K=J
-          DP=ROOTS(J)
-  260   CONTINUE
-        IF(K==I) GO TO 300
-        ROOTS(K)=ROOTS(I)
-        ROOTS(I)=DP
-        DP=WEIGHT(I)
-        WEIGHT(I)=WEIGHT(K)
-        WEIGHT(K)=DP
-  300 CONTINUE
-      DO 310 K=1,N
-        WEIGHT(K)=BETA(1)*WEIGHT(K)*WEIGHT(K)
-  310 CONTINUE
-      RETURN
-
-  400 IERR=L
-
-      RETURN
-      END
-
-! ExchangeInt                                           
-      SUBROUTINE ExchangeInt(XINTS,GHONDO,NSH2,MAXG,EX,CS,CP,CD,CF,CG,  &
-                             CH,CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,  &
-                             KMIN,KMAX,NSHELL,Cxyz,NAT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      INTEGER, DIMENSION(4,3) :: IB                                                       
-      COMMON/INTDEX1/IJGT(784),KLGT(784)   
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)  
-      COMMON/SHLNOS1/QQ4,IJKL
-      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DIMENSION XINTS(NSH2),GHONDO(MAXG)
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DDIJ
-      LOGICAL ISHandJSH
-!-----------------------------------------------------------------------
-      CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
-      NANGM =  4                                          
-      IF(LMAXIMA==2) NANGM =  6                                          
-      IF(LMAXIMA==3) NANGM = 10                                          
-      IF(LMAXIMA==4) NANGM = 15                                          
-      IF(LMAXIMA==5) NANGM = 21                                          
-      IF(LMAXIMA==6) NANGM = 28                                          
-      NGTH(4) = 1                                                       
-      NGTH(3) = NGTH(4) * NANGM                                         
-      NGTH(2) = NGTH(3) * NANGM                                         
-      NGTH(1) = NGTH(2) * NANGM                                         
-      DO I=1,3                                                       
-       NORGSH(I) = 0                                               
-       NORGSP(I) = 0                                               
-      ENDDO                                                          
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IEXCH = 1                                                         
-      QQ4   = 1.0d0                                                       
-      NINTEG  = 0  
-!- - - - - - - - - - - - - - - - - - - - - - - -
-      IJIJ = 0                                                          
-      DO ISH = 1,NSHELL                                             
-       DO JSH = 1,ISH                                             
-        IJIJ = IJIJ+1                                               
-        ALLOCATE(DDIJ(49*900))                                                      
-        CALL SHELLS(1,ISH,JSH,ISH,JSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,   &
-                    NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
-                    Cxyz)                    
-        CALL IJPRIM(DDIJ)                                           
-        CALL SHELLS(2,ISH,JSH,ISH,JSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,   &
-                    NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
-                    Cxyz)                       
-        CALL ZQOUT(GHONDO,MAXG)                                          
-        IF(IJKL==1) CALL S0000(GHONDO,DDIJ)                       
-        IF(IJKL>1) CALL ERISPDFGHIL(GHONDO,DDIJ)
-        DEALLOCATE(DDIJ)
-        VMAX = 0.0D+00                                                    
-        MINI = KMIN(ISH)                                               
-        MINJ = KMIN(JSH)                                               
-        MAXI = KMAX(ISH)                                               
-        JMAX = KMAX(JSH)                                               
-        ISHandJSH=ISH==JSH                                               
-        IBB = IB(1,IEXCH)                                              
-        JBB = IB(2,IEXCH)                                              
-        KBB = IB(3,IEXCH)                                              
-        LBB = IB(4,IEXCH)                                              
-        IJN = 0                                                        
-        DO I=MINI,MAXI                                             
-         IF(ISHandJSH) JMAX = I                                          
-         DO J=MINJ,JMAX                                          
-          IJN = IJN+1                                           
-          NN = IJGT(IJN) + KLGT(IJN)                            
-          VAL = GHONDO(NN)                                      
-          IF(VAL>0.0D+00)NINTEG = NINTEG + 1                              
-          IF(VAL>VMAX)VMAX=VAL                                 
-         END DO
-        END DO
-        XINTS(IJIJ) = SQRT(VMAX)                                         
-       END DO
-      END DO
-!-----------------------------------------------------------------------
-      RETURN                                                            
-      END                                                               
-
-! QOUT                                             
-      SUBROUTINE QOUT(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,GHONDO,IDONTW,  &
-                      KLOC,KMIN,KMAX,NSHELL)                            
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      LOGICAL IANDJ,KANDL,SAME
-      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
-      DIMENSION BUFP(NINTMX),IX(NINTMX),GHONDO(*)
-      COMMON /ERIOUT/ ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL           
-      COMMON /MISC  / IANDJ,KANDL,SAME                                  
-      COMMON /RESTAR/ NREC,IST,JST,KST,LST                               
-      INTEGER,DIMENSION(NINTEGtm) :: IX2                                 
-      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2                      
-      COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,              &
-                      MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
-                      NIJ,IJ,KL                                    
-      COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
-      SAVE IJN,KLN                                                      
-!-----------------------------------------------------------------------                                                                       
-!     Pack 4-indices into 1 word. 
-!     Write Label & integral on Unit 1 if DONTW = .False.
-!-----------------------------------------------------------------------
-      SAME  = ISH == KSH .and. JSH == LSH                           
-      IANDJ = ISH == JSH                                              
-      KANDL = KSH == LSH                                              
-      MINI = KMIN(ISH)                                                  
-      MINJ = KMIN(JSH)                                                  
-      MINK = KMIN(KSH)                                                  
-      MINL = KMIN(LSH)                                                  
-      MAXI = KMAX(ISH)                                                  
-      MAXJ = KMAX(JSH)                                                  
-      MAXK = KMAX(KSH)                                                  
-      MAXL = KMAX(LSH)                                                  
-      LOCI = KLOC(ISH)-MINI                                             
-      LOCJ = KLOC(JSH)-MINJ                                             
-      LOCK = KLOC(KSH)-MINK                                             
-      LOCL = KLOC(LSH)-MINL          
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                               
-      IJN = 0                                                           
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       I_INDEX = (I-MINI)*LSTRI + 1                                   
-       IF (IANDJ) JMAX = I                                            
-       DO 1 J = MINJ,JMAX                                           
-        IJ_INDEX = (J-MINJ)*LSTRJ + I_INDEX                         
-        IJN = IJN+1                                                 
-        LMAX = MAXL                                                 
-        KLN = 0                                                     
-        DO K =  MINK,MAXK                                       
-         IJK_INDEX = (K-MINK)*LSTRK + IJ_INDEX                    
-         IF (KANDL) LMAX = K                                      
-         DO L = MINL,LMAX                                     
-          KLN = KLN+1                                           
-          IF(SAME.and.KLN>IJN)GO TO 1                 
-          IJKL_INDEX = (L-MINL)*LSTRL + IJK_INDEX               
-          VAL = GHONDO( IJKL_INDEX ) 
-          IF(ABS(VAL)>=CUTOFF)THEN
-           I1 = LOCI+I                                           
-           I2 = LOCJ+J                                           
-           I3 = LOCK+K                                           
-           I4 = LOCL+L                                           
-           IF (I1 >= I2) GO TO 100                             
-           N = I1                                                
-           I1 = I2                                               
-           I2 = N                                                
-  100      IF (I3 >= I4) GO TO 120                             
-           N = I3                                                
-           I3 = I4                                               
-           I4 = N                                                
-  120      IF (I1-I3) 140,160,180                                
-  140      N = I1                                                
-           I1 = I3                                               
-           I3 = N                                                
-           N = I2                                                
-           I2 = I4                                               
-           I4 = N                                                
-           GO TO 180                                             
-  160      IF (I2 < I4) GO TO 140                             
-  180      CONTINUE                                              
-!                                                                
-           IF(I1 == I2) VAL = VAL*0.5D0                        
-           IF(I3 == I4) VAL = VAL*0.5D0                        
-           IF(I1 == I3 .and. I2 == I4) VAL = VAL*0.5D0       
-!                                                                
-           NPACK = ICOUNT                                        
-           IPACK = I1                                            
-           JPACK = I2                                            
-           KPACK = I3                                            
-           LPACK = I4                                            
-           LABEL = ISHFT( IPACK, 48 ) + ISHFT( JPACK, 32 ) +            &
-                   ISHFT( KPACK, 16 ) + LPACK                 
-           IX(NPACK) = LABEL                                  
-           BUFP(ICOUNT) = VAL 
-           ICOUNT = ICOUNT+1                                     
-           IF(ICOUNT > 0) THEN                           
-            JCOUNT = ICOUNT                               
-            IF(JCOUNT > NINTMX) THEN                        
-             NXInteg = NINTMX
-             IF(IDONTW==1)THEN
-              IJBUFi = (NREC-1)*NINTMX
-              do ibuf=1,NINTMX
-               IX2  (IJBUFi+ibuf) = IX(ibuf)
-               BUFP2(IJBUFi+ibuf) = BUFP(ibuf)
-              end do
-             ELSE
-              WRITE(1)NXInteg,IX,BUFP
-             END IF
-             ICOUNT = 1                               
-             NREC = NREC+1                                   
-            END IF
-           END IF
-          END IF
-         END DO
-        END DO
-    1  CONTINUE                                                       
-      END DO
-!-----------------------------------------------------------------------                                                                       
-      RETURN                                                            
-      END                                                               
-
-! SHELLS                                           
-      SUBROUTINE SHELLS(NELEC,ISH,JSH,KSH,LSH,FLIP,EX,CS,CP,CD,CF,CG,CH,&
-                 CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,&
-                 Cxyz)                     
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL       NORM
-      COMMON/NORMAL/NORM
-      LOGICAL     IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON /ERIOUT/ INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
-      COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
-                      KLX(784),KLY(784),KLZ(784)                         
-      COMMON/INTDEX1/IJGT(784),KLGT(784)                                 
-      COMMON /INFOA / NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      COMMON /ROOT  / XX,U(13),W(13),NROOTS                              
-      COMMON /SHLEXC/ NORGSH(3),NORGSP(3),IEXCH,NGTH(4)                  
-      COMMON /SHLINF/  GA(30),CSA(30),CPA(30),CDA(30),                  &
-                      CFA(30),CGA(30),CHA(30),CIA(30),                  &
-                       GB(30),CSB(30),CPB(30),CDB(30),                  &
-                      CFB(30),CGB(30),CHB(30),CIB(30),                  &
-                       GC(30),CSC(30),CPC(30),CDC(30),                  &
-                      CFC(30),CGC(30),CHC(30),CIC(30),                  &
-                       GD(30),CSD(30),CPD(30),CDD(30),                  &
-                      CFD(30),CGD(30),CHD(30),CID(30),                  &
-                      AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                   &
-                      DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                    
-      COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,              &
-                      MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
-                      NIJ,IJ,KL                                          
-      COMMON /SHLNOS1/QQ4,IJKL
-!
-      LOGICAL FLIP                                                      
-      INTEGER,DIMENSION(NSHELL)::KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DIMENSION IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
-                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)                                     
-!
-      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
-                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
-                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
-                  2,   0,   2,   1,   1,                                &
-                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
-                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
-                  1,                                                    &
-                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
-                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
-                  0,   3,   3,   2,   1,   2,   1,   2/                  
-      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
-                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
-                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
-                 14,   0,  14,   7,   7,                                &
-                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
-                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
-                  7,                                                    &
-                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
-                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
-                  0,  21,  21,  14,   7,  14,   7,  14/                  
-      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
-                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
-                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
-                 98,   0,  98,  49,  49,                                &
-                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
-                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
-                 49,                                                    &
-                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
-                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
-                  0, 147, 147,  98,  49,  98,  49,  98/                  
-      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
-               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
-               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
-                687,   1, 687, 344, 344,                                &
-               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
-               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
-                344,                                                    &
-               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
-               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
-                  1,1030,1030, 687, 344, 687, 344, 687/                  
-      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
-                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
-                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
-                  0,   2,   1,   2,   1,                                &
-                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
-                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
-                  2,                                                    &
-                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
-                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
-                  3,   2,   1,   3,   3,   1,   2,   2/                  
-      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
-                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
-                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
-                  0,  14,   7,  14,   7,                                &
-                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
-                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
-                 14,                                                    &
-                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
-                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
-                 21,  14,   7,  21,  21,   7,  14,  14/                  
-      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
-                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
-                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
-                  0,  98,  49,  98,  49,                                &
-                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
-                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
-                 98,                                                    &
-                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
-                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
-                147,  98,  49, 147, 147,  49,  98,  98/                  
-      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
-                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
-                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
-                  1, 687, 344, 687, 344,                                &
-                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
-                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
-                687,                                                    &
-                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
-                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
-               1030, 687, 344,1030,1030, 344, 687, 687/                  
-      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
-                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
-                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
-                  2,   2,   1,   1,   2,                                &
-                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
-                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
-                  2,                                                    &
-                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
-                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
-                  3,   1,   2,   1,   2,   3,   3,   2/                  
-      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
-                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
-                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
-                 14,  14,   7,   7,  14,                                &
-                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
-                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
-                 14,                                                    &
-                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
-                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
-                 21,   7,  14,   7,  14,  21,  21,  14/                  
-      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
-                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
-                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
-                 98,  98,  49,  49,  98,                                &
-                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
-                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
-                 98,                                                    &
-                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
-                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
-                147,  49,  98,  49,  98, 147, 147,  98/                  
-      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
-                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
-                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
-                687, 687, 344, 344, 687,                                &
-                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
-                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
-                687,                                                    &
-                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
-                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
-               1030, 344, 687, 344, 687,1030,1030, 687/                 
-!-----------------------------------------------------------------------                                                                       
-!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION 
-      NORM = .TRUE.  
-      IF(NELEC==2) GO TO 200                                          
-!                                                                       
-!     ----- PERMUTE ISH AND JSH SHELLS, FOR THEIR TYPE                  
-!     THIS IS DONE FOR SPEED REASONS.  THE CODE GETS THE RIGHT ANSWER   
-!     WITHOUT THE ANGULAR MOMENTUM FLIPPING, AND THEREFORE A CALLING    
-!     ARGUMENT ALLOWS ONE DO EXACTLY THE integral BLOCK AS SPECIFIED,   
-!     SHOULD THAT BE DESIRED.                                           
-!                                                                       
-      IANDJ = ISH == JSH                                              
-      IF (KTYPE(ISH) < KTYPE(JSH)  .and.  FLIP) THEN                 
-       INU = JSH                                                      
-       JNU = ISH                                                      
-       NGTI = NGTH(2)                                                 
-       NGTJ = NGTH(1)                                                 
-      ELSE                                                              
-       INU = ISH                                                      
-       JNU = JSH                                                      
-       NGTI = NGTH(1)                                                 
-       NGTJ = NGTH(2)                                                 
-      END IF                                                            
-!                                                                       
-!     ----- ISHELL                                                      
-!                                                                       
-      I = KATOM(INU)                                                    
-      AX = Cxyz(1,I)                                                       
-      AY = Cxyz(2,I)                                                       
-      AZ = Cxyz(3,I)                                                       
-      I1 = KSTART(INU)                                                  
-      I2 = I1+KNG(INU)-1                                                
-      LIT = KTYPE(INU)                                                  
-      MINI = KMIN(INU)                                                  
-      MAXI = KMAX(INU)                                                  
-      LOCI = KLOC(INU)-MINI                                             
-      NGA = 0                                                           
-      DO I = I1,I2                                                  
-       NGA = NGA+1                                                    
-       GA(NGA)  = EX(I)                                                
-       CSA(NGA) = CS(I)                                               
-       CPA(NGA) = CP(I)                                               
-       CDA(NGA) = CD(I)                                               
-       CFA(NGA) = CF(I)                                               
-       CGA(NGA) = CG(I)                                               
-       CHA(NGA) = CH(I)                                               
-       CIA(NGA) = CI(I)                                               
-      END DO                                                          
-!                                                                       
-!     ----- JSHELL                                                      
-!                                                                       
-      J = KATOM(JNU)                                                    
-      BX = Cxyz(1,J)                                                       
-      BY = Cxyz(2,J)                                                       
-      BZ = Cxyz(3,J)                                                       
-      J1 = KSTART(JNU)                                                  
-      J2 = J1+KNG(JNU)-1                                                
-      LJT = KTYPE(JNU)                                                  
-      MINJ = KMIN(JNU)                                                  
-      MAXJ = KMAX(JNU)                                                  
-      LOCJ = KLOC(JNU)-MINJ                                             
-      NGB = 0                                                           
-      DO J = J1,J2                                                  
-       NGB = NGB+1                                                    
-       GB(NGB) = EX(J)                                                
-       CSB(NGB) = CS(J)                                               
-       CPB(NGB) = CP(J)                                               
-       CDB(NGB) = CD(J)                                               
-       CFB(NGB) = CF(J)                                               
-       CGB(NGB) = CG(J)                                               
-       CHB(NGB) = CH(J)                                               
-       CIB(NGB) = CI(J)                                               
-      END DO                                                          
-      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
-!                                                                       
-      IJ = 0                                                            
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       NX = IX(I)                                                     
-       NY = IY(I)                                                     
-       NZ = IZ(I)                                                     
-       IF (IANDJ) JMAX = I                                            
-       DO J = MINJ,JMAX                                           
-        IJ = IJ+1                                                   
-        IJX(IJ) = NX+JX(J)                                          
-        IJY(IJ) = NY+JY(J)                                          
-        IJZ(IJ) = NZ+JZ(J)                                          
-        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
-       END DO                                                       
-      END DO                                                          
-      RETURN                                                            
-!     ******                                                            
-!                                                                       
-!        K AND L SHELL                                                  
-!                                                                       
-  200 CONTINUE                                                          
-      KANDL = KSH == LSH                                              
-      SAME = ISH == KSH .and. JSH == LSH                            
-!                                                                       
-!     ----- PERMUTE KSH AND LSH SHELLS, FOR THEIR TYPE                  
-!                                                                       
-      IF (KTYPE(KSH) < KTYPE(LSH)  .and.  FLIP) THEN                 
-       KNU = LSH                                                      
-       LNU = KSH                                                      
-       NGTK = NGTH(4)                                                 
-       NGTL = NGTH(3)                                                 
-      ELSE                                                              
-       KNU = KSH                                                      
-       LNU = LSH                                                      
-       NGTK = NGTH(3)                                                 
-       NGTL = NGTH(4)                                                 
-      END IF                                                            
-!                                                                       
-!     ----- K SHELL                                                     
-!                                                                       
-      K = KATOM(KNU)                                                    
-      CX = Cxyz(1,K)                                                       
-      CY = Cxyz(2,K)                                                       
-      CZ = Cxyz(3,K)                                                       
-      K1 = KSTART(KNU)                                                  
-      K2 = K1+KNG(KNU)-1                                                
-      LKT = KTYPE(KNU)                                                  
-      MINK = KMIN(KNU)                                                  
-      MAXK = KMAX(KNU)                                                  
-      LOCK = KLOC(KNU)-MINK                                             
-      NGC = 0                                                           
-      DO K = K1,K2                                                  
-       NGC = NGC+1                                                    
-       GC(NGC)  = EX(K)                                                
-       CSC(NGC) = CS(K)                                               
-       CPC(NGC) = CP(K)                                               
-       CDC(NGC) = CD(K)                                               
-       CFC(NGC) = CF(K)                                               
-       CGC(NGC) = CG(K)                                               
-       CHC(NGC) = CH(K)                                               
-       CIC(NGC) = CI(K)                                               
-      END DO                                                          
-!                                                                       
-!     ----- LSHELL                                                      
-!                                                                       
-      L = KATOM(LNU)                                                    
-      DX = Cxyz(1,L)                                                       
-      DY = Cxyz(2,L)                                                       
-      DZ = Cxyz(3,L)                                                       
-      L1 = KSTART(LNU)                                                  
-      L2 = L1+KNG(LNU)-1                                                
-      LLT = KTYPE(LNU)                                                  
-      MINL = KMIN(LNU)                                                  
-      MAXL = KMAX(LNU)                                                  
-      LOCL = KLOC(LNU)-MINL                                             
-      NGD = 0                                                           
-      DO L = L1,L2                                                  
-       NGD = NGD+1                                                    
-       GD(NGD) = EX(L)                                                
-       CSD(NGD) = CS(L)                                               
-       CPD(NGD) = CP(L)                                               
-       CDD(NGD) = CD(L)                                               
-       CFD(NGD) = CF(L)                                               
-       CGD(NGD) = CG(L)                                               
-       CHD(NGD) = CH(L)                                               
-       CID(NGD) = CI(L)                                               
-      END DO                                                          
-      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
-      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
-!                                                                       
-      KL = 0                                                            
-      LMAX = MAXL                                                       
-      DO K = MINK,MAXK                                              
-       NX = KX(K)                                                     
-       NY = KY(K)                                                     
-       NZ = KZ(K)                                                     
-       IF (KANDL) LMAX = K                                            
-       DO L = MINL,LMAX                                           
-        KL = KL+1                                                   
-        KLX(KL) = NX+LX(L)                                          
-        KLY(KL) = NY+LY(L)                                          
-        KLZ(KL) = NZ+LZ(L)                                          
-        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
-       END DO                                                       
-      END DO                                                          
-      MAX = KL                                                          
-      DO 320 I = 1,IJ                                                   
-      IF (SAME) MAX = I                                                 
-  320 IK(I) = MAX                                                       
-      IJKL = IJ*KL                                                      
-      IF (SAME) IJKL = IJ*(IJ+1)/2                                      
-      RETURN                                                            
-      END                                                               
-
-! IJPRIM                                           
-      SUBROUTINE IJPRIM(DDIJ)                                           
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL       NORM
-      COMMON/NORMAL/NORM
-      LOGICAL     IANDJ,KANDL,SAME 
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON/IJGNRL/A(900),R(900),X1(900),Y1(900),Z1(900),IJD(784)                                             
-      COMMON/SHLINF/ AG(30),CSA(30),CPA(30),CDA(30),                    &
-                    CFA(30),CGA(30),CHA(30),CIA(30),                    &
-                     BG(30),CSB(30),CPB(30),CDB(30),                    &
-                    CFB(30),CGB(30),CHB(30),CIB(30),                    &
-                     CG(30),CSC(30),CPC(30),CDC(30),                    &
-                    CFC(30),CGC(30),CHC(30),CIC(30),                    &
-                     DG(30),CSD(30),CPD(30),CDD(30),                    &
-                    CFD(30),CGD(30),CHD(30),CID(30),                    &
-                    XI,YI,ZI,XJ,YJ,ZJ,RRI,XK,YK,ZK,                     &
-                    XL,YL,ZL,RRK,NGA,NGB,NGC,NGD                                      
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
-                    MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
-                    NIJ,IJ,KL                                          
-      COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
-!
-      DIMENSION DDIJ(49*900)                                           
-      PARAMETER (SQRT3=1.73205080756888D0,SQRT5=2.23606797749979D0,     &                       
-                 SQRT7=2.64575131106459D0,SQRT11=3.3166247903553998D0)                             
-!-----------------------------------------------------------------------
-      MAX = MAXJ                                                        
-      N = 0                                                             
-      NN = 0                                                            
-      NM = -2**20                                                       
-      DO 180 I = MINI,MAXI                                              
-         GO TO (100,100,120,120,100,120,120,100,120,120,                &
-                100,120,120,100,120,120,120,120,120,100,                &
-                100,120,120,100,120,120,120,120,120,100,                &
-                120,120,100,120,120,                                    &
-                100,120,120,100,120,120,120,120,120,100,                &
-                120,120,120,120,120,100,120,120,100,120,                &
-                120,                                                    &
-                100,120,120,100,120,120,120,120,120,100,                &
-                120,120,120,120,120,100,120,120,100,120,                &
-                120,100,120,120,120,120,120,100),I                       
-  100    NM = NN                                                         
-  120    NN = NM                                                         
-         IF (IANDJ) MAX = I                                              
-         DO 170 J = MINJ,MAX                                             
-            GO TO (140,140,160,160,140,160,160,140,160,160,             &
-                   140,160,160,140,160,160,160,160,160,140,             &
-                   140,160,160,140,160,160,160,160,160,140,             &
-                   160,160,140,160,160,                                 &
-                   140,160,160,140,160,160,160,160,160,140,             &
-                   160,160,160,160,160,140,160,160,140,160,             &
-                   160,                                                 &
-                   140,160,160,140,160,160,160,160,160,140,             &
-                   160,160,160,160,160,140,160,160,140,160,             &
-                   160,140,160,160,160,160,160,140),J                   
-  140       NN = NN+1                                                   
-  160       N = N+1                                                     
-            IJD(N) = NN                                                 
-  170    CONTINUE                                                       
-  180 CONTINUE                                                          
-!                                                                       
-!     ----- I PRIMITIVE                                                 
-!                                                                       
-      NIJ = 0                                                           
-      JBMAX = NGB                                                       
-      DO 540 IA = 1,NGA                                                 
-         AI = AG(IA)                                                    
-         ARRI = AI*RRI                                                  
-         AXI = AI*XI                                                    
-         AYI = AI*YI                                                    
-         AZI = AI*ZI                                                    
-         CSI = CSA(IA)                                                  
-         CPI = CPA(IA)                                                  
-         CDI = CDA(IA)                                                  
-         CFI = CFA(IA)                                                  
-         CGI = CGA(IA)                                                  
-         CHI = CHA(IA)                                                  
-         CII = CIA(IA)                                                  
-!                                                                       
-!        ----- J PRIMITIVE                                              
-!                                                                       
-         IF (IANDJ) JBMAX = IA                                          
-         DO 520 JB = 1,JBMAX                                            
-            AJ = BG(JB)                                                 
-            AA = AI+AJ                                                  
-            AAINV = 1.0d0/AA                                              
-            DUM = AJ*ARRI*AAINV                                         
-            IF (DUM > SHLTOL) GO TO 520                                 
-            CSJ = CSB(JB)                                               
-            CPJ = CPB(JB)                                               
-            CDJ = CDB(JB)                                               
-            CFJ = CFB(JB)                                               
-            CGJ = CGB(JB)                                               
-            CHJ = CHB(JB)                                               
-            CIJ = CIB(JB)                                               
-            NM = 49*NIJ                                                 
-            NN = NM                                                     
-            NIJ = NIJ+1                                                 
-            R(NIJ) = DUM                                                
-            A(NIJ) = AA                                                 
-            X1(NIJ) = (AXI+AJ*XJ)*AAINV                                 
-            Y1(NIJ) = (AYI+AJ*YJ)*AAINV                                 
-            Z1(NIJ) = (AZI+AJ*ZJ)*AAINV                                 
-!                                                                       
-!           ----- DENSITY FACTOR                                        
-!                                                                       
-            DUM1 = 0.0d0                                                 
-            DUM2 = 0.0d0                                                 
-            DO 420 I = MINI,MAXI                                        
-               GO TO (200,220,420,420,240,420,420,260,420,420,          &
-                      261,420,420,262,420,420,420,420,420,263,          &
-                      264,420,420,265,420,420,420,420,420,266,          &
-                      420,420,267,420,420,                              &
-                      268,420,420,269,420,420,420,420,420,270,          &
-                      420,420,420,420,420,271,420,420,272,420,          &
-                      420,                                              &
-                      273,420,420,274,420,420,420,420,420,275,          &
-                      420,420,420,420,420,276,420,420,277,420,          &
-                      420,278,420,420,420,420,420,279),I                
-  200          DUM1 = CSI*AAINV                                         
-               GO TO 280                                                
-  220          DUM1 = CPI*AAINV                                         
-               GO TO 280                                                
-  240          DUM1 = CDI*AAINV                                         
-               GO TO 280                                                
-  260          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  261          DUM1 = CFI*AAINV                                         
-               GO TO 280                                                
-  262          IF (NORM) DUM1 = DUM1*SQRT5                              
-               GO TO 280                                                
-  263          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  264          DUM1 = CGI*AAINV                                         
-               GO TO 280                                                
-  265          IF (NORM) DUM1 = DUM1*SQRT7                              
-               GO TO 280                                                
-  266          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-               GO TO 280                                                
-  267          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  268          DUM1 = CHI*AAINV                                         
-               GO TO 280                                                
-  269          IF (NORM) DUM1 = DUM1*3.0d0                              
-               GO TO 280                                                
-  270          IF (NORM) DUM1 = DUM1*SQRT7/SQRT3                        
-               GO TO 280                                                
-  271          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  272          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-               GO TO 280                                                
-  273          DUM1 = CII*AAINV                                         
-               GO TO 280                                                
-  274          IF (NORM) DUM1 = DUM1*SQRT11                             
-               GO TO 280                                                
-  275          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  276          IF (NORM) DUM1 = DUM1*SQRT3                              
-               GO TO 280                                                
-  277          IF (NORM) DUM1 = DUM1*SQRT7/(SQRT5*SQRT3)                
-               GO TO 280                                                
-  278          IF (NORM) DUM1 = DUM1*SQRT5                              
-               GO TO 280                                                
-  279          IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-!                                                                       
-  280          IF (IANDJ) MAX = I                                       
-               DO 400 J = MINJ,MAX                                      
-                  GO TO (300,320,400,400,340,400,400,360,400,400,       &
-                         361,400,400,362,400,400,400,400,400,363,       &
-                         364,400,400,365,400,400,400,400,400,366,       &
-                         400,400,367,400,400,                           &
-                         368,400,400,369,400,400,400,400,400,370,       &
-                         400,400,400,400,400,371,400,400,372,400,       &
-                         400,                                           &
-                         373,400,400,374,400,400,400,400,400,375,       &
-                         400,400,400,400,400,376,400,400,377,400,       &
-                         400,378,400,400,400,400,400,379),J             
-  300             DUM2 = DUM1*CSJ                                       
-                  GO TO 380                                             
-  320             DUM2 = DUM1*CPJ                                       
-                  GO TO 380                                             
-  340             DUM2 = DUM1*CDJ                                       
-                  GO TO 380                                             
-  360             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  361             DUM2 = DUM1*CFJ                                       
-                  GO TO 380                                             
-  362             IF (NORM) DUM2 = DUM2*SQRT5                           
-                  GO TO 380                                             
-  363             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  364             DUM2 = DUM1*CGJ                                       
-                  GO TO 380                                             
-  365             IF (NORM) DUM2 = DUM2*SQRT7                           
-                  GO TO 380                                             
-  366             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-                  GO TO 380                                             
-  367             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  368             DUM2 = DUM1*CHJ                                       
-                  GO TO 380                                             
-  369             IF (NORM) DUM2 = DUM2*3.0d0                           
-                  GO TO 380                                             
-  370             IF (NORM) DUM2 = DUM2*SQRT7/SQRT3                     
-                  GO TO 380                                             
-  371             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  372             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-                  GO TO 380                                             
-  373             DUM2 = DUM1*CIJ                                       
-                  GO TO 380                                             
-  374             IF (NORM) DUM2 = DUM2*SQRT11                          
-                  GO TO 380                                             
-  375             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  376             IF (NORM) DUM2 = DUM2*SQRT3                           
-                  GO TO 380                                             
-  377             IF (NORM) DUM2 = DUM2*SQRT7/(SQRT5*SQRT3)             
-                  GO TO 380                                             
-  378             IF (NORM) DUM2 = DUM2*SQRT5                           
-                  GO TO 380                                             
-  379             IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-!                                                                       
-  380             NN = NN+1                                             
-                  DDIJ(NN) = DUM2                                       
-  400          CONTINUE                                                 
-  420       CONTINUE                                                    
-            IF ( .NOT. IANDJ) GO TO 520                                 
-            IF (IA == JB) GO TO 520                                   
-            GO TO (500,440,460,455,450,445,444),LIT                     
-  440       IF (MINI == 2) GO TO 500                                  
-            DDIJ(NM+2) = DDIJ(NM+2)+CSI*CPJ*AAINV                       
-            GO TO 480                                                   
-  444       DDIJ(NM+28) = DDIJ(NM+28)+DDIJ(NM+28)                       
-            DDIJ(NM+27) = DDIJ(NM+27)+DDIJ(NM+27)                       
-            DDIJ(NM+26) = DDIJ(NM+26)+DDIJ(NM+26)                       
-            DDIJ(NM+25) = DDIJ(NM+25)+DDIJ(NM+25)                       
-            DDIJ(NM+24) = DDIJ(NM+24)+DDIJ(NM+24)                       
-            DDIJ(NM+23) = DDIJ(NM+23)+DDIJ(NM+23)                       
-            DDIJ(NM+22) = DDIJ(NM+22)+DDIJ(NM+22)                       
-            DDIJ(NM+21) = DDIJ(NM+21)+DDIJ(NM+21)                       
-            DDIJ(NM+20) = DDIJ(NM+20)+DDIJ(NM+20)                       
-            DDIJ(NM+19) = DDIJ(NM+19)+DDIJ(NM+19)                       
-            DDIJ(NM+18) = DDIJ(NM+18)+DDIJ(NM+18)                       
-            DDIJ(NM+17) = DDIJ(NM+17)+DDIJ(NM+17)                       
-            DDIJ(NM+16) = DDIJ(NM+16)+DDIJ(NM+16)                       
-  445       DDIJ(NM+15) = DDIJ(NM+15)+DDIJ(NM+15)                       
-            DDIJ(NM+14) = DDIJ(NM+14)+DDIJ(NM+14)                       
-            DDIJ(NM+13) = DDIJ(NM+13)+DDIJ(NM+13)                       
-            DDIJ(NM+12) = DDIJ(NM+12)+DDIJ(NM+12)                       
-            DDIJ(NM+11) = DDIJ(NM+11)+DDIJ(NM+11)                       
-  450       DDIJ(NM+10) = DDIJ(NM+10)+DDIJ(NM+10)                       
-            DDIJ(NM+9) = DDIJ(NM+9)+DDIJ(NM+9)                          
-            DDIJ(NM+8) = DDIJ(NM+8)+DDIJ(NM+8)                          
-            DDIJ(NM+7) = DDIJ(NM+7)+DDIJ(NM+7)                          
-  455       DDIJ(NM+6) = DDIJ(NM+6)+DDIJ(NM+6)                          
-            DDIJ(NM+5) = DDIJ(NM+5)+DDIJ(NM+5)                          
-            DDIJ(NM+4) = DDIJ(NM+4)+DDIJ(NM+4)                          
-  460       DDIJ(NM+2) = DDIJ(NM+2)+DDIJ(NM+2)                          
-  480       DDIJ(NM+3) = DDIJ(NM+3)+DDIJ(NM+3)                          
-  500       DDIJ(NM+1) = DDIJ(NM+1)+DDIJ(NM+1)                          
-  520    CONTINUE                                                       
-  540 CONTINUE
-!-----------------------------------------------------------------------                                                          
-      RETURN                                                            
-      END                                                               
-
-! S0000                                            
-      SUBROUTINE S0000(GHONDO,DDIJ)                                     
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      LOGICAL IANDJ,KANDL,SAME
-      DIMENSION GHONDO(*),DDIJ(49*900)                                 
-      COMMON /IJGNRL/ A(900),R(900),X1(900),Y1(900),Z1(900),IJD(784)                                           
-      COMMON /MISC  / IANDJ,KANDL,SAME                                   
-      COMMON /SHLINF/  AG(30),CSA(30),CPA(30),CDA(30),                  &
-                      CFA(30),CGA(30),CHA(30),CIA(30),                  &
-                       BG(30),CSB(30),CPB(30),CDB(30),                  &
-                      CFB(30),CGB(30),CHB(30),CIB(30),                  &
-                       CG(30),CSC(30),CPC(30),CDC(30),                  &
-                      CFC(30),CGC(30),CHC(30),CIC(30),                  &
-                       DG(30),CSD(30),CPD(30),CDD(30),                  &
-                      CFD(30),CGD(30),CHD(30),CID(30),                  &
-                      XI,YI,ZI,XJ,YJ,ZJ,RRI,XK,YK,ZK,                   &
-                      XL,YL,ZL,RRK,NGA,NGB,NGC,NGD                                    
-      COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,              &
-                      MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
-                      NIJ,IJ,KL                                    
-      COMMON /SHLNOS1/QQ4,IJKL                         
-      COMMON /SHLT  / SHLTOL,CUTOFF,ICOUNT
-      PARAMETER (PI252=34.986836655250D+00, PIE4=7.85398163397448D-01)                             
-!-----------------------------------------------------------------------                                                                       
-!     SSSS integral for HONDO integrals          
-!-----------------------------------------------------------------------                                                                       
-      GGOUT = 0.0d0                                                      
-      LGMAX = NGD                                                       
-      DO 300 KG = 1,NGC                                                 
-      BK = CG(KG)                                                       
-      BRRK = BK*RRK                                                     
-      BXK = BK*XK                                                       
-      BYK = BK*YK                                                       
-      BZK = BK*ZK                                                       
-      CSK = CSC(KG)                                                     
-      IF (KANDL) LGMAX = KG                                             
-      DO 280 LG = 1,LGMAX                                               
-      BL = DG(LG)                                                       
-      BB = BK+BL                                                        
-      BBINV = 1.0d0/BB                                                    
-      DUM = BL*BRRK*BBINV                                               
-      IF (DUM > SHLTOL) GO TO 280                                       
-      BBRRK = DUM                                                       
-      D2 = CSD(LG)*CSK*BBINV                                            
-      IF (KANDL .and. LG /= KG) D2 = D2+D2                            
-      BBX = (BXK+BL*XL)*BBINV                                           
-      BBY = (BYK+BL*YL)*BBINV                                           
-      BBZ = (BZK+BL*ZL)*BBINV                                           
-      SUM = 0.0d0                                                        
-      NN = 1                                                            
-      DO 260 N = 1,NIJ                                                  
-      DUM = BBRRK+R(N)                                                  
-      IF (DUM > SHLTOL) GO TO 260                                       
-      EXPE = EXP(-DUM)                                                  
-      AA = A(N)                                                         
-      AB = AA+BB                                                        
-      DUM = X1(N)-BBX                                                   
-      XX = DUM*DUM                                                      
-      DUM = Y1(N)-BBY                                                   
-      XX = DUM*DUM+XX                                                   
-      DUM = Z1(N)-BBZ                                                   
-      XX = DUM*DUM+XX                                                   
-      X = XX*AA*BB/AB                                                   
-!                                                                       
-      IF (X > 5.0D+00) GO TO 160                                     
-      IF (X > 1.0D+00) GO TO 120                                     
-      IF (X > 3.0D-07) GO TO 100                                     
-      WW1 = 1.0D+00-X/3.0D+00                                           
-      GO TO 240                                                         
-!                                                                       
-  100 CONTINUE                                                          
-      F1 = ((((((((-8.36313918003957D-08*X+1.21222603512827D-06 )*X-    &
-           1.15662609053481D-05 )*X+9.25197374512647D-05 )*X-           &
-           6.40994113129432D-04 )*X+3.78787044215009D-03 )*X-           &
-           1.85185172458485D-02 )*X+7.14285713298222D-02 )*X-           &
-           1.99999999997023D-01 )*X+3.33333333333318D-01                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      GO TO 240                                                          
-!                                                                        
-  120 CONTINUE                                                           
-      IF (X > 3.0D+00) GO TO 140                                         
-      Y = X-2.0D+00                                                      
-      F1 = ((((((((((-1.61702782425558D-10*Y+1.96215250865776D-09 )*Y-  &
-           2.14234468198419D-08 )*Y+2.17216556336318D-07 )*Y-           &
-           1.98850171329371D-06 )*Y+1.62429321438911D-05 )*Y-           &
-           1.16740298039895D-04 )*Y+7.24888732052332D-04 )*Y-           &
-           3.79490003707156D-03 )*Y+1.61723488664661D-02 )*Y-           &
-           5.29428148329736D-02 )*Y+1.15702180856167D-01                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      GO TO 240                                                          
-!                                                                        
-  140 CONTINUE                                                           
-      Y = X-4.0D+00                                                      
-      F1 = ((((((((((-2.62453564772299D-11*Y+3.24031041623823D-10 )*Y-  &
-           3.614965656163D-09)*Y+3.760256799971D-08)*Y-                 &
-           3.553558319675D-07)*Y+3.022556449731D-06)*Y-                 &
-           2.290098979647D-05)*Y+1.526537461148D-04)*Y-                 &
-           8.81947375894379D-04 )*Y+4.33207949514611D-03 )*Y-           &
-           1.75257821619926D-02 )*Y+5.28406320615584D-02                 
-      WW1 = (X+X)*F1+EXP(-X)                                             
-      GO TO 240                                                          
-!                                                                        
-  160 CONTINUE                                                           
-      IF (X > 15.0D+00) GO TO 200                                        
-      E = EXP(-X)                                                        
-      IF (X > 10.0D+00) GO TO 180                                        
-      XINV = 1.0d0/X                                                      
-      WW1 = (((((( 4.6897511375022D-01*XINV-6.9955602298985D-01)*XINV + &
-           5.3689283271887D-01)*XINV-3.2883030418398D-01)*XINV +        &
-           2.4645596956002D-01)*XINV-4.9984072848436D-01)*XINV -        &
-           3.1501078774085D-06)*E + SQRT(PIE4*XINV)                      
-      GO TO 240                                                          
-!                                                                        
-  180 CONTINUE                                                           
-      XINV = 1.0d0/X                                                      
-      WW1 = (((-1.8784686463512D-01*XINV+2.2991849164985D-01)*XINV      &
-               -4.9893752514047D-01)*XINV-2.1916512131607D-05)*E        &
-               + SQRT(PIE4*XINV)                                        
-      GO TO 240                                                         
-!                                                                       
-  200 CONTINUE                                                          
-      IF (X > 33.0D+00) GO TO 220                                    
-      XINV = 1.0d0/X                                                      
-      E = EXP(-X)                                                       
-      WW1 = (( 1.9623264149430D-01*XINV-4.9695241464490D-01)*XINV -     &
-                 6.0156581186481D-05)*E + SQRT(PIE4*XINV)                     
-      GO TO 240                                                         
-!                                                                       
-  220 WW1 = SQRT(PIE4/X)                                                
-!                                                                       
-  240 CONTINUE                                                          
-      SUM = SUM+DDIJ(NN)*WW1*EXPE/SQRT(AB)                
-  260 NN = NN+49                                                        
-      GGOUT = GGOUT+D2*SUM                                              
-  280 CONTINUE                                                          
-  300 CONTINUE                                                          
-      GHONDO(1) = GGOUT*PI252*QQ4                                       
-      RETURN                                                            
-      END                                                               
-
-! ERISPDFGHIL                                           
-      SUBROUTINE ERISPDFGHIL(GHONDO,DDIJ)                                    
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
-      LOGICAL       NORM
-      COMMON/NORMAL/NORM
-      LOGICAL     IANDJ,KANDL,SAME 
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON/DENS/DKL(784),DIJ(784)                                 
-      COMMON/IJGNRL/AA(900),R(900),X1(900),Y1(900),Z1(900),IJD(784)                                             
-      COMMON/ROOT/XX,U(13),W(13),NROOTS                                
-      COMMON/SETINT/IN(13),KN(13),NI,NJ,NK,NL,NMAX,MMAX,                &
-                    BP01,B00,B10,XCP00,XC00,YCP00,YC00,                 &
-                    ZCP00,ZC00,F00,                                     &
-                    DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                        
-      COMMON/SHLINF/ AG(30),CSA(30),CPA(30),CDA(30),                    &
-                    CFA(30),CGA(30),CHA(30),CIA(30),                    &
-                     BG(30),CSB(30),CPB(30),CDB(30),                    &
-                    CFB(30),CGB(30),CHB(30),CIB(30),                    &
-                     CG(30),CSC(30),CPC(30),CDC(30),                    &
-                    CFC(30),CGC(30),CHC(30),CIC(30),                    &
-                     DG(30),CSD(30),CPD(30),CDD(30),                    &
-                    CFD(30),CGD(30),CHD(30),CID(30),                    &
-                    XI,YI,ZI,XJ,YJ,ZJ,RRI,XK,YK,ZK,                     &
-                    XL,YL,ZL,RRK,NGA,NGB,NGC,NGD                                      
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
-                    MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
-                    NIJ,IJ,KL                                          
-      COMMON/SHLNOS1/QQ4,IJKL
-      COMMON/SHLT/ SHLTOL,CUTOFF,ICOUNT
-!
-      LOGICAL DOBLE                          
-      DIMENSION IN1(13),GHONDO(*),DDIJ(*)                                                  
-      PARAMETER (SQRT3=1.73205080756888D0,SQRT5=2.23606797749979D0,     &
-                 SQRT7=2.64575131106459D0,PI252=34.986836655250D0,      &
-                 SQRT11=3.3166247903553998D0)               
-!-----------------------------------------------------------------------
-      FACTOR = PI252*QQ4                                                
-      NI = LIT-1                                                        
-      NJ = LJT-1                                                        
-      NK = LKT-1                                                        
-      NL = LLT-1                                                        
-      DXIJ = XI-XJ                                                      
-      DYIJ = YI-YJ                                                      
-      DZIJ = ZI-ZJ                                                      
-      DXKL = XK-XL                                                      
-      DYKL = YK-YL                                                      
-      DZKL = ZK-ZL                                                      
-      NMAX = NI+NJ                                                      
-      MMAX = NK+NL                                                      
-      MAX = NMAX+1                                                      
-      DO I = 1,MAX                                                  
-       N = I-1                                                        
-       IF (N <= NI) IN1(I) = 343*N+1                                
-       IF (N > NI) IN1(I) = 343*NI+49*(N-NI)+1                     
-      END DO
-      MAX = MMAX+1                                                      
-      DO K = 1,MAX                                                  
-       N = K-1                                                        
-       IF (N <= NK) KN(K) = 7*N                                     
-       IF (N > NK) KN(K) = 7*NK+N-NK                               
-      END DO
-      LGMAX = NGD                                                       
-      DO KG = 1,NGC                        !      K Primitive                                                 
-       AK = CG(KG)                                                    
-       BRRK = AK*RRK                                                  
-       AKXK = AK*XK                                                   
-       AKYK = AK*YK                                                   
-       AKZK = AK*ZK                                                   
-       CSK = CSC(KG)*FACTOR                                           
-       CPK = CPC(KG)*FACTOR                                           
-       CDK = CDC(KG)*FACTOR                                           
-       CFK = CFC(KG)*FACTOR                                           
-       CGK = CGC(KG)*FACTOR                                           
-       CHK = CHC(KG)*FACTOR                                           
-       CIK = CIC(KG)*FACTOR                                           
-       IF (KANDL) LGMAX = KG                                          
-       DO LG = 1,LGMAX                     !      L Primitive
-        AL = DG(LG)                                                 
-        B = AK+AL                                                   
-        BINV = 1.0d0/B                                                
-        BBRRK = AL*BRRK*BINV                                        
-        IF(BBRRK<=SHLTOL)THEN
-         CSL = CSD(LG)                                               
-         CPL = CPD(LG)                                               
-         CDL = CDD(LG)                                               
-         CFL = CFD(LG)                                               
-         CGL = CGD(LG)                                               
-         CHL = CHD(LG)                                               
-         CIL = CID(LG)                                               
-         XB = (AKXK+AL*XL)*BINV                                      
-         YB = (AKYK+AL*YL)*BINV                                      
-         ZB = (AKZK+AL*ZL)*BINV                                      
-         BXBK = B*(XB-XK)                                            
-         BYBK = B*(YB-YK)                                            
-         BZBK = B*(ZB-ZK)                                            
-         BXBI = B*(XB-XI)                                            
-         BYBI = B*(YB-YI)                                            
-         BZBI = B*(ZB-ZI)                                            
-!        DENSITY FACTOR                                        
-         DOBLE = KANDL.and.KG/=LG                                   
-         N = 0                                                       
-         MAX = MAXL                                                  
-         DUM1 = 0.0d0                                                 
-         DUM2 = 0.0d0                                                 
-         DO K = MINK,MAXK                                        
-          GO TO (140,160,220,220,180,220,220,200,220,220,               &
-                 201,220,220,202,220,220,220,220,220,203,               &
-                 204,220,220,205,220,220,220,220,220,206,               &
-                 220,220,207,220,220,                                   &
-                 208,220,220,209,220,220,220,220,220,210,               &
-                 220,220,220,220,220,211,220,220,212,220,               &
-                 220,                                                   &
-                 213,220,220,214,220,220,220,220,220,215,               &
-                 220,220,220,220,220,216,220,220,217,220,               &
-                 220,218,220,220,220,220,220,219),K                      
-  140     DUM1 = CSK*BINV                                          
-          GO TO 220                                                
-  160     DUM1 = CPK*BINV                                          
-          GO TO 220                                                
-  180     DUM1 = CDK*BINV                                          
-          GO TO 220                                                
-  200     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  201     DUM1 = CFK*BINV                                          
-          GO TO 220                                                
-  202     IF (NORM) DUM1 = DUM1*SQRT5                              
-          GO TO 220                                                
-  203     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  204     DUM1 = CGK*BINV                                          
-          GO TO 220                                                
-  205     IF (NORM) DUM1 = DUM1*SQRT7                              
-          GO TO 220                                                
-  206     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-          GO TO 220                                                
-  207     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  208     DUM1 = CHK*BINV                                          
-          GO TO 220                                                
-  209     IF (NORM) DUM1 = DUM1*3.0d0                              
-          GO TO 220                                                
-  210     IF (NORM) DUM1 = DUM1*SQRT7/SQRT3                        
-          GO TO 220                                                
-  211     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  212     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-          GO TO 220                                                
-  213     DUM1 = CIK*BINV                                          
-          GO TO 220                                                
-  214     IF (NORM) DUM1 = DUM1*SQRT11                             
-          GO TO 220                                                
-  215     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  216     IF (NORM) DUM1 = DUM1*SQRT3                              
-          GO TO 220                                                
-  217     IF (NORM) DUM1 = DUM1*SQRT7/(SQRT5*SQRT3)                
-          GO TO 220                                                
-  218     IF (NORM) DUM1 = DUM1*SQRT5                              
-          GO TO 220                                                
-  219     IF (NORM) DUM1 = DUM1*SQRT5/SQRT3                        
-!                                                                  
-  220     IF (KANDL) MAX = K                                       
-          DO L = MINL,MAX                                      
-           GO TO (240,280,340,340,300,340,340,320,340,340,              &
-                  321,340,340,322,340,340,340,340,340,323,              &
-                  324,340,340,325,340,340,340,340,340,326,              &
-                  340,340,327,340,340,                                  &
-                  328,340,340,329,340,340,340,340,340,330,              &
-                  340,340,340,340,340,331,340,340,332,340,              &
-                  340,                                                  &
-                  333,340,340,334,340,340,340,340,340,335,              &
-                  340,340,340,340,340,336,340,340,337,340,              &
-                  340,338,340,340,340,340,340,339),L             
-  240      DUM2 = DUM1*CSL                                       
-           IF ( .NOT. DOBLE) GO TO 340                          
-           IF (K > 1) GO TO 260                               
-           DUM2 = DUM2+DUM2                                      
-           GO TO 340                                             
-  260      DUM2 = DUM2+CSK*CPL*BINV                              
-           GO TO 340                                             
-  280      DUM2 = DUM1*CPL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  300      DUM2 = DUM1*CDL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  320      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  321      DUM2 = DUM1*CFL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  322      IF (NORM) DUM2 = DUM2*SQRT5                           
-           GO TO 340                                             
-  323      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  324      DUM2 = DUM1*CGL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  325      IF (NORM) DUM2 = DUM2*SQRT7                           
-           GO TO 340                                             
-  326      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-           GO TO 340                                             
-  327      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  328      DUM2 = DUM1*CHL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  329      IF (NORM) DUM2 = DUM2*3.0d0                           
-           GO TO 340                                             
-  330      IF (NORM) DUM2 = DUM2*SQRT7/SQRT3                     
-           GO TO 340                                             
-  331      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  332      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-           GO TO 340                                             
-  333      DUM2 = DUM1*CIL                                       
-           IF (DOBLE) DUM2 = DUM2+DUM2                          
-           GO TO 340                                             
-  334      IF (NORM) DUM2 = DUM2*SQRT11                          
-           GO TO 340                                             
-  335      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  336      IF (NORM) DUM2 = DUM2*SQRT3                           
-           GO TO 340                                             
-  337      IF (NORM) DUM2 = DUM2*SQRT7/(SQRT5*SQRT3)             
-           GO TO 340                                             
-  338      IF (NORM) DUM2 = DUM2*SQRT5                           
-           GO TO 340                                             
-  339      IF (NORM) DUM2 = DUM2*SQRT5/SQRT3                     
-!                                                                
-  340      N = N+1                                               
-           DKL(N) = DUM2                                         
-          END DO
-         END DO
-!
-         NN = 0                                                      
-         DO N = 1,NIJ                      !         I,J Primitives                                
-          DUM = BBRRK+R(N)                                         
-          IF(DUM<=SHLTOL)THEN
-           DO I = 1,IJ                                          
-            DIJ(I) = DDIJ(IJD(I)+NN)                              
-           END DO
-           A = AA(N)                                                
-           AB = A*B                                                 
-           AANDB = A+B                                              
-           EXPE = EXP(-DUM)/SQRT(AANDB)                             
-           RHO = AB/AANDB                                           
-           XA = X1(N)                                               
-           YA = Y1(N)                                               
-           ZA = Z1(N)                                               
-           XX = RHO*((XA-XB)*(XA-XB)+(YA-YB)*(YA-YB)+(ZA-ZB)*(ZA-ZB))             
-           AXAK = A*(XA-XK)                                         
-           AYAK = A*(YA-YK)                                         
-           AZAK = A*(ZA-ZK)                                         
-           AXAI = A*(XA-XI)                                         
-           AYAI = A*(YA-YI)                                         
-           AZAI = A*(ZA-ZI)                                         
-           C1X = BXBK+AXAK                                          
-           C2X = A*BXBK                                             
-           C3X = BXBI+AXAI                                          
-           C4X = B*AXAI                                             
-           C1Y = BYBK+AYAK                                          
-           C2Y = A*BYBK                                             
-           C3Y = BYBI+AYAI                                          
-           C4Y = B*AYAI                                             
-           C1Z = BZBK+AZAK                                          
-           C2Z = A*BZBK                                             
-           C3Z = BZBI+AZAI                                          
-           C4Z = B*AZAI                                             
-           IF (NROOTS <= 3) CALL RT123                            
-           IF (NROOTS == 4) CALL ROOT4                            
-           IF (NROOTS == 5) CALL ROOT5                            
-           IF (NROOTS >= 6) CALL ROOT6                            
-           MM = 0                                                   
-           MAX = NMAX+1                                             
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!          ERI for each root
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-           DO M = 1,NROOTS                                      
-            U2 = U(M)*RHO                                         
-            F00 = EXPE*W(M)                                       
-            DO I = 1,MAX                                      
-             IN(I) = IN1(I)+MM                                  
-            END DO
-            DUMINV = 1.0d0/(AB+U2*AANDB)                         
-            DM2INV = 0.5D0*DUMINV                               
-            BP01 = (A+U2)*DM2INV                               
-            B00 = U2*DM2INV                                    
-            B10 = (B+U2)*DM2INV                                
-            XCP00 = (U2*C1X+C2X)*DUMINV                        
-            XC00 = (U2*C3X+C4X)*DUMINV                         
-            YCP00 = (U2*C1Y+C2Y)*DUMINV                        
-            YC00 = (U2*C3Y+C4Y)*DUMINV                         
-            ZCP00 = (U2*C1Z+C2Z)*DUMINV                        
-            ZC00 = (U2*C3Z+C4Z)*DUMINV                         
-            CALL XYZINT                                           
-            MM = MM+2401                                          
-           END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!          Form (I,J//K,L) integrals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-           CALL FormIntegrals(GHONDO)                                       
-          END IF
-          NN = NN + 49
-         END DO
-        END IF                                                  
-       END DO
-      END DO
-!                                                                       
-      RETURN                                                            
-      END                                                               
-
-! Calling by ERISPDFGHIL XYZINT                                           
-      SUBROUTINE XYZINT                                                 
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      LOGICAL N0,N1,M0,M1,FIRST1,FIRST2,FIRST3,FIRST4                    
-      COMMON /SETINT/I(13),K(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,     &
-                     BP01,B00,B10,XCP00,XC00,YCP00,YC00,ZCP00,ZC00,F00, &
-                     DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL                     
-      COMMON /XYZ   / XINT(31213),YINT(31213),ZINT(31213)               
-!                                                                       
-      N0 = NMAX == 0                                                  
-      N1 = NMAX <= 1                                                  
-      M0 = MMAX == 0                                                  
-      M1 = MMAX <= 1                                                  
-!                                                                       
-!     ----- I(0,0) -----                                                
-!                                                                       
-      I1 = I(1)                                                         
-      XINT(I1) = 1.0d0                                                    
-      YINT(I1) = 1.0d0                                                    
-      ZINT(I1) = F00                                                    
-      IF (N0 .and. M0) RETURN                                           
-      I2 = I(2)                                                         
-      K2 = K(2)                                                         
-      CP10 = B00                                                        
-!                                                                       
-!     ----- I(1,0) -----                                                
-!                                                                       
-      IF (.NOT. N0) THEN                                                
-        XINT(I2) = XC00                                                 
-        YINT(I2) = YC00                                                 
-        ZINT(I2) = ZC00*F00                                             
-        IF (M0) GO TO 120                                               
-      END IF                                                            
-!                                                                       
-!     ----- I(0,1) -----                                                
-!                                                                       
-      I3 = I1+K2                                                        
-      XINT(I3) = XCP00                                                  
-      YINT(I3) = YCP00                                                  
-      ZINT(I3) = ZCP00*F00                                              
-!                                                                       
-!     ----- I(1,1) -----                                                
-!                                                                       
-      IF (.NOT. N0) THEN                                                
-        I3 = I2+K2                                                      
-        XINT(I3) = XCP00*XINT(I2)+CP10                                  
-        YINT(I3) = YCP00*YINT(I2)+CP10                                  
-        ZINT(I3) = ZCP00*ZINT(I2)+CP10*F00                              
-      END IF                                                            
-!                                                                       
-  120 CONTINUE                                                          
-      IF (.NOT. N1) THEN                                                
-        C10 = 0.0d0                                                      
-        I3 = I1                                                         
-        I4 = I2                                                         
-        DO 160 N = 2,NMAX                                               
-          C10 = C10+B10                                                 
-!                                                                       
-!     ----- I(N,0) -----                                                
-!                                                                       
-          I5 = I(N+1)                                                   
-          XINT(I5) = C10*XINT(I3)+XC00*XINT(I4)                         
-          YINT(I5) = C10*YINT(I3)+YC00*YINT(I4)                         
-          ZINT(I5) = C10*ZINT(I3)+ZC00*ZINT(I4)                         
-          IF ( .NOT. M0) THEN                                           
-            CP10 = CP10+B00                                             
-!                                                                       
-!     ----- I(N,1) -----                                                
-!                                                                       
-            I3 = I5+K2                                                  
-            XINT(I3) = XCP00*XINT(I5)+CP10*XINT(I4)                     
-            YINT(I3) = YCP00*YINT(I5)+CP10*YINT(I4)                     
-            ZINT(I3) = ZCP00*ZINT(I5)+CP10*ZINT(I4)                     
-          END IF                                                        
-          I3 = I4                                                       
-          I4 = I5                                                       
-  160     CONTINUE                                                      
-      END IF                                                            
-      IF ( .NOT. M1) THEN                                               
-        CP01 = 0.0d0                                                     
-        C01 = B00                                                       
-        I3 = I1                                                         
-        I4 = I1+K2                                                      
-        DO 220 M = 2,MMAX                                               
-          CP01 = CP01+BP01                                              
-!                                                                       
-!     ----- I(0,M) -----                                                
-!                                                                       
-          I5 = I1+K(M+1)                                                
-          XINT(I5) = CP01*XINT(I3)+XCP00*XINT(I4)                       
-          YINT(I5) = CP01*YINT(I3)+YCP00*YINT(I4)                       
-          ZINT(I5) = CP01*ZINT(I3)+ZCP00*ZINT(I4)                       
-!                                                                       
-!     ----- I(1,M) -----                                                
-!                                                                       
-          IF (.NOT. N0) THEN                                            
-            C01 = C01+B00                                               
-            I3 = I2+K(M+1)                                              
-            XINT(I3) = XC00*XINT(I5)+C01*XINT(I4)                       
-            YINT(I3) = YC00*YINT(I5)+C01*YINT(I4)                       
-            ZINT(I3) = ZC00*ZINT(I5)+C01*ZINT(I4)                       
-          END IF                                                        
-          I3 = I4                                                       
-          I4 = I5                                                       
-  220   CONTINUE                                                        
-      END IF                                                            
-!                                                                       
-!     ----- I(N,M) -----                                                
-!                                                                       
-      IF (.NOT. N1 .and. .NOT. M1) THEN                                 
-        C01 = B00                                                       
-        K3 = K2                                                         
-        DO 280 M = 2,MMAX                                               
-          K4 = K(M+1)                                                   
-          C01 = C01+B00                                                 
-          I3 = I1                                                       
-          I4 = I2                                                       
-          C10 = B10                                                     
-          DO 260 N = 2,NMAX                                             
-            I5 = I(N+1)                                                 
-            XINT(I5+K4) = C10*XINT(I3+K4)+XC00*XINT(I4+K4)              &
-                          +C01*XINT(I4+K3)                              
-            YINT(I5+K4) = C10*YINT(I3+K4)+YC00*YINT(I4+K4)              &
-                          +C01*YINT(I4+K3)                              
-            ZINT(I5+K4) = C10*ZINT(I3+K4)+ZC00*ZINT(I4+K4)              &
-                          +C01*ZINT(I4+K3)                              
-            C10 = C10+B10                                               
-            I3 = I4                                                     
-            I4 = I5                                                     
-  260     CONTINUE                                                      
-          K3 = K4                                                       
-  280   CONTINUE                                                        
-      END IF                                                            
-!                                                                       
-!     ----- I(NI,NJ,M) -----                                            
-!                                                                       
-      IF (NJMAX > 0) THEN                                            
-        M = 0                                                           
-        I5 = I(NMAX+1)                                                  
-        FIRST1 = .TRUE.                                                 
-        DO 430 WHILE (FIRST1 .or. M <= MMAX)                          
-          MIN = NIMAX                                                   
-          KM = K(M+1)                                                   
-          FIRST2 = .TRUE.                                               
-          DO 360 WHILE (FIRST2 .or. MIN < NMAX)                      
-            N = NMAX                                                    
-            I3 = I5+KM                                                  
-            FIRST3 = .TRUE.                                             
-            DO 340 WHILE (FIRST3 .or. N > MIN)                       
-              I4 = I(N)+KM                                              
-              XINT(I3) = XINT(I3)+DXIJ*XINT(I4)                         
-              YINT(I3) = YINT(I3)+DYIJ*YINT(I4)                         
-              ZINT(I3) = ZINT(I3)+DZIJ*ZINT(I4)                         
-              I3 = I4                                                   
-              N = N-1                                                   
-              FIRST3 = .FALSE.                                          
-  340       END DO                                                      
-            MIN = MIN+1                                                 
-            FIRST2 = .FALSE.                                            
-  360     END DO                                                        
-          IF (NIMAX > 0) THEN                                        
-            I3 = 49+KM+I1                                               
-            DO 400 NJ = 1,NJMAX                                         
-              I4 = I3                                                   
-              DO 380 NI = 1,NIMAX                                       
-                XINT(I4) = XINT(I4+294)+DXIJ*XINT(I4-49)                
-                YINT(I4) = YINT(I4+294)+DYIJ*YINT(I4-49)                
-                ZINT(I4) = ZINT(I4+294)+DZIJ*ZINT(I4-49)                
-                I4 = I4+343                                             
-  380         CONTINUE                                                  
-              I3 = I3+49                                                
-  400       CONTINUE                                                    
-          END IF                                                        
-          M = M+1                                                       
-          FIRST1 = .FALSE.                                              
-  430   END DO                                                          
-      END IF                                                            
-!                                                                       
-!     ----- I(NI,NJ,NK,NL) -----                                        
-!                                                                       
-      IF (NLMAX > 0) THEN                                            
-        I5 = K(MMAX+1)                                                  
-        IA = I1                                                         
-        NI = 0                                                          
-        FIRST4 = .TRUE.                                                 
-        DO 580 WHILE (FIRST4 .or. NI <= NIMAX)                        
-          NJ = 0                                                        
-          IB = IA                                                       
-          FIRST1 = .TRUE.                                               
-          DO 570 WHILE (FIRST1 .or. NJ <= NJMAX)                      
-            MIN = NKMAX                                                 
-            FIRST2 = .TRUE.                                             
-            DO 530 WHILE (FIRST2 .or. MIN < MMAX)                    
-              M = MMAX                                                  
-              I3 = IB+I5                                                
-              FIRST3 = .TRUE.                                           
-              DO 520 WHILE (FIRST3 .or. M > MIN)                     
-                I4 = IB+K(M)                                            
-                XINT(I3) = XINT(I3)+DXKL*XINT(I4)                       
-                YINT(I3) = YINT(I3)+DYKL*YINT(I4)                       
-                ZINT(I3) = ZINT(I3)+DZKL*ZINT(I4)                       
-                I3 = I4                                                 
-                M = M-1                                                 
-                FIRST3 = .FALSE.                                        
-  520         END DO                                                    
-              MIN = MIN+1                                               
-              FIRST2 = .FALSE.                                          
-  530       END DO                                                      
-            IF (NKMAX > 0) THEN                                      
-              I3 = IB+1                                                 
-              DO 560 NL = 1,NLMAX                                       
-                I4 = I3                                                 
-                DO 540 NK = 1,NKMAX                                     
-                  XINT(I4) = XINT(I4+6)+DXKL*XINT(I4-1)                 
-                  YINT(I4) = YINT(I4+6)+DYKL*YINT(I4-1)                 
-                  ZINT(I4) = ZINT(I4+6)+DZKL*ZINT(I4-1)                 
-                  I4 = I4+7                                             
-  540           END DO                                                  
-              I3 = I3+1                                                 
-  560         END DO                                                    
-            END IF                                                      
-            NJ = NJ+1                                                   
-            IB = IB+49                                                  
-            FIRST1 = .FALSE.                                            
-  570     END DO                                                        
-          NI = NI+1                                                     
-          IA = IA+343                                                   
-          FIRST4 = .FALSE.                                              
-  580   END DO                                                          
-      END IF                                                            
-!                                                                       
-      RETURN                                                            
-      END                                                               
-
-! Calling by ERISPDFGHIL FormIntegrals                                            
-      SUBROUTINE FormIntegrals(GHONDO)                                          
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      DIMENSION GHONDO(*)                                               
-      COMMON /DENS  / DKL(784),DIJ(784)                                 
-      COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
-                      KLX(784),KLY(784),KLZ(784)              
-      COMMON/INTDEX1/IJGT(784),KLGT(784)           
-      COMMON /SHLNOS/ LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,              &
-                      MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
-                      NIJ,IJ,KL                                    
-      COMMON /ROOT  / XX,U(13),W(13),NROOTS                             
-      COMMON /XYZ   / XIN(31213),YIN(31213),ZIN(31213)                  
-!-----------------------------------------------------------------------
-      GO TO (10,20,30,40,50,60,70,80,90,100,110,120,130),NROOTS         
-!     NROOTS=1                                            
-   10 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*(XIN(MX)*YIN(MY)*ZIN(MZ))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=2                                            
-   20 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=3                                            
-   30 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                & 
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=4                                            
-   40 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=5                                            
-   50 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=6                                            
-   60 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=7                                            
-   70 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)           &
-                +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=8                                            
-   80 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)           &
-                +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)           &
-                +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=9                                            
-   90 CONTINUE                                                          
-      DO I = 1,IJ                                                    
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                   
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)           &
-                +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)           &
-                +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807)           &
-                +   XIN(MX+19208)*YIN(MY+19208)*ZIN(MZ+19208))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=10                                           
-  100 CONTINUE                                                          
-      DO I = 1,IJ                                                   
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                  
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)           &
-                +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)           &
-                +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807)           &
-                +   XIN(MX+19208)*YIN(MY+19208)*ZIN(MZ+19208)           &
-                +   XIN(MX+21609)*YIN(MY+21609)*ZIN(MZ+21609))          
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=11                                           
-  110 CONTINUE                                                          
-      DO I = 1,IJ                                                   
-      D1 = DIJ(I)                                                       
-      NX = IJX(I)                                                       
-      NY = IJY(I)                                                       
-      NZ = IJZ(I)                                                       
-      N1 = IJGT(I)                                                      
-      MAX = IK(I)                                                       
-      DO K = 1,MAX                                                  
-      MX = NX+KLX(K)                                                    
-      MY = NY+KLY(K)                                                    
-      MZ = NZ+KLZ(K)                                                    
-      N = N1+KLGT(K)                                                    
-      GHONDO(N) = GHONDO(N) + D1*DKL(K)*                                &
-                  ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )           &
-                +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)           &
-                +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)           &
-                +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)           &
-                +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)           &
-                +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)           &
-                +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)           &
-                +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807)           &
-                +   XIN(MX+19208)*YIN(MY+19208)*ZIN(MZ+19208)           &
-                +   XIN(MX+21609)*YIN(MY+21609)*ZIN(MZ+21609)           &
-                +   XIN(MX+24010)*YIN(MY+24010)*ZIN(MZ+24010))          &
-                *D1*DKL(K)+GHONDO(N)                                    
-      END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=12                                           
-  120 CONTINUE                                                          
-      DO I = 1,IJ                                                   
-       D1 = DIJ(I)                                                       
-       NX = IJX(I)                                                       
-       NY = IJY(I)                                                       
-       NZ = IJZ(I)                                                       
-       N1 = IJGT(I)                                                      
-       MAX = IK(I)                                                       
-       DO K = 1,MAX                                                  
-        MX = NX+KLX(K)                                                    
-        MY = NY+KLY(K)                                                    
-        MZ = NZ+KLZ(K)                                                    
-        N = N1+KLGT(K)                                                    
-        GHONDO(N) = GHONDO(N) + D1*DKL(K)*                              &
-                    ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )         &
-                  +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)         &
-                  +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)         &
-                  +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)         &
-                  +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)         &
-                  +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)         &
-                  +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)         &
-                  +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807)         &
-                  +   XIN(MX+19208)*YIN(MY+19208)*ZIN(MZ+19208)         &
-                  +   XIN(MX+21609)*YIN(MY+21609)*ZIN(MZ+21609)         &
-                  +   XIN(MX+24010)*YIN(MY+24010)*ZIN(MZ+24010)         &
-                  +   XIN(MX+26411)*YIN(MY+26411)*ZIN(MZ+26411))        &
-                  *D1*DKL(K)+GHONDO(N)                                    
-       END DO
-      END DO
-      RETURN                                                            
-!     NROOTS=13                                           
-  130 CONTINUE
-      DO I = 1,IJ                                                   
-       D1 = DIJ(I)                                                       
-       NX = IJX(I)                                                       
-       NY = IJY(I)                                                       
-       NZ = IJZ(I)                                                       
-       N1 = IJGT(I)                                                      
-       MAX = IK(I)                                                       
-       DO K = 1,MAX                                                  
-        MX = NX+KLX(K)                                                    
-        MY = NY+KLY(K)                                                    
-        MZ = NZ+KLZ(K)                                                    
-        N = N1+KLGT(K)                                                    
-        GHONDO(N) = GHONDO(N) + D1*DKL(K)*                              &
-                    ( XIN(MX      )*YIN(MY      )*ZIN(MZ      )         &
-                  +   XIN(MX+ 2401)*YIN(MY+ 2401)*ZIN(MZ+ 2401)         &
-                  +   XIN(MX+ 4802)*YIN(MY+ 4802)*ZIN(MZ+ 4802)         &
-                  +   XIN(MX+ 7203)*YIN(MY+ 7203)*ZIN(MZ+ 7203)         &
-                  +   XIN(MX+ 9604)*YIN(MY+ 9604)*ZIN(MZ+ 9604)         &
-                  +   XIN(MX+12005)*YIN(MY+12005)*ZIN(MZ+12005)         &
-                  +   XIN(MX+14406)*YIN(MY+14406)*ZIN(MZ+14406)         &
-                  +   XIN(MX+16807)*YIN(MY+16807)*ZIN(MZ+16807)         &
-                  +   XIN(MX+19208)*YIN(MY+19208)*ZIN(MZ+19208)         &
-                  +   XIN(MX+21609)*YIN(MY+21609)*ZIN(MZ+21609)         &
-                  +   XIN(MX+24010)*YIN(MY+24010)*ZIN(MZ+24010)         &
-                  +   XIN(MX+26411)*YIN(MY+26411)*ZIN(MZ+26411)         &
-                  +   XIN(MX+28812)*YIN(MY+28812)*ZIN(MZ+28812))          
-       END DO
-      END DO
-      RETURN
-!-----------------------------------------------------------------------                                                            
-      END                                                               
-
-! ZQOUT                                            
-      SUBROUTINE ZQOUT(GHONDO,MAXG)                                          
-      IMPLICIT DOUBLE PRECISION(A-H,O-Z)                                
-      DIMENSION GHONDO(MAXG)                                               
-      LOGICAL IANDJ,KANDL,SAME                                          
-      COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),               &
-                      KLX(784),KLY(784),KLZ(784)              
-      COMMON/INTDEX1/IJGT(784),KLGT(784)           
-      COMMON /MISC  / IANDJ,KANDL,SAME                                  
-      COMMON /SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
-                     MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,           &
-                     NIJ,IJ,KL                                    
-!-----------------------------------------------------------------------                                                                       
-!     HONDO Conventional integral Output
-!-----------------------------------------------------------------------  
-      IJN = 0                                                           
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       IF (IANDJ) JMAX = I                                            
-       DO 1 J = MINJ,JMAX                                           
-          IJN = IJN+1                                                 
-          N1 = IJGT(IJN)                                              
-          LMAX = MAXL                                                 
-          KLN = 0                                                     
-        DO K =  MINK,MAXK                                       
-         IF (KANDL) LMAX = K                                      
-         DO L = MINL,LMAX                                     
-          KLN = KLN+1                                           
-          IF (SAME .and. KLN > IJN) GO TO 1                
-          NN = N1+KLGT(KLN)                                     
-          GHONDO(NN) = 0.0d0                                     
-         END DO
-        END DO
-    1  CONTINUE                                                       
-      END DO
-!-----------------------------------------------------------------------                                                                       
-      RETURN                                                            
-      END                                                               
+      END                                                                                         
 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 !                             ECP integrals                            ! 
@@ -9656,369 +10770,651 @@
 
 !----------------------------------------------------------------------!
 !                                                                      !
-!       2020 Use Libreta open source library for ERI calculation       !                                                                      !                                                                      !
+!       2025 Use LIBCINT open source library for ERI calculation       !
+!                                                                      !
 !  implemented by Juan Felipe Huan Lew Yee and Jorge Martin del Campo  ! 
 !                                                                      !
 !----------------------------------------------------------------------!
-      
+
 ! HSandTlib                                           
-      SUBROUTINE HSandTlib(H,S,TKIN,NBFT,KATOM,KLOC,KMIN,KMAX,NSHELL,   &
-                           ZAN,C)        
-      USE ISO_C_BINDING
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      DOUBLE PRECISION,DIMENSION(NBFT) :: H,S,TKIN
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      LOGICAL     LINEAR
-      COMMON/ZMAT/LINEAR      
-      COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB 
-      LOGICAL IIANDJJ
-      INTEGER,DIMENSION(NSHELL) :: KATOM,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: C
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Z,SBLK,TBLK
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: VBLK,ZBLK
-      ALLOCATE(Z(NBFT))
-      ALLOCATE(SBLK(784),TBLK(784),VBLK(784),ZBLK(784))
+      SUBROUTINE HSandTlib(H,S,TKIN,NBFT,SIZE_ENV,ENV,NAT,ATM,NSHELL,   &
+                      NBAS,BAS,IGTYP)
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT(OUT) :: H(NBFT), S(NBFT), TKIN(NBFT)
+      INTEGER, INTENT(IN) :: NBFT, SIZE_ENV, NAT, NSHELL, NBAS, IGTYP
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NSHELL)
+
+      INTEGER :: I, J
+      INTEGER :: ISH, JSH
+      INTEGER :: ERR
+      INTEGER :: DI, DJ, DJEFF
+      INTEGER :: LI, LJ, ID, IJ
+      INTEGER(4), DIMENSION(2) :: SHLS
+      INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
+
+      INTEGER(4), ALLOCATABLE, DIMENSION(:,:) :: ATM4, BAS4
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:,:) :: SBLK, VBLK, TBLK
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_ovlp_sph
+      INTEGER, EXTERNAL :: CINT1e_kin_sph, CINT1e_nuc_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_ovlp_cart
+      INTEGER, EXTERNAL :: CINT1e_kin_cart, CINT1e_nuc_cart
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
 !-----------------------------------------------------------------------
 !                      H, S & TKIN integrals
 !-----------------------------------------------------------------------
-      ZBLK = 0.0D+00
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     I SHELL
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO III = 1,NSHELL
-       I = KATOM(III)
-       MINI = KMIN(III)
-       MAXI = KMAX(III)
-       LOCI = KLOC(III)-MINI
+      DO ISH = 1,NSHELL
+        SHLS(1) = ISH - 1
+        DI = Dcgto(ISH)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      J SHELL
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       DO JJ = 1,III
-        J = KATOM(JJ)
-        MINJ = KMIN(JJ)
-        MAXJ = KMAX(JJ)
-        LOCJ = KLOC(JJ)-MINJ
-        IIANDJJ = III == JJ
-!       Call to libreta
-!lib        CALL sval(BASLIB,III,JJ,SBLK)
-!lib        CALL tval(BASLIB,III,JJ,TBLK)
-!lib        CALL vval(BASLIB,III,JJ,NAT,C(1,1:NAT),C(2,1:NAT),C(3,1:NAT),   &
-!lib                  ZAN(1:NAT),VBLK)
-!       avoiding warnings
-        ZAN(1) = ZAN(1)
-        C(1,1) = C(1,1)
-!lib
-!
-        JMAX = MAXJ
-        NN = 0
-        DO I = MINI,MAXI
-         LI = LOCI+I
-         IN = (LI*(LI-1))/2
-         IF (IIANDJJ) JMAX = I
-         DO J = MINJ,JMAX
-          LJ = LOCJ+J
-          JN = LJ+IN
-          NN = NN+1
-          H(JN) =  TBLK(NN) + VBLK(NN)
-          S(JN) =  SBLK(NN)
-          TKIN(JN) =  TBLK(NN)
-          IF(LINEAR) Z(JN) = ZBLK(NN)
-         END DO
+        DO JSH = 1,ISH
+          SHLS(2) = JSH - 1
+          DJ = Dcgto(JSH)
+
+          ALLOCATE(SBLK(DI, DJ), TBLK(DI, DJ), VBLK(DI, DJ))
+
+          IF(IGTYP==1) THEN
+            ERR = CINT1e_ovlp_cart(SBLK, SHLS, ATM4, NAT, BAS4, NBAS, &
+                                   ENV)
+            ERR = CINT1e_kin_cart(TBLK, SHLS, ATM4, NAT, BAS4, NBAS,  &
+                                  ENV)
+            ERR = CINT1e_nuc_cart(VBLK, SHLS, ATM4, NAT, BAS4, NBAS,  &
+                                  ENV)
+          ELSE IF(IGTYP==2) THEN
+            ERR = CINT1e_ovlp_sph(SBLK, SHLS, ATM4, NAT, BAS4, NBAS,  &
+                                  ENV)
+            ERR = CINT1e_kin_sph(TBLK, SHLS, ATM4, NAT, BAS4, NBAS,   &
+                                 ENV)
+            ERR = CINT1e_nuc_sph(VBLK, SHLS, ATM4, NAT, BAS4, NBAS,   &
+                                 ENV)
+          END IF
+
+          DO I = 1, DI
+            LI = LOC(ISH) + I - 1
+            ID = (LI * (LI - 1)) / 2
+            DJEFF = MERGE(I, DJ, ISH == JSH)
+            DO J = 1, DJEFF
+              LJ = LOC(JSH) + J - 1
+              IJ = LJ + ID
+              H(IJ) =  TBLK(I, J) + VBLK(I, J)
+              S(IJ) =  SBLK(I, J)
+              TKIN(IJ) =  TBLK(I, J)
+            END DO
+          END DO
+
+          DEALLOCATE(SBLK,TBLK,VBLK)
         END DO
-       END DO
       END DO
 !-----------------------------------------------------------------------
-      DEALLOCATE(Z,SBLK,TBLK,VBLK,ZBLK)
+      DEALLOCATE(ATM4,BAS4)
       RETURN
       END
 
 ! PRCALClib                                           
-      SUBROUTINE PRCALClib(XVAL,WINT,NVAL,L2,KATOM,KLOC,KMIN,KMAX,NSHELL)               
-      USE ISO_C_BINDING              
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      LOGICAL IIANDJJ
-      INTEGER,DIMENSION(NSHELL) :: KATOM,KLOC,KMIN,KMAX
-      DIMENSION XVAL(NVAL*L2),WINT(*)                                   
+      SUBROUTINE PRCALClib(XVAL,NVAL,L2,SIZE_ENV,ENV,NAT,ATM,NSHELL,    &
+                      NBAS,BAS,IGTYP)
+      IMPLICIT NONE
+                 
+      INTEGER, INTENT(IN) :: NVAL, L2, SIZE_ENV, NAT, NSHELL, NBAS 
+      INTEGER, INTENT(IN) :: IGTYP
+      DOUBLE PRECISION, INTENT(INOUT) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+      DOUBLE PRECISION, INTENT(OUT) :: XVAL(NVAL * L2)
+      
+      INTEGER :: IAT, ISH, JSH, I, J, K, LI, LJ, ID, IJ, NL2
+      INTEGER :: DI, DJ, DJEFF, Ztot, Z, ERR
+      INTEGER(4) :: SHLS(2)
+      INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto 
+      DOUBLE PRECISION :: CX, CY, CZ, RC(3)
+      
+      INTEGER(4), ALLOCATABLE, DIMENSION(:,:) :: ATM4, BAS4
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:,:,:) :: WINT           
+               
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_r_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_r_cart                 
+               
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II=1,NSHELL
-       I    = KATOM(II)
-       MINI = KMIN(II)
-       MAXI = KMAX(II)
-       LOCI = KLOC(II) - MINI
+!                      LIBCINT use INT(4) arrays                        
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       DO JJ=1,II
-        J    = KATOM(JJ)
-        MINJ = KMIN(JJ)
-        MAXJ = KMAX(JJ)
-        LOCJ = KLOC(JJ) - MINJ
-        IIandJJ = II==JJ
-        IJ = 0
-        JMAX = MAXJ
-        DO I=MINI,MAXI
-         IF (IIandJJ) JMAX = I
-         DO J=MINJ,JMAX
-          IJ = IJ+1
-         END DO
-        END DO
+      ALLOCATE(ATM4(6, NAT), BAS4(8, NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis     
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+!-----------------------------------------------------------------------
+!                      CENTER OF CHARGE 
+!-----------------------------------------------------------------------
+      Ztot = 0  
+      RC = 0.0D0
+      DO IAT=1, NAT
+        Z = ATM(1,IAT)
+        CX = ENV(ATM(2,IAT)+1)                                          
+        CY = ENV(ATM(2,IAT)+2) 
+        CZ = ENV(ATM(2,IAT)+3) 
+               
+        Ztot = Ztot + Z
+        RC(1) = RC(1) + Z * CX
+        RC(2) = RC(2) + Z * CY
+        RC(3) = RC(3) + Z * CZ
+      END DO    
+      RC = RC / Ztot 
+      ENV(2:4) = RC           
+               
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DO ISH=1, NSHELL
+        SHLS(1) = ISH - 1
+        DI = Dcgto(ISH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        DO JSH=1, ISH
+          SHLS(2) = JSH - 1
+          DJ = Dcgto(JSH)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !          Integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!lib        CALL DIPVAL(BASLIB,II,JJ,WINT)
-        JMAX = MAXJ
-        DO K=1,NVAL
-         NL2 = (K-1)*L2
-         NN  = (K-1)*IJ
-         DO I=MINI,MAXI
-          LI = LOCI + I
-          IN = LI*(LI-1)/2 + NL2
-          IF (IIandJJ) JMAX = I
-          DO J=MINJ,JMAX
-           LJ = LOCJ + J
-           JN = LJ + IN
-           NN = NN+1
-           XVAL(JN) = WINT(NN)
+          ALLOCATE(WINT(DI,DJ,3))
+          IF(IGTYP==1) ERR = CINT1e_r_cart(WINT, SHLS, ATM4, NAT, BAS4, &
+                  NBAS, ENV)
+          IF(IGTYP==2) ERR = CINT1e_r_sph(WINT, SHLS, ATM4, NAT, BAS4,  &
+                  NBAS, ENV)
+
+          DO K=1, NVAL
+            NL2 = (K-1)*L2
+
+            DO I = 1, DI
+              LI = LOC(ISH) + I - 1
+              ID = (LI * (LI - 1))/2  + NL2
+              DJEFF = MERGE(I, DJ, ISH == JSH)
+              DO J = 1, DJEFF
+                LJ = LOC(JSH) + J - 1
+                IJ = LJ + ID
+                XVAL(IJ) = WINT(I, J, K)
+              END DO
+            END DO
           END DO
-         END DO
-        END DO
+          DEALLOCATE(WINT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       END DO
+        END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END DO
 !-----------------------------------------------------------------------
+      ENV(2:4) = 0.0D0
+      DEALLOCATE(ATM4, BAS4)
       RETURN
       END
 
 ! ExchangeIntlib                                           
-      SUBROUTINE ExchangeIntlib(XINTS,GLIBRETA,NSH2,MAXG,               &
-                                KTYPE,KMIN,KMAX,NSHELL)   
-      USE ISO_C_BINDING              
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      INTEGER,DIMENSION(NSHELL) :: KTYPE,KMIN,KMAX
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)  
-      COMMON/SHLNOS1/QQ4,IJKL                                                                              
-      DIMENSION XINTS(NSH2),GLIBRETA(MAXG)
-      LOGICAL ISHandJSH
-      INTEGER::ORII,ORIJ
+      SUBROUTINE ExchangeIntlib(XINTS,NSH2,SIZE_ENV,ENV,NAT,ATM,NSHELL, &
+                      NBAS,BAS,IGTYP)
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: NSH2, SIZE_ENV, NAT, NSHELL, NBAS, IGTYP
+      DOUBLE PRECISION, INTENT(OUT) :: XINTS(NSH2)
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER :: ISH, JSH, ID, IJ, DI, DJ, DJEFF, I, J, ERR
+      INTEGER(4) :: SHLS(4)
+      DOUBLE PRECISION :: VMAX, VAL
+      INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto 
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT2e_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT2e_cart
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6, NAT), BAS4(8, NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
 !-----------------------------------------------------------------------
-      CALL BASCHK(LMAXIMA,KTYPE,NSHELL)
-      NANGM =  4                                          
-      IF(LMAXIMA==2) NANGM =  6                                          
-      IF(LMAXIMA==3) NANGM = 10                                          
-      IF(LMAXIMA==4) NANGM = 15                                          
-      IF(LMAXIMA==5) NANGM = 21                                          
-      IF(LMAXIMA==6) NANGM = 28                                          
-      NGTH(4) = 1                                                       
-      NGTH(3) = NGTH(4) * NANGM                                         
-      NGTH(2) = NGTH(3) * NANGM                                         
-      NGTH(1) = NGTH(2) * NANGM                                         
-      DO I=1,3                                                       
-       NORGSH(I) = 0                                               
-       NORGSP(I) = 0                                               
-      ENDDO                                                          
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IEXCH = 1                                                         
-      QQ4   = 1.0d0                                                       
-      NINTEG  = 0  
-!- - - - - - - - - - - - - - - - - - - - - - - -
-      IJIJ = 0
       DO ISH = 1,NSHELL
-       DO JSH = 1,ISH
-        IJIJ = IJIJ+1
-        VMAX = 0.0D+00
-        MINI = KMIN(ISH)
-        MINJ = KMIN(JSH)
-        MAXI = KMAX(ISH)
-        JMAX = KMAX(JSH)
-        ISHandJSH=ISH==JSH
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ORII = KMAX(ISH) - KMIN(ISH) + 1
-        ORIJ = KMAX(JSH) - KMIN(JSH) + 1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        JMAX = ORIJ
-        DO I=1,ORII
-         IF(ISHandJSH) JMAX = I
-          DO J=1,JMAX
-!lib          CALL erisval(BASLIB,ISH,JSH,ISH,JSH,GLIBRETA)
-          IJKL_INDEX = (I-1)*ORIJ*ORII*ORIJ                             &
-                     + (J-1)*ORII*ORIJ+(I-1)*ORIJ + (J-1)+1
-          VAL = GLIBRETA(IJKL_INDEX)
-          IF(VAL>0.0D+00)NINTEG = NINTEG + 1
-          IF(VAL>VMAX)VMAX=VAL
-         END DO
+        ID = (ISH * (ISH - 1)) / 2
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        SHLS(3) = ISH - 1
+
+        DO JSH = 1,ISH
+          IJ = ID + JSH
+          DJ = Dcgto(JSH)
+          SHLS(2) = JSH - 1
+          SHLS(4) = JSH - 1
+
+          ALLOCATE(BLK(DI, DJ, DI, DJ))
+          IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM4, NAT, BAS4,    &
+                  NBAS, ENV, 0_8)
+          IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM4, NAT, BAS4,     &
+                  NBAS, ENV, 0_8)
+
+          VMAX = 0.0D0
+          DO I=1,DI
+            DJEFF = MERGE(I, DJ, ISH == JSH)
+            DO J=1,DJEFF
+              VAL = BLK(I,J,I,J)
+              IF(VAL > VMAX) VMAX = VAL
+            END DO
+          END DO
+          XINTS(IJ) = SQRT(VMAX)
+          DEALLOCATE(BLK)
         END DO
-        XINTS(IJIJ) = SQRT(VMAX)
-       END DO
       END DO
 !-----------------------------------------------------------------------
       RETURN
       END
 
-! QOUTlib
-      SUBROUTINE QOUTlib(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,GLIBRETA,    &
-                         IDONTW,ISH,JSH,KSH,LSH,KLOC,KMIN,KMAX,NSHELL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON /RESTAR/NREC,IST,JST,KST,LST
-      COMMON/SHLT/SHLTOL,CUTOFF,ICOUNT
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,MINI,MINJ,MINK, &
-                    MINL,MAXI,MAXJ,MAXK,MAXL,NIJ,IJ,KL
-      INTEGER :: ORII,ORIJ,ORIK,ORIL,ISH,JSH,KSH,LSH
-      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
-      INTEGER,DIMENSION(NINTEGtm) :: IX2                                 
-      DIMENSION BUFP(NINTMX),IX(NINTMX),GLIBRETA(*)
-      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2                      
-      SAVE IJN,KLN
+! TwoERILIB                                            
+      SUBROUTINE TwoERIlib(SCHWRZ, NINTEGtm, NINTEGt, NSCHWZ, BUFP,    &
+            IX, BUFP2, IX2, XINTS, NSH2, IDONTW, IPRINTOPT, NSHELL,    &
+            Cxyz, NAT, NINTMX, SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP,   &
+            NREC)
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: NINTEGtm, NSHELL, NAT, NINTMX, IGTYP
+      INTEGER, INTENT(IN) :: NSH2, SIZE_ENV, NBAS
+      INTEGER, INTENT(IN) :: IDONTW, IPRINTOPT
+      LOGICAL, INTENT(IN) :: SCHWRZ
+
+      DOUBLE PRECISION, INTENT(IN) :: Cxyz(3,NAT)
+      DOUBLE PRECISION, INTENT(IN) :: XINTS(NSH2)
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP(NINTMX), BUFP2(NINTEGtm)
+      INTEGER, INTENT(INOUT) :: IX(NINTMX), IX2(NINTEGtm)
+      INTEGER, INTENT(INOUT) :: NINTEGt, NSCHWZ
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6,NAT), BAS(8,NBAS)
+
+      INTEGER :: ISH, JSH, KSH, LSH, II, JJ, KK, LL, IEXCH
+      INTEGER :: DI, DJ, DK, DL, IJIJ, KLKL, NREC, ICOUNT
+      INTEGER :: ERR, LOC(NSHELL),Dcgto(NSHELL)
+      DOUBLE PRECISION :: TEST, CUTOFF
+      LOGICAL :: SKIPA, SKIPB, SKIPC, SCHSKP
+      DOUBLE PRECISION, ALLOCATABLE :: BUFPC(:)
+      INTEGER, ALLOCATABLE :: IXC(:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:,:)
+      INTEGER(4) :: SHLS(4)
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT2e_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT2e_cart
+
+      CUTOFF = 1.0D-09
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
 !-----------------------------------------------------------------------
-!     Pack 4-indices into 1 word.
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+!-----------------------------------------------------------------------
+!     2e- Integrals (S,P,D,F,G & L Shells)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CUTOFF = 1.0D-09
+      ALLOCATE(BUFPC(NINTMX))  
+      ALLOCATE(IXC(NINTMX))                                  
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NINTEGt  = 0                                                         
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP PARALLEL &
+      !$OMP PRIVATE(II, JJ, KK, LL, ISH, JSH, KSH, LSH, DI, DJ, DK, DL, &
+      !$OMP SKIPA, SKIPB, SKIPC, IEXCH, IJIJ, KLKL, SHLS, ERR, TEST,    &
+      !$OMP SCHSKP, NSCHWZ, IX, BUFP, BLK, ICOUNT)
+      SCHSKP=.FALSE.
+      ICOUNT = 1
+      !$OMP DO SCHEDULE(DYNAMIC)
+      DO II = 1, NSHELL                                ! II Shell
+        DO JJ = 1, II                                  ! JJ Shell
+          DO KK = 1, JJ                                ! KK Shell
+            DO LL = 1, KK                              ! LL Shell
+                  
+              SKIPA =  (JJ == KK)
+              SKIPB = (II == KK) .or. (JJ == LL)   
+              SKIPC = (II == JJ) .or. (KK == LL)
+          
+              DO IEXCH = 1, 3
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!               (II,JJ//KK,LL)                                        
+!- - - - - - - - - - - - - - - - - - - - - - - -                            
+                IF (IEXCH == 1) THEN
+                  ISH = II                                                           
+                  JSH = JJ                                                          
+                  KSH = KK                                                          
+                  LSH = LL
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!               (II,KK//JJ,LL)
+!- - - - - - - - - - - - - - - - - - - - - - - -                            
+                ELSE IF(IEXCH == 2) THEN
+                  IF (SKIPA) CYCLE
+                  ISH = II                                                          
+                  JSH = KK                                                          
+                  KSH = JJ                                                          
+                  LSH = LL  
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!               (II,LL//JJ,KK)
+!- - - - - - - - - - - - - - - - - - - - - - - -                            
+                ELSE IF(IEXCH == 3) THEN
+                  IF(SKIPB .or. SKIPC) CYCLE
+                  ISH = II                                                          
+                  JSH = LL                                                          
+                  KSH = JJ                                                          
+                  LSH = KK                                 
+                END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+!         Compute 2e- Integrals                      
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+                IF(SCHWRZ)THEN                       ! Schwarz Inequality
+                  IJIJ = (ISH*ISH-ISH)/2 + JSH                                   
+                  KLKL = (KSH*KSH-KSH)/2 + LSH                                   
+                  TEST = XINTS(IJIJ) * XINTS(KLKL)                             
+                  SCHSKP = TEST < CUTOFF
+                  IF(SCHSKP) THEN
+                    NSCHWZ = NSCHWZ + 1
+                    CYCLE
+                  END IF
+                END IF        
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!         Select integral code for ERI calculation
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+                DI = Dcgto(ISH)
+                DJ = Dcgto(JSH)
+                DK = Dcgto(KSH)
+                DL = Dcgto(LSH)
+                ALLOCATE(BLK(DI,DJ,DK,DL))
+
+                SHLS = (/ ISH-1, JSH-1, KSH-1, LSH-1 /)
+                IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM4, NAT,    &
+                        BAS4, NSHELL, ENV, 0_8)
+                IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM4, NAT,     &
+                        BAS4, NSHELL, ENV, 0_8)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!         Write Label & Integral on File 1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                CALL QOUTlib(BUFP, IX, BUFP2, IX2, NINTEGtm, NINTMX,   &
+                             IDONTW, NSHELL, BLK, DI, DJ, DK, DL,      &
+                             ISH, JSH, KSH, LSH, LOC, NREC, ICOUNT,    &
+                             CUTOFF)
+                DEALLOCATE(BLK)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+              END DO
+            END DO
+          END DO
+        END DO
+      END DO
+      !$OMP END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Write Final Record on File 1. Calculate NINTEGt.
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP CRITICAL
+      NINTEGt = (NREC-1)*NINTMX
+      !$OMP END CRITICAL
+
+      !$OMP BARRIER
+      
+      !$OMP CRITICAL
+      CALL LASTQOUTlib(BUFP, IX, BUFP2, IX2, BUFPC, IXC, NINTEGtm, NINTMX,&
+                    NINTEGt, NREC, ICOUNT, IDONTW, IPRINTOPT)
+      !$OMP END CRITICAL
+      !$OMP END PARALLEL
+
+      CALL FINALIZElib(BUFPC, IXC, BUFP2, IX2, NINTEGtm, NINTMX, NINTEGt, &
+                    NREC, IDONTW, IPRINTOPT)     
+      NREC = INT(NINTEGt/NINTMX) + 1
+!-----------------------------------------------------------------------
+      DEALLOCATE(BUFPC,IXC) 
+      DEALLOCATE(ATM4, BAS4)
+      RETURN                                                            
+      END        
+
+! QOUTlib                                             
+      SUBROUTINE QOUTlib(BUFP,IX,BUFP2,IX2,NINTEGtm,NINTMX,IDONTW,  &
+                      NSHELL,BLK,DI,DJ,DK,DL,ISH,JSH,KSH,LSH,       &
+                      LOC, NREC, ICOUNT, CUTOFF)                            
+      IMPLICIT NONE
+      
+      INTEGER, INTENT(IN) :: NINTEGtm, NINTMX, IDONTW, NSHELL
+      INTEGER, INTENT(IN) :: DI, DJ, DK, DL
+      INTEGER, INTENT(IN) :: ISH, JSH, KSH, LSH
+      INTEGER, INTENT(IN) :: LOC(NSHELL)
+      DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DJ, DK, DL)
+      INTEGER, INTENT(OUT) :: IX(NINTMX)
+      DOUBLE PRECISION, INTENT(OUT) :: BUFP(NINTMX)
+      INTEGER, INTENT(OUT) :: IX2(NINTEGtm)
+      DOUBLE PRECISION, INTENT(OUT) :: BUFP2(NINTEGtm)
+
+      INTEGER :: I, J, K, L, I1, I2, I3, I4, N
+      INTEGER LOCI, LOCJ, LOCK, LOCL
+      INTEGER :: IJ_COUNT, KL_COUNT, DJEFF, DKEFF
+      INTEGER :: LABEL, NXInteg, IJBUFi, ibuf
+      DOUBLE PRECISION :: VAL
+      DOUBLE PRECISION :: CUTOFF
+      INTEGER :: ICOUNT, NREC
+      LOGICAL :: SAME, IANDJ, KANDL
+!-----------------------------------------------------------------------                                                                       
+!     Pack 4-indices into 1 word. 
 !     Write Label & integral on Unit 1 if DONTW = .False.
 !-----------------------------------------------------------------------
-      SAME  = ISH == KSH .and. JSH == LSH
-      IANDJ = ISH == JSH
+      SAME  = ISH == KSH .and. JSH == LSH                           
+      IANDJ = ISH == JSH                                              
       KANDL = KSH == LSH
-      MINI = KMIN(ISH)
-      MINJ = KMIN(JSH)
-      MINK = KMIN(KSH)
-      MINL = KMIN(LSH)
-      MAXI = KMAX(ISH)
-      MAXJ = KMAX(JSH)
-      MAXK = KMAX(KSH)
-      MAXL = KMAX(LSH)
-      LOCI = KLOC(ISH)-MINI
-      LOCJ = KLOC(JSH)-MINJ
-      LOCK = KLOC(KSH)-MINK
-      LOCL = KLOC(LSH)-MINL
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ORII = MAXI - MINI + 1
-      ORIJ = MAXJ - MINJ + 1
-      ORIK = MAXK - MINK + 1
-      ORIL = MAXL - MINL + 1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IJN = 0
-      JMAX = ORIJ
-      DO I = 1,ORII
-       I_INDEX = (I-1)*ORIJ*ORIK*ORIL
-       IF (IANDJ) JMAX = I
-       DO 1 J = 1,JMAX
-        IJ_INDEX = (J-1)*ORIK*ORIL + I_INDEX
-        IJN = IJN+1
-        LMAX = ORIL
-        KLN = 0
-        DO K = 1,ORIK
-         IJK_INDEX = (K-1)*ORIL + IJ_INDEX
-         IF (KANDL) LMAX = K
-         DO L = 1,LMAX
-          KLN = KLN+1
-          IF(SAME.and.KLN>IJN)GO TO 1
-          IJKL_INDEX = (L-1) + IJK_INDEX + 1
-          VAL = GLIBRETA( IJKL_INDEX )
-          IF(ABS(VAL)>=CUTOFF)THEN
-           I1 = LOCI+I+MINI-1
-           I2 = LOCJ+J+MINJ-1
-           I3 = LOCK+K+MINK-1
-           I4 = LOCL+L+MINL-1
 
-           IF (I1 >= I2) GO TO 100
-           N = I1
-           I1 = I2
-           I2 = N
-  100      IF (I3 >= I4) GO TO 120
-           N = I3
-           I3 = I4
-           I4 = N
-  120      IF (I1-I3) 140,160,180
-  140      N = I1
-           I1 = I3
-           I3 = N
-           N = I2
-           I2 = I4
-           I4 = N
-           GO TO 180
-  160      IF (I2 < I4) GO TO 140
-  180      CONTINUE
-!
-           IF(I1 == I2) VAL = VAL*0.5D0
-           IF(I3 == I4) VAL = VAL*0.5D0
-           IF(I1 == I3 .and. I2 == I4) VAL = VAL*0.5D0
-!
-           NPACK = ICOUNT
-           IPACK = I1
-           JPACK = I2
-           KPACK = I3
-           LPACK = I4
-           LABEL = ISHFT( IPACK, 48 ) + ISHFT( JPACK, 32 ) +            &
-                   ISHFT( KPACK, 16 ) + LPACK
-           IX(NPACK) = LABEL
-           BUFP(ICOUNT) = VAL
-           ICOUNT = ICOUNT+1
-           IF(ICOUNT > 0) THEN
-            JCOUNT = ICOUNT
-            IF(JCOUNT > NINTMX) THEN
-             NXInteg = NINTMX
-             IF(IDONTW==1)THEN
-              IJBUFi = (NREC-1)*NINTMX
-              do ibuf=1,NINTMX
-               IX2  (IJBUFi+ibuf) = IX(ibuf)
-               BUFP2(IJBUFi+ibuf) = BUFP(ibuf)
-              end do
-             ELSE
-              WRITE(1)NXInteg,IX,BUFP
-             END IF
-             ICOUNT = 1
-             NREC = NREC+1
-            END IF
-           END IF
-          END IF
-         END DO
+      LOCI = LOC(ISH)                                             
+      LOCJ = LOC(JSH)                                             
+      LOCK = LOC(KSH)                                             
+      LOCL = LOC(LSH)               
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
+
+      IJ_COUNT = 0                                                           
+      DO I = 1, DI                                              
+        DJEFF = MERGE(I, DJ, IANDJ)
+        DO J = 1, DJEFF                                           
+          IJ_COUNT = IJ_COUNT + 1                                                                                              
+          KL_COUNT = 0                                                     
+          DO K = 1, DK                                       
+            DKEFF = MERGE(K, DL, KANDL)
+            DO L = 1, DKEFF                                     
+              KL_COUNT = KL_COUNT + 1                                           
+              IF(SAME .AND. KL_COUNT > IJ_COUNT) CYCLE
+
+              VAL = BLK(I, J, K, L)
+              IF(ABS(VAL) < CUTOFF) CYCLE
+
+              I1 = LOCI + I - 1
+              I2 = LOCJ + J - 1
+              I3 = LOCK + K - 1
+              I4 = LOCL + L - 1
+
+              IF (I1 < I2) THEN
+                N = I1                                                
+                I1 = I2                                               
+                I2 = N           
+              END IF                                     
+              IF (I3 < I4) THEN
+                N = I3                                                
+                I3 = I4                                               
+                I4 = N           
+              END IF         
+              IF(I1 < I3 .OR. (I1 == I3 .AND. I2 < I4)) THEN
+                N = I1                                                
+                I1 = I3                                               
+                I3 = N                                                
+                N = I2                                                
+                I2 = I4                                               
+                I4 = N
+              END IF
+!                                                               
+              IF(I1 == I2) VAL = VAL * 0.5D0                        
+              IF(I3 == I4) VAL = VAL * 0.5D0                        
+              IF(I1 == I3 .and. I2 == I4) VAL = VAL * 0.5D0       
+!                                                               
+              LABEL = ISHFT(I1, 48) + ISHFT(I2, 32) +        &
+                  ISHFT(I3, 16) + I4
+
+              IX(ICOUNT) = LABEL                                  
+              BUFP(ICOUNT) = VAL 
+              ICOUNT = ICOUNT + 1
+
+              IF(ICOUNT > NINTMX) THEN                        
+                NXInteg = NINTMX
+                !$OMP CRITICAL
+                IF(IDONTW==1)THEN
+                  IJBUFi = (NREC-1)*NINTMX
+                  DO ibuf=1,NINTMX
+                    IX2  (IJBUFi+ibuf) = IX(ibuf)
+                    BUFP2(IJBUFi+ibuf) = BUFP(ibuf)
+                  END DO
+                ELSE
+                  WRITE(1)NXInteg,IX,BUFP
+                END IF
+                NREC = NREC+1                                   
+                !$OMP END CRITICAL
+                ICOUNT = 1                               
+              END IF
+
+            END DO
+          END DO
         END DO
-    1  CONTINUE
-      END DO
+      END DO   
+!-----------------------------------------------------------------------                                                                       
+      RETURN                                                            
+      END SUBROUTINE  
+
+! LASTQOUT 
+      SUBROUTINE LASTQOUTlib(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm, &
+                      NINTMX,NINTEGt,NREC,ICOUNT,IDONTW,        &
+                      IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT
+      INTEGER :: ICOUNT,NREC
+      INTEGER  :: IX(NINTMX)
+      DOUBLE PRECISION :: BUFP(NINTMX)
+      INTEGER :: IXC(NINTMX)
+      DOUBLE PRECISION :: BUFPC(NINTMX)
+      INTEGER,DIMENSION(NINTEGtm) :: IX2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      INTEGER :: COUNTER, NXInteg, IBUF, NXInteg2, IJBUFi, jbuf, IDX
 !-----------------------------------------------------------------------
+
+      COUNTER = MOD(NINTEGt,NINTMX)
+      NXInteg = ICOUNT-1
+      IDX = COUNTER+1
+
+      do ibuf=1,NXInteg
+        IXC(IDX) = IX(ibuf)
+        BUFPC(IDX) = BUFP(ibuf)
+        NINTEGt = NINTEGt + 1
+        IDX = IDX + 1
+
+        IF(IDX - 1 .EQ. NINTMX) THEN
+         NXInteg2 = NINTMX
+         IF(IDONTW==1)THEN
+          IJBUFi = (NREC-1)*NINTMX
+          do jbuf=1,NINTMX
+           IX2  (IJBUFi+jbuf) = IXC(jbuf)
+           BUFP2(IJBUFi+jbuf) = BUFPC(jbuf)
+          end do
+         ELSE
+          WRITE(1)NXInteg2,IXC,BUFPC
+         END IF
+         NREC = NREC+1
+         IDX = 1
+        END IF
+      end do
+
       RETURN
+                                                              
       END
 
-! UPDCOOSHELL
-      SUBROUTINE UPDCOOSHELL(NSHELL,KATOM,Cxyz,NAT)     
-      USE ISO_C_BINDING
-      INTEGER :: NSHELL,NAT 
-      INTEGER,DIMENSION(NSHELL) :: KATOM
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz 
-      COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      LOGICAL SMCD
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
-      COMMON/LIBRETA/BASLIB
-      COMMON/LIBRETAaux/AUXLIB
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      INTEGER :: I,IATOM
-!-----------------------------------------------------------------------      
-!     Update coordinates of shells
+! FINALIZE                                            
+      SUBROUTINE FINALIZElib(BUFPC,IXC,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,  &
+                          NREC,IDONTW,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT,NREC
+      INTEGER,DIMENSION(NINTMX) :: IXC
+      DOUBLE PRECISION,DIMENSION(NINTMX) :: BUFPC
+      INTEGER,DIMENSION(NINTEGtm) :: IX2
+      DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
+      INTEGER :: NXInteg, IJBUFi, ibuf
 !-----------------------------------------------------------------------
-      if(IERITYP==1 .or. IERITYP==3)then      ! ERITYP = FULL or MIX
-       DO I=1,NSHELL
-        IATOM = KATOM(I)
-!       avoiding warning
-        Cxyz(1:3,IATOM) = Cxyz(1:3,IATOM)
-!lib        CALL updatebasis(BASLIB,I,Cxyz(1:3,IATOM))
-       END DO
-      end if 
-      if(IERITYP==2 .or. IERITYP==3)then      ! ERITYP = RI or MIX
-       DO I=1,NSHELLaux
-        IATOM = KATOMaux(I)
-!lib        CALL updatebasis(AUXLIB,I,Cxyz(1:3,IATOM))
-       END DO      
-      end if       
-!-----------------------------------------------------------------------      
+                                                   
+      NXInteg = MOD(NINTEGt,NINTMX)
+      IF(NXInteg>=0) THEN
+       IF(IDONTW==1)THEN
+        IJBUFi = (NREC-1)*NINTMX
+        do ibuf=1,NXInteg
+         IX2  (IJBUFi+ibuf) = IXC(ibuf)
+         BUFP2(IJBUFi+ibuf) = BUFPC(ibuf)
+        end do
+       ELSE
+        NXInteg = -NXInteg
+        WRITE(1)NXInteg,IXC,BUFPC
+       END IF
+      ELSE
+       NINTEGt = NXInteg
+      ENDIF
+      IF(IPRINTOPT==1)WRITE(6,10)NINTEGt,NREC
       RETURN
-      END
-            
+!-----------------------------------------------------------------------                                                                       
+   10 FORMAT(I20,' 2e- integrals in ',I5,' records')
+!-----------------------------------------------------------------------  
+      END               
+
 !----------------------------------------------------------------------!
 !                                                                      !
 !       2020  RI Approximation for ERIs implemented by                 !
@@ -10029,7 +11425,7 @@
 !----------------------------------------------------------------------!
 
 ! AUXREAD
-      SUBROUTINE AUXREAD(NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+      SUBROUTINE AUXREAD(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
@@ -10053,6 +11449,7 @@
       DATA LABEL/'S       ','P       ','D       ','F       ',           &
                  'G       ','H       ','I       ','L       '/
       CHARACTER(8) :: BASIS
+      INTEGER :: IGTYP
 
       PI = 2.0d0*DASIN(1.0d0)
       PI32 = PI*SQRT(PI)
@@ -10142,7 +11539,11 @@
         KLOCaux(NSHELLaux) = NUMaux+1
         L = KTYP-1
         NGAUSS = NGAUSS + IGAUSS
-        NUMaux = NUMaux + (L+1)*(L+2)/2
+        IF(IGTYP==1) THEN
+          NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+        ELSE IF(IGTYP==2) THEN
+          NUMaux = NUMaux + 2 * L + 1
+        END IF
         K1 = KSTARTaux(NSHELLaux)
         K2 = K1 + KNGaux(NSHELLaux) - 1
         ! Read exponents and coefficients of primitives
@@ -10198,9 +11599,185 @@
       RETURN
       END
 
+! AUXREADlib
+      SUBROUTINE AUXREADlib(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
+      COMMON/BASIS_FILE/BASIS_FILE
+      LOGICAL :: FILE_EXISTS
+      CHARACTER(80) :: BASIS_FILE,PREFIX,AUX_FILE,AUX_FILE_1
+      CHARACTER(8),DIMENSION(NATmax) :: ANAM
+      DOUBLE PRECISION :: COEFICIENT
+      INTEGER :: EXT_POS
+      DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
+      DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
+      DOUBLE PRECISION,PARAMETER :: PT75=0.75D0
+      DOUBLE PRECISION,PARAMETER :: PT187=1.875D0
+      DOUBLE PRECISION,PARAMETER :: TM10=1.0D-10
+      DOUBLE PRECISION,PARAMETER :: PT6562=6.5625D0
+      CHARACTER(8) :: BLANK
+      DATA BLANK /'        '/
+      CHARACTER(8) :: CBASIS
+      CHARACTER(8),DIMENSION(8) :: LABEL
+      DATA LABEL/'S       ','P       ','D       ','F       ',           &
+                 'G       ','H       ','I       ','L       '/
+      CHARACTER(8) :: BASIS
+      INTEGER :: IGTYP
+
+      PI = 2.0d0*DASIN(1.0d0)
+      PI32 = PI*SQRT(PI)
+      NGAUSS=0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Open Basis Set file if exists
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CBASIS = BLANK 
+      EXT_POS = SCAN(TRIM(ADJUSTL(BASIS_FILE)),".", BACK= .TRUE.)  !Look for extension position
+      AUX_FILE = TRIM(ADJUSTL(BASIS_FILE(1:EXT_POS-1))) !Remove extension
+      IF(LEN_TRIM(AUX_FILE)>0)THEN
+       CALL GETENV( 'HOME', PREFIX )
+       AUX_FILE_1 = TRIM(PREFIX)//'/DoNOFsw/basis/'//                 &
+                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+       INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+       if(FILE_EXISTS)then                                ! in DoNOFsw
+        AUX_FILE = AUX_FILE_1
+!      DoNOF
+       else
+        AUX_FILE_1= TRIM(PREFIX)//'/DoNOF/basis/'//                   &
+                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+        INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+        if(FILE_EXISTS)then                               ! in DoNOF         
+         AUX_FILE = AUX_FILE_1
+        else
+         CALL GETENV( 'PWD', PREFIX )
+         AUX_FILE_1 = TRIM(PREFIX)//"/"//                             &
+                        TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+         INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+         if(FILE_EXISTS)then                              ! in pwd           
+          AUX_FILE = AUX_FILE_1
+         else
+          AUX_FILE_1 = TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+          INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+          if(FILE_EXISTS)then                             ! in given path    
+           AUX_FILE = AUX_FILE_1
+          else                             ! auxiliar basis set file not found    
+           WRITE(6,*)"Basis File ",TRIM(AUX_FILE)//"-jkfit.bas"," does not exist"
+           WRITE(*,*) "Plese provide the file or use auxgen auxiliary basis"
+           CALL ABRT
+          endif
+         endif
+        endif
+       endif
+!      Open Auxiliar Basis Set File ( Unit = 50 )         
+       CLOSE(50) !Close original Basis Set file                        
+       OPEN(50,FILE=AUX_FILE,STATUS='UNKNOWN',                        &
+               FORM='FORMATTED',ACCESS='SEQUENTIAL')
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Read Auxilairy Basis from the basisname-jkfit.bas
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NUMaux = 0
+      NSHELLaux = 0
+      DO IAT=1,NAT
+       if(LEN_TRIM(AUX_FILE)>0)then      
+        REWIND(50)
+        CALL FNDATMBASIS(ANAM(IAT),IEOF)
+       endif
+    2  CONTINUE
+       IEOF = 0
+       IERR = 0
+       CALL RDCARD(50,'$DATA 6U',IEOF)
+       KSIZE = -8
+       CALL GSTRNG(CBASIS,KSIZE)
+       READ(UNIT=CBASIS,FMT='(A8)')BASIS
+       IGAUSS = IFIND('NGAUSS  ',IERR)
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!!     Read shell information
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+       IF(BASIS/=BLANK)THEN
+!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -        
+        KTYP = 0
+        DO I=1,7
+         IF(BASIS==LABEL(I))KTYP=I
+        ENDDO
+        IF(KTYP==0) THEN
+        WRITE(*,*) 'Stop: Illegal auxiliary basis function type ',BASIS
+        CALL ABRT                                                         
+        END IF
+!- - - - - - -
+        NSHELLaux = NSHELLaux + 1
+        KSTARTaux(NSHELLaux) = NGAUSS+1
+        KATOMaux(NSHELLaux) = IAT
+        KTYPEaux(NSHELLaux) = KTYP
+        KNGaux(NSHELLaux) = IGAUSS
+        KLOCaux(NSHELLaux) = NUMaux+1
+        L = KTYP-1
+        NGAUSS = NGAUSS + IGAUSS
+        IF(IGTYP==1) THEN
+          NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+        ELSE IF(IGTYP==2) THEN
+          NUMaux = NUMaux + 2 * L + 1
+        END IF
+        K1 = KSTARTaux(NSHELLaux)
+        K2 = K1 + KNGaux(NSHELLaux) - 1
+        ! Read exponents and coefficients of primitives
+        DO K = K1,K2
+         C1 = 0.0D0                                             
+         IEOF = 0                                      
+         IERR = 0
+         CALL RDCARD(50,'$DATA 7U',IEOF)  
+         IDUM = IFIND('IDUM    ',IERR)
+         IF(IERR/=0)CALL ABRT
+         EXaux(K) = RFIND('ZETA    ',IERR)
+         IF(IERR/=0) CALL ABRT
+         C1 = RFIND('C1      ',IERR)
+         IF(IERR/=0) CALL ABRT
+         !CALL NORMALIZE_AUXILIAR(EXaux(K),COEFICIENT,L)
+         Caux(K) = C1!*COEFICIENT
+        END DO
+        ! Compute contracted normalization constant
+        !FACL = 0.0D0
+        !DO IG = K1,K2
+        ! DO JG = K1,IG
+        !  EE = EXaux(IG)+EXaux(JG)
+        !  FAC = EE*SQRT(EE)
+        !  IF(L==0) DUM = Caux(IG)*Caux(JG)/FAC
+        !  IF(L==1) DUM = 0.5D0*Caux(IG)*Caux(JG)/(EE*FAC)
+        !  IF(L==2) DUM = PT75  *Caux(IG)*Caux(JG)/(EE*EE*FAC)
+        !  IF(L==3) DUM = PT187 *Caux(IG)*Caux(JG)/(EE**3*FAC)
+        !  IF(L==4) DUM = PT6562*Caux(IG)*Caux(JG)/(EE**4*FAC)
+        !  IF(L==5) DUM = PT2953*Caux(IG)*Caux(JG)/(EE**5*FAC)
+        !  IF(L==6) DUM = PT1624*Caux(IG)*Caux(JG)/(EE**6*FAC)
+        !  IF(IG /= JG) THEN
+        !   DUM = DUM+DUM
+        !  END IF
+        !  FACL = FACL+DUM
+        ! END DO
+        !END DO
+        !IF(FACL < TM10) THEN
+        ! FACL = 0.0D0
+        !ELSE
+        ! FACL = 1.0D0/SQRT(FACL*PI32)
+        !END IF
+        !DO K = K1,K2
+        ! Caux(K) = Caux(K) * FACL
+        !END DO
+        GOTO 2
+       END IF
+      END DO
+      CLOSE(UNIT=50)
+!     Open Basis Set File ( Unit = 50 )                                 
+      OPEN(50,FILE=BASIS_FILE,STATUS='UNKNOWN',                        &
+              FORM='FORMATTED',ACCESS='SEQUENTIAL')
+
+      RETURN
+      END
+
+
 ! AUXGEN
-      SUBROUTINE AUXGEN(NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,NUMaux,     &
-                        IGEN,ISTAR,EX,ZAN)
+      SUBROUTINE AUXGEN(IGTYP,NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,      &
+                        NUMaux,IGEN,ISTAR,EX,ZAN)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                         
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
@@ -10266,7 +11843,11 @@
               KTYPEaux(NSHELLaux) = L+1
               KNGaux(NSHELLaux) = 1
               KLOCaux(NSHELLaux) = NUMaux+1
-              NUMaux = NUMaux + (L+1)*(L+2)/2
+              IF(IGTYP==1) THEN
+                NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+              ELSE IF(IGTYP==2) THEN
+                NUMaux = NUMaux + 2 * L + 1
+              END IF
               EXaux(NSHELLaux) = TMPEXP
               CALL NORMALIZE_AUXILIAR(TMPEXP,COEFICIENT,L)
               Caux(NSHELLaux) = COEFICIENT
@@ -10313,24 +11894,22 @@
       END
 
 ! AUXGENlib
-      SUBROUTINE AUXGENlib(NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,         &
+      SUBROUTINE AUXGENlib(IGTYP,NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,   &
                            NUMaux,EX,ZAN,Cxyz)
-      USE ISO_C_BINDING
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                         
 !
-      INTEGER :: NPRIMI,NSHELLaux,NUMaux            
+      INTEGER :: NPRIMI,NSHELLaux,NUMaux,IGTYP 
       INTEGER,DIMENSION(NPRIMI) :: ITYP      
       INTEGER,DIMENSION(NAT) :: IMIN,IMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX      
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz      
 !
-      TYPE(C_PTR),DIMENSION(600)::AUXLIB
-      COMMON/LIBRETAaux/AUXLIB
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       INTEGER,DIMENSION(NAT)::LMAX
       DOUBLE PRECISION,DIMENSION(NAT)::EXMAX,EXMIN
@@ -10377,14 +11956,20 @@
          if (ifa==1) TMPEXP = TMPEXP*(r+0.5*IGEN)/r
          do L=0,2*(iblock-1)
           NSHELLaux = NSHELLaux + 1
-          KLOCaux(NSHELLaux) = NUMaux+1
-          NUMaux = NUMaux + (L+1)*(L+2)/2
-          KTYPEaux(NSHELLaux) = L+1
           KATOMaux(NSHELLaux) = IAT
+          KTYPEaux(NSHELLaux) = L+1
+          KNGaux(NSHELLaux) = 1
+          KLOCaux(NSHELLaux) = NUMaux+1
+          IF(IGTYP==1) THEN
+            NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+          ELSE IF(IGTYP==2) THEN
+            NUMaux = NUMaux + 2 * L + 1
+          END IF
+          EXaux(NSHELLaux) = TMPEXP
 !         avoiding warning
           Cxyz(1:3,IAT) = Cxyz(1:3,IAT)
-!lib          CALL CREATEBASISaux(AUXLIB(NSHELLaux),TMPEXP,1.0,             &
-!lib                              Cxyz(1:3,IAT),L,1)
+          !CALL NORMALIZE_AUXILIAR(TMPEXP,COEFICIENT,L)
+          Caux(NSHELLaux) = 1.0D0
          end do
          if (ifa==1) TMPEXP = TMPEXP*r/(r+0.5*IGEN)
         end do
@@ -10397,11 +11982,14 @@
 ! JandKaux                
       SUBROUTINE JandKaux(BUFP2,NINTEGtm,IDONTW,IPRINTOPT,NBF,          &
                           EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,  &
-                          KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
+                          KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,     &
+                          SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+      USE AOINTS
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/USELIBRETA/ILIBRETA
+      COMMON/USELIBCINT/ILIBCINT
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER :: NINTEGtm,IDONTW,IPRINTOPT,NBF,NSHELL,NAT
+      COMMON/INTFIL/NINTMX           
+      INTEGER :: NINTEGtm,IDONTW,IPRINTOPT,NBF,NSHELL,NAT,IGTYP
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -10410,6 +11998,11 @@
       INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
       DOUBLE PRECISION :: RATE
       LOGICAL SMCD
+
+      INTEGER :: SIZE_ENV,NBAS            !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !-----------------------------------------------------------------------
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
@@ -10428,7 +12021,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Debut
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz)
+      CALL Debut(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -10439,18 +12032,23 @@
 !
       ALLOCATE(Gaux(MAXG))
       IF(.NOT.SMCD) THEN      
-       if(ILIBRETA==0)then
+       if(ILIBCINT==0)then
         CALL AuxERI(NINTEGtm,BUFP2,Gaux,MAXG,NBF,IPRINTOPT,             &
                     EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,        &
                     KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
-       else if(ILIBRETA==1)then
-        CALL AuxERIlib(NINTEGtm,BUFP2,Gaux,MAXG,MAXORI,NBF,             &
-                       KTYPE,KLOC,NSHELL,IPRINTOPT)
+       else if(ILIBCINT==1)then
+        CALL AuxERIlib(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,SIZE_ENV,&
+                    ENV,ATM,NBAS,BAS,IGTYP)
        end if
       ELSE IF(SMCD) THEN
+       if(ILIBCINT==0)then
        CALL AuxERIModChol(BUFP2,Gaux,MAXG,NBF,IPRINTOPT,                &
                           EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,  &
                           KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)             
+       else if(ILIBCINT==1)then
+       CALL AuxERIModChollib(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,   &
+                          SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)              
+       end if
       END IF
       DEALLOCATE(Gaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -10458,6 +12056,7 @@
       DeltaTtwoE = (timefinishtwoE - timestarttwoE)/RATE
       IF(IPRINTOPT==1)                                                  &
        WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaTtwoE
+      CALL FLUSH(6)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -10466,13 +12065,15 @@
       SUBROUTINE AuxERI(NINTEGtm,BUFP2,GHONDO,MAXG,NBF,IPRINTOPT,       &
                         EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,    &
                         KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT)
+      USE AOINTS 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
-      COMMON/RESTAR/NREC,IST,JST,KST,LST
-      COMMON/SHLNOS1/QQ4,IJKL
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
+      !COMMON/RESTAR/NREC,IST,JST,KST,LST
+      !COMMON/SHLNOS1/QQ4,IJKL
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
 !
       INTEGER :: NINTEGtm,MAXG,NBF,IPRINTOPT,NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
@@ -10520,17 +12121,16 @@
       NORGSH = 0
       NORGSP = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II = IST,NSHELL
-       J0 = JST
-       DO JJ = J0,II
-        JST = 1
-        K0 = KST
-        DO KK = K0,NSHELLaux
-         KST = 1
+      !$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
+      !$OMP AUX, NORGH, GHONDO)
+      !$OMP DO SCHEDULE(DYNAMIC) 
+      DO II = 1,NSHELL
+       DO JJ = 1,II
+        DO KK = 1,NSHELLaux
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !        (II,JJ//KK)                                        
 !- - - - - - - - - - - - - - - - - - - - - - - -                            
-         IEXCH = 1
+         !IEXCH = 1
          ISH = II
          JSH = JJ
          KSH = KK
@@ -10542,110 +12142,291 @@
          LQSUM = KTYPE(ISH) + KTYPE(JSH) + KTYPEaux(KSH) - 3
          CALL SHELLS3C(1,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)
+                       NSHELL,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,       &
+                       KSTARTaux,KNGaux,Exaux,Caux)
          CALL IJPRIM(AUX)
          CALL SHELLS3C(2,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)
-         NORGH = NORGSH(IEXCH)
+                       NSHELL,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,       &
+                       KSTARTaux,KNGaux,Exaux,Caux)
+         !NORGH = NORGSH(IEXCH)
          CALL ZQOUT(GHONDO,MAXG)
          IF(LQSUM==0) THEN
-          CALL S0000(GHONDO(1+NORGH),AUX)
+          CALL S0000(GHONDO(1),AUX)
          ELSE
-         CALL ERISPDFGHIL(GHONDO(1+NORGH),AUX)
+         CALL ERISPDFGHIL(GHONDO(1),AUX)
          END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Contract to B tensor
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
          CALL QOUT3C(BUFP2,GHONDO,MAXG,GMAT,NBF,NBFaux,                 &
-                     KLOC,KMIN,KMAX,NSHELL)
+                     KLOC,KMIN,KMAX,NSHELL,KTYPEaux,KLOCaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
         END DO
        END DO
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
       DEALLOCATE(AUX)
       DEALLOCATE(GMAT)
 !-----------------------------------------------------------------------
       RETURN
       END
 
-! AuxERIlib
-      SUBROUTINE AuxERIlib(NINTEGtm,BUFP2,GLIBRETA,MAXG,MAXORI,NBF,     &
-                           KTYPE,KLOC,NSHELL,IPRINTOPT)
-      USE ISO_C_BINDING
+! AuxERI                                            
+      SUBROUTINE AuxERIlib(NINTEGtm, BUFP2, NBF, IPRINTOPT, NSHELL, NAT,&   
+                        SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP)
+                        
+      USE AOINTS 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER :: NINTEGtm,MAXG,MAXORI,NBF,NSHELL,IPRINTOPT
-      INTEGER :: ORII,ORIJ,ORIK      
-      COMMON/ORI/ORII,ORIJ,ORIK            
-      COMMON/RESTAR/NREC,IST,JST,KST,LST                 
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)      
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
+
+      INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
+      INTEGER, INTENT(IN) :: IGTYP
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NINTEGtm)
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
 !
-      TYPE(C_PTR),DIMENSION(600)::BASLIB,AUXLIB
-      COMMON/LIBRETA/BASLIB
-      COMMON/LIBRETAaux/AUXLIB
-!      
-      INTEGER,DIMENSION(NSHELL) :: KTYPE,KLOC      
-      DOUBLE PRECISION :: GLIBRETA(MAXG),BUFP2(NINTEGtm)
-      DOUBLE PRECISION :: GMAT(NBFaux,NBFaux)
-      DOUBLE PRECISION :: ERIS3C(MAXORI*MAXORI*NBFaux)
-!-----------------------------------------------------------------------
-!lib      CALL metric_mat(NBFaux,GMAT,NSHELLaux,AUXLIB)
-      CALL PDPT_msqrt(GMAT,NBFaux,IPRINTOPT)
-!
-      DO II = IST,NSHELL                            ! II Shell
-       J0 = JST                                     ! JJ Shell
-       DO JJ = J0,II
-        JST = 1
-        K0 = KST
-        LI = KTYPE(II)
-        LJ = KTYPE(JJ)
-        ORII = LI*(LI+1)/2
-        ORIJ = LJ*(LJ+1)/2
-        ERIS3C(1:ORII*ORIJ*NBFaux) = 0.0d0
-        DO KK = K0,NSHELLaux                        ! KK Shell
-         KST = 1
-!- - - - - - - - - - - - - - - - - - - - - - - -
-!         (II,JJ//P)
-!- - - - - - - - - - - - - - - - - - - - - - - -
-          ISH = II
-          JSH = JJ
-          KSH = KK
-          QQ4 = 1
-          !IF(SKIPA .and. NPSYM) QQ4 = QQ4+1
-          !IF(SKIPB .and. NPSYM) QQ4 = QQ4+1
+
+      INTEGER :: DI,DJ,DK
+      INTEGER(4) :: SHLS(4)
+      INTEGER :: NBFaux, NSHELLaux
+      INTEGER :: ISH, JSH, KSH
+      INTEGER :: LOC(NSHELL), LOCAUX(NSHELLaux)
+      INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
+      DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      INTEGER :: ERR
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!         Compute 2e- Integrals
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+
+      LOCAUX(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS4)
+      DAUXcgto(1) = DI
+      DO ISH = 2,NSHELLaux
+        LOCAUX(ISH) = LOCAUX(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS4)
+        DAUXcgto(ISH) = DI
+      END DO
+!-----------------------------------------------------------------------
+      BUFP2 = 0.0D0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Evaluate G = (P|Q) and G^{-1/2}
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(GMAT(NBFaux,NBFaux))
+      GMAT = 0.0D0
+      CALL METRICmatlib(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,       &
+                        DAUXcgto, LOCaux, NSHELLaux, NBFaux,            &
+                        IGTYP)
+      CALL PDPT_msqrt(GMAT,NBFaux,IPRINTOPT)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     2e- Integrals (S,P,D,F,G & L Shells)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, LQSUM, DI, DJ, DK, SHLS,    &
+      !$OMP ERR, BLK, AUX, NORGH)
+      !$OMP DO SCHEDULE(DYNAMIC) 
+      DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+          DJ = Dcgto(JSH)
+          SHLS(2) = JSH - 1
+          DO KSH = 1,NSHELLaux
+            DK = DAUXcgto(KSH)
+            SHLS(3) = KSH - 1 + NSHELL
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!        (II,JJ//KK)                                        
+!- - - - - - - - - - - - - - - - - - - - - - - -                            
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+!         Compute 2e- Integrals (mn|k)                  
 !         Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          LK = KTYPEaux(KSH)
-          ORIK = LK*(LK+1)/2
-
-!lib          CALL erisval3(BASLIB,AUXLIB,ISH,JSH,KSH,GLIBRETA)
-
-          LOCK = KLOCaux(KSH)
-          N = 0
-          DO I=1,ORII
-           DO J=1,ORIJ
-            DO L=1,NBFaux
-             N = N + 1
-             DO K=1,ORIK
-              ERIS3C(N) = ERIS3C(N) +                                   &
-              GLIBRETA((I-1)*ORIJ*ORIK+(J-1)*ORIK+K)*GMAT(LOCK+K-1,L)
-             END DO
-            END DO
-           END DO
-          END DO
-!- - - - - - - - - - - - - - - - - - - - - - - -
-        END DO
+            ALLOCATE(BLK(DI,DJ,DK))
+            IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM4, NAT, BAS4, NBAS, ENV,  &
+                                0_8)
+            IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM4, NAT, BAS4, NBAS, ENV,  &
+                                0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!       Write Label & Integral on File 1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-        CALL QOUTaux(BUFP2,ERIS3C,NBF,NBFaux,ISH,JSH,KLOC,NSHELL)
-       END DO
+!         Contract to B tensor
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            CALL QOUT3Clib(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,   &
+              ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            DEALLOCATE(BLK)
+          END DO
+        END DO
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
+      DEALLOCATE(GMAT)
+!-----------------------------------------------------------------------
+      RETURN
+      END
+
+
+! AuxERI                                            
+      SUBROUTINE AuxERIModChollib(NINTEGtm, BUFP2, NBF, IPRINTOPT, NSHELL, NAT,&   
+                        SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP)
+                        
+      USE AOINTS 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/INPFILE_Naux/NBFaux,NSHELLaux
+
+      INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
+      INTEGER, INTENT(IN) :: IGTYP
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2,NBFaux)
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+!
+
+      INTEGER :: DI,DJ,DK
+      INTEGER(4) :: SHLS(4)
+      INTEGER :: NBFaux, NSHELLaux
+      INTEGER :: ISH, JSH, KSH
+      INTEGER :: LOC(NSHELL), LOCAUX(NSHELLaux)
+      INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
+      INTEGER :: ERR
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      INTEGER,ALLOCATABLE :: IPIV(:)
+      DOUBLE PRECISION,ALLOCATABLE :: E(:)
+      DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:), BUFP(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: L(:,:), D(:,:), P(:,:)     
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+      
+      INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+
+      LOCAUX(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS4)
+      DAUXcgto(1) = DI
+      DO ISH = 2,NSHELLaux
+        LOCAUX(ISH) = LOCAUX(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS4)
+        DAUXcgto(ISH) = DI
+      END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Evaluate G = (P|Q), G = PLDL^TP^T, ModChol and get P, L, D^1/2
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(BUFP(NBF*(NBF+1)/2,NBFaux))
+      ALLOCATE(GMAT(NBFaux,NBFaux))
+      ALLOCATE(L(NBFaux,NBFaux),D(NBFaux,NBFaux),P(NBFaux,NBFaux))
+      ALLOCATE(E(NBFaux),IPIV(NBFaux))
+      GMAT = 0.0D0
+      CALL METRICmatlib(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,       &
+                        DAUXcgto, LOCaux, NSHELLaux, NBFaux,            &
+                        IGTYP)
+      CALL LDLT(GMAT,IPIV,E,NBFaux)
+      CALL MODCHOL(NBFaux, GMAT, IPIV, E, 1D-10,IPRINTOPT)
+      CALL GET_PLD12(GMAT,IPIV,E,NBFaux,P,L,D)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     2e- Integrals (S,P,D,F,G & L Shells)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, LQSUM, DI, DJ, DK, SHLS,    &
+      !$OMP ERR, BLK, AUX, NORGH)
+      !$OMP DO SCHEDULE(DYNAMIC) 
+      DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+          DJ = Dcgto(JSH)
+          SHLS(2) = JSH - 1
+          DO KSH = 1,NSHELLaux
+            DK = DAUXcgto(KSH)
+            SHLS(3) = KSH - 1 + NSHELL
+!- - - - - - - - - - - - - - - - - - - - - - - -
+!        (II,JJ//KK)                                        
+!- - - - - - - - - - - - - - - - - - - - - - - -                            
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+!         Compute 2e- Integrals (mn|k)                  
+!         Select integral code for ERI calculation
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ALLOCATE(BLK(DI,DJ,DK))
+            IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM4, NAT, BAS4,&
+                   NBAS, ENV, 0_8)
+            IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM4, NAT, BAS4, &
+                   NBAS, ENV, 0_8)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!         Store 3 center ERIs (mn|k)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            CALL QOUT3CModChollib(BUFP, GMAT, NBF, NBFaux, BLK,        &
+              DI, DJ, DK, ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLaux)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            DEALLOCATE(BLK)
+          END DO
+        END DO
+      END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
+!-----------------------------------------------------------------------
+!     Build b tensor, solve linear equation system LD^1/2 b = P^T(k|mn)
+!-----------------------------------------------------------------------
+      BUFP2 = 0.0D0
+      !$OMP PARALLEL DO PRIVATE(I,J,K)
+      DO I=1,NBF*(NBF+1)/2
+        DO J=1,NBFaux
+          DO K=1,NBFaux
+            BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
+          END DO
+        END DO
+      END DO
+      !$OMP END PARALLEL DO
+      DEALLOCATE(BUFP)
+      DO N=1,NBF
+        DO M=1,N
+          MN = M + N*(N-1)/2
+          CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux), &
+                      NBFaux,INFO)
+          CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
+        END DO
+      END DO
+      DEALLOCATE(GMAT)
+      DEALLOCATE(L,D,P)
+      DEALLOCATE(E,IPIV)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -10655,13 +12436,15 @@
                                EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,   &
                                KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,   &
                                Cxyz,NAT)
+      USE AOINTS 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
-      COMMON/RESTAR/NREC,IST,JST,KST,LST
-      COMMON/SHLNOS1/QQ4,IJKL
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
+      !COMMON/RESTAR/NREC,IST,JST,KST,LST
+      !COMMON/SHLNOS1/QQ4,IJKL
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
 !
       INTEGER :: MAXG,NBF,IPRINTOPT,NPRIMI,NSHELL,NAT
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
@@ -10719,17 +12502,16 @@
       NORGSH = 0
       NORGSP = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II = IST,NSHELL
-       J0 = JST
-       DO JJ = J0,II
-        JST = 1
-        K0 = KST
-        DO KK = K0,NSHELLaux
-         KST = 1
+      !$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
+      !$OMP AUX, NORGH, GHONDO)
+      !$OMP DO SCHEDULE(DYNAMIC)
+      DO II = 1,NSHELL
+       DO JJ = 1,II
+        DO KK = 1,NSHELLaux
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !        (II,JJ//KK)
 !- - - - - - - - - - - - - - - - - - - - - - - -
-         IEXCH = 1
+         !IEXCH = 1
          ISH = II
          JSH = JJ
          KSH = KK
@@ -10741,32 +12523,45 @@
          LQSUM = KTYPE(ISH) + KTYPE(JSH) + KTYPEaux(KSH) - 3
          CALL SHELLS3C(1,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)
+                       NSHELL,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,       &
+                       KSTARTaux,KNGaux,EXaux,Caux)
          CALL IJPRIM(AUX)
          CALL SHELLS3C(2,ISH,JSH,KSH,.TRUE.,EX,CS,CP,CD,CF,CG,CH,CI,    &
                        NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,    &
-                       NSHELL,Cxyz,NAT)
-         NORGH = NORGSH(IEXCH)
+                       NSHELL,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,       &
+                       KSTARTaux,KNGaux,EXaux,Caux)
+         !NORGH = NORGSH(IEXCH)
          CALL ZQOUT(GHONDO,MAXG)
          IF(LQSUM==0) THEN
-          CALL S0000(GHONDO(1+NORGH),AUX)
+          CALL S0000(GHONDO(1),AUX)
          ELSE
-         CALL ERISPDFGHIL(GHONDO(1+NORGH),AUX)
+         CALL ERISPDFGHIL(GHONDO(1),AUX)
          END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !         Store 3 center ERIs (mn|k)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
          CALL QOUT3CModChol(BUFP,GHONDO,MAXG,NBF,NBFaux,               &
-                            KLOC,KMIN,KMAX,NSHELL)
+                            KLOC,KMIN,KMAX,NSHELL,KTYPEaux,KLOCaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         END DO
        END DO
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
       DEALLOCATE(AUX)
 !-----------------------------------------------------------------------
 !     Build b tensor, solve linear equation system LD^1/2 b = P^T(k|mn)
 !-----------------------------------------------------------------------
-      BUFP2 = MATMUL(BUFP,P)
+      BUFP2 = 0.0D0
+      !$OMP PARALLEL DO PRIVATE(I,J,K)
+      DO I=1,NBF*(NBF+1)/2
+        DO J=1,NBFaux
+          DO K=1,NBFaux
+            BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
+          END DO
+        END DO
+      END DO
+      !$OMP END PARALLEL DO
       DEALLOCATE(BUFP)
       DO N=1,NBF
         DO M=1,N
@@ -10952,13 +12747,15 @@
 
 ! METRICmat                                            
       SUBROUTINE METRICmat(GMAT,GHONDO,MAXG,Cxyz,NAT)
+      USE AOINTS 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
-      COMMON/RESTAR/NREC,IST,JST,KST,LST   
-      COMMON/SHLNOS1/QQ4,IJKL
+      !COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
+      !COMMON/RESTAR/NREC,IST,JST,KST,LST   
+      !COMMON/SHLNOS1/QQ4,IJKL
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(MAXG) :: GHONDO
@@ -10982,19 +12779,21 @@
       NGTH(3) = NGTH(4) * 1                                     
       NGTH(2) = NGTH(3) * NANGMAUX                                      
       NGTH(1) = NGTH(2) * 1                                      
-      DO I=1,3                                                       
-       NORGSH(I) = 0                                               
-       NORGSP(I) = 0                                               
-      ENDDO                                                          
+      !DO I=1,3                                                       
+      ! NORGSH(I) = 0                                               
+      ! NORGSP(I) = 0                                               
+      !ENDDO                                                          
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO II = IST,NSHELLaux                        ! II Shell
-       K0 = KST                                                        
-       DO KK = K0,II                               ! KK Shell     
-        KST = 1                                                       
+      !$OMP PARALLEL &
+      !$OMP PRIVATE(II, KK, ISH, KSH, LQSUM,&
+      !$OMP AUX, NORGH, GHONDO)
+      !$OMP DO SCHEDULE(DYNAMIC)
+      DO II = 1,NSHELLaux                        ! II Shell
+       DO KK = 1,II                               ! KK Shell     
 !- - - - - - - - - - - - - - - - - - - - - - - -
 !       (II//KK)                                        
 !- - - - - - - - - - - - - - - - - - - - - - - -                            
-        IEXCH = 1                                                    
+        !IEXCH = 1                                                    
         ISH = II                                                      
         KSH = KK                                                     
         QQ4 = 1                                                       
@@ -11002,961 +12801,248 @@
 !       Compute 2e- Integrals                      
 !       Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        LQSUM = KTYPEaux(ISH) + KTYPEaux(KSH) - 2    
-        CALL SHELLS2C(1,ISH,KSH,Cxyz,NAT)                           
-        CALL SHELLS2C(2,ISH,KSH,Cxyz,NAT)                           
+        LQSUM = KTYPEaux(ISH) + KTYPEaux(KSH) - 2   
+        CALL SHELLS2C(1,ISH,KSH,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,     &
+                      KSTARTaux,KNGaux,Exaux,Caux)                           
+        CALL SHELLS2C(2,ISH,KSH,Cxyz,NAT,KATOMaux,KTYPEaux,KLOCaux,     &
+                      KSTARTaux,KNGaux,Exaux,Caux)                           
         CALL IJPRIM(AUX) 
-        NORGH = NORGSH(IEXCH)                                         
+        !NORGH = NORGSH(IEXCH)                                         
         CALL ZQOUT(GHONDO,MAXG)                 
         IF(LQSUM==0) THEN 
-         CALL S0000(GHONDO(1+NORGH),AUX)                        
+         CALL S0000(GHONDO(1),AUX)                        
         ELSE                                                          
-         CALL ERISPDFGHIL(GHONDO(1+NORGH),AUX)                       
+         CALL ERISPDFGHIL(GHONDO(1),AUX)                       
         END IF  
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Transfer integrals to G matrix
 !- - - - - - - - - - - - - - - - - - - - - - -
-        CALL QOUT2C(GMAT,NBFaux,GHONDO,MAXG)
+        CALL QOUT2C(GMAT,NBFaux,GHONDO,MAXG,KTYPEaux,KLOCaux)
 !- - - - - - - - - - - - - - - - - - - - - - -
        END DO
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
+
       DEALLOCATE(AUX) 
 !-----------------------------------------------------------------------
       RETURN                                                            
       END                                                               
 
-! SHELLS2C                                           
-      SUBROUTINE SHELLS2C(NELEC,ISH,KSH,Cxyz,NAT)                   
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL       NORM
-      COMMON/NORMAL/NORM
-      LOGICAL     IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON/ERIOUT/INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
-      COMMON/INTDEX/IJX(784),IJY(784),IJZ(784),IK(784),                 &
-                     KLX(784),KLY(784),KLZ(784)                         
-      COMMON/INTDEX1/IJGT(784),KLGT(784)
-      COMMON/ROOT/XX,U(13),W(13),NROOTS
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)
-      COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
-                    CFA(30),CGA(30),CHA(30),CIA(30),                    &
-                     GB(30),CSB(30),CPB(30),CDB(30),                    &
-                    CFB(30),CGB(30),CHB(30),CIB(30),                    &
-                     GC(30),CSC(30),CPC(30),CDC(30),                    &
-                    CFC(30),CGC(30),CHC(30),CIC(30),                    &
-                     GD(30),CSD(30),CPD(30),CDD(30),                    &
-                    CFD(30),CGD(30),CHD(30),CID(30),                    &
-                    AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
-                    DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
-                    MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
-                    NIJ,IJ,KL                                          
-      COMMON/SHLNOS1/QQ4,IJKL                                           
-!      
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      COMMON/EXCaux/EXaux(2000),Caux(2000)
-!
-      DIMENSION IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
-                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      INTEGER,DIMENSION(8) :: MINF,MAXF                                  
-      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                           
-      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                           
-      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
-                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
-                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
-                  2,   0,   2,   1,   1,                                &
-                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
-                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
-                  1,                                                    &
-                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
-                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
-                  0,   3,   3,   2,   1,   2,   1,   2/                  
-      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
-                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
-                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
-                 14,   0,  14,   7,   7,                                &
-                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
-                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
-                  7,                                                    &
-                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
-                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
-                  0,  21,  21,  14,   7,  14,   7,  14/                  
-      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
-                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
-                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
-                 98,   0,  98,  49,  49,                                &
-                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
-                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
-                 49,                                                    &
-                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
-                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
-                  0, 147, 147,  98,  49,  98,  49,  98/                  
-      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
-               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
-               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
-                687,   1, 687, 344, 344,                                &
-               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
-               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
-                344,                                                    &
-               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
-               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
-                  1,1030,1030, 687, 344, 687, 344, 687/                  
-      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
-                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
-                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
-                  0,   2,   1,   2,   1,                                &
-                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
-                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
-                  2,                                                    &
-                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
-                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
-                  3,   2,   1,   3,   3,   1,   2,   2/                  
-      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
-                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
-                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
-                  0,  14,   7,  14,   7,                                &
-                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
-                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
-                 14,                                                    &
-                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
-                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
-                 21,  14,   7,  21,  21,   7,  14,  14/                  
-      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
-                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
-                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
-                  0,  98,  49,  98,  49,                                &
-                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
-                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
-                 98,                                                    &
-                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
-                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
-                147,  98,  49, 147, 147,  49,  98,  98/                  
-      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
-                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
-                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
-                  1, 687, 344, 687, 344,                                &
-                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
-                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
-                687,                                                    &
-                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
-                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
-               1030, 687, 344,1030,1030, 344, 687, 687/                 
-      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
-                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
-                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
-                  2,   2,   1,   1,   2,                                &
-                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
-                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
-                  2,                                                    &
-                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
-                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
-                  3,   1,   2,   1,   2,   3,   3,   2/                 
-      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
-                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
-                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
-                 14,  14,   7,   7,  14,                                &
-                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
-                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
-                 14,                                                    &
-                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
-                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
-                 21,   7,  14,   7,  14,  21,  21,  14/                 
-      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
-                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
-                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
-                 98,  98,  49,  49,  98,                                &
-                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
-                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
-                 98,                                                    &
-                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
-                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
-                147,  49,  98,  49,  98, 147, 147,  98/                 
-      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
-                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
-                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
-                687, 687, 344, 344, 687,                                &
-                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
-                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
-                687,                                                    &
-                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
-                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
-               1030, 344, 687, 344, 687,1030,1030, 687/                 
-!-----------------------------------------------------------------------                                                                       
-!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION        
-      NORM = .FALSE.  
-      
-      IF(NELEC==2) GO TO 200                                          
-                                                                       
-      IANDJ = .FALSE.                                         
-      INU = ISH                                                      
-      JNU = 1                                                      
-      NGTI = NGTH(1)                                                 
-      NGTJ = NGTH(2)                                                 
-!                                                                       
-!     ----- ISHELL                                                      
-!                                                                       
-      I = KATOMaux(INU)                                                 
-      AX = Cxyz(1,I)                                                       
-      AY = Cxyz(2,I)                                                       
-      AZ = Cxyz(3,I)                                          
-      I1 = KSTARTAUX(INU)   !
-      I2 = I1+KNGAUX(INU)-1 !
-      LIT = KTYPEaux(INU)                                              
-      MINI = MINF(LIT)                                                  
-      MAXI = MAXF(LIT)                                                  
-      LOCI = KLOCaux(INU)-MINI                                          
-      NGA = 0                                                           
-      DO I = I1,I2                                                  
-       NGA = NGA+1    
-       GA(NGA) = EXaux(I)                                             
-       CSA(NGA) = Caux(I)                                            
-       CPA(NGA) = Caux(I)                                           
-       CDA(NGA) = Caux(I)                                           
-       CFA(NGA) = Caux(I)                                            
-       CGA(NGA) = Caux(I)                                           
-       CHA(NGA) = Caux(I)                                           
-       CIA(NGA) = Caux(I)                                           
-      END DO
-!                                                                       
-!     ----- JSHELL (Unity Shell)                                                     
-!                                                                       
-      J = 1                                                   
-      BX = 0                                                  
-      BY = 0                                                       
-      BZ = 0                                                  
-      J1 = 1                                              
-      J2 = 1                                             
-      LJT = 1                                                  
-      MINJ = 1                                               
-      MAXJ = 1                                               
-      LOCJ = 1                                          
-      NGB = 0                                                           
-      DO J = J1,J2                                                  
-       NGB = NGB+1                                                    
-       GB(NGB) = 0                                               
-       CSB(NGB) = 1                                           
-       CPB(NGB) = 1                                          
-       CDB(NGB) = 1                                           
-       CFB(NGB) = 1                                           
-       CGB(NGB) = 1                                         
-       CHB(NGB) = 1                                         
-       CIB(NGB) = 1                                           
-      END DO                                                          
-      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
-!                                                                       
-      IJ = 0                                                            
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       NX = IX(I)                                                     
-       NY = IY(I)                                                     
-       NZ = IZ(I)                                                     
-       IF (IANDJ) JMAX = I                                            
-       DO J = MINJ,JMAX                                           
-        IJ = IJ+1                                                   
-        IJX(IJ) = NX+JX(J)                                          
-        IJY(IJ) = NY+JY(J)                                          
-        IJZ(IJ) = NZ+JZ(J)                                          
-        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
-       END DO                                                       
-      END DO                                                          
-      RETURN                                                            
-!     ******                                                            
-!                                                                       
-!        K AND L SHELL                                                  
-!                                                                       
-  200 CONTINUE                                                          
-      KANDL = .FALSE.                                        
-      SAME = ISH == KSH                           
-!                                                                       
-!     ----- PERMUTE KSH AND LSH SHELLS, FOR THEIR TYPE                  
-!                                                                       
-      KNU = KSH                                                      
-      LNU = 1                                                      
-      NGTK = NGTH(3)                                                 
-      NGTL = NGTH(4)                                                 
-!                                                                       
-!     ----- K SHELL                                                     
-!                                                                       
-      K = KATOMaux(KNU)                                                 
-      CX = Cxyz(1,K)                                                       
-      CY = Cxyz(2,K)                                                       
-      CZ = Cxyz(3,K)                                                       
-      K1 = KSTARTAUX(KNU)   !
-      K2 = K1+KNGAUX(KNU)-1 !
-      LKT = KTYPEaux(KNU) 
-      MINK = MINF(LKT)                                                  
-      MAXK = MAXF(LKT)                                                  
-      LOCK = KLOCaux(KNU)-MINK                                          
-      NGC = 0                                                           
-      DO K = K1,K2                                                  
-       NGC = NGC+1                                                    
-       GC(NGC) = EXaux(K)                                             
-       CSC(NGC) = Caux(K)                                          
-       CPC(NGC) = Caux(K)                                       
-       CDC(NGC) = Caux(K)                                       
-       CFC(NGC) = Caux(K)                                     
-       CGC(NGC) = Caux(K)                                         
-       CHC(NGC) = Caux(K)                                          
-       CIC(NGC) = Caux(K)                                          
-      END DO                                                          
-!                                                                       
-!     ----- LSHELL (Unity Shell)                                                      
-!                                                                       
-      L = 1                                          
-      DX = 0                                                    
-      DY = 0                                                  
-      DZ = 0                                                      
-      L1 = 1                                                 
-      L2 = 1                                          
-      LLT = 1                                        
-      MINL = 1                                            
-      MAXL = 1                                            
-      LOCL = 1                                       
-      NGD = 0                                                           
-      DO L = L1,L2                                                  
-       NGD = NGD+1                                                    
-       GD(NGD) = 0                                           
-       CSD(NGD) = 1                                          
-       CPD(NGD) = 1                                          
-       CDD(NGD) = 1                                           
-       CFD(NGD) = 1                                          
-       CGD(NGD) = 1                                          
-       CHD(NGD) = 1                                          
-       CID(NGD) = 1                                           
-      END DO                                                          
-      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
-      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
-!                                                                       
-      KL = 0                                                            
-      LMAX = MAXL                                                       
-      DO K = MINK,MAXK                                              
-       NX = KX(K)                                                     
-       NY = KY(K)                                                     
-       NZ = KZ(K)                                                     
-       IF (KANDL) LMAX = K                                            
-       DO L = MINL,LMAX                                           
-        KL = KL+1                                                   
-        KLX(KL) = NX+LX(L)                                          
-        KLY(KL) = NY+LY(L)                                          
-        KLZ(KL) = NZ+LZ(L)                                          
-        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
-       END DO                                                       
-      END DO                                                      
-      MAX = KL                                                          
-      DO 320 I = 1,IJ                                                   
-      IF (SAME) MAX = I                                                 
-  320 IK(I) = MAX                                                       
-      IJKL = IJ*KL        
-      IF (SAME) IJKL = IJ*(IJ+1)/2 
-!-----------------------------------------------------------------------
-      RETURN                                                            
-      END                                                               
-
-! SHELLS3C                                           
-      SUBROUTINE SHELLS3C(NELEC,ISH,JSH,KSH,FLIP,EX,CS,CP,CD,CF,CG,CH,  &
-                          CI,NPRIMI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,   &
-                          KMAX,NSHELL,Cxyz,NAT)                   
+! METRICmat                                            
+      SUBROUTINE METRICmatlib(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS, &
+            DAUXcgto, LOCAUX, NSHELLAUX, NBFaux, IGTYP)
+      USE AOINTS
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL       NORM
-      COMMON/NORMAL/NORM
-      LOGICAL     IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON/ERIOUT/INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL                
-      COMMON/INTDEX/IJX(784),IJY(784),IJZ(784),IK(784),                 &
-                    KLX(784),KLY(784),KLZ(784)                           
-      COMMON/INTDEX1/IJGT(784),KLGT(784)                                 
-      COMMON/ROOT/XX,U(13),W(13),NROOTS                                 
-      COMMON/SHLEXC/NORGSH(3),NORGSP(3),IEXCH,NGTH(4)                    
-      COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                    &
-                    CFA(30),CGA(30),CHA(30),CIA(30),                    &
-                     GB(30),CSB(30),CPB(30),CDB(30),                    &
-                    CFB(30),CGB(30),CHB(30),CIB(30),                    &
-                     GC(30),CSC(30),CPC(30),CDC(30),                    &
-                    CFC(30),CGC(30),CHC(30),CIC(30),                    &
-                     GD(30),CSD(30),CPD(30),CDD(30),                    &
-                    CFD(30),CGD(30),CHD(30),CID(30),                    &
-                    AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
-                    DX,DY,DZ,RCD,NGA,NGB,NGC,NGD                                      
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
-                    MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
-                    NIJ,IJ,KL                                          
-      COMMON/SHLNOS1/QQ4,IJKL
-!      
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      COMMON/EXCaux/EXaux(2000),Caux(2000)
+
+      INTEGER, INTENT(IN) :: SIZE_ENV, NAT, NBAS, NSHELLAUX, IGTYP
+      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+      DOUBLE PRECISION, INTENT(OUT) :: GMAT(NBFaux,NBFaux)
+      INTEGER, INTENT(IN) :: LOCAUX(NSHELLAUX)
 !
-      LOGICAL FLIP
-      INTEGER,DIMENSION(NSHELL)::KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      DIMENSION IX(84),IY(84),IZ(84),JX(84),JY(84),JZ(84),              &
-                KX(84),KY(84),KZ(84),LX(84),LY(84),LZ(84)
-      INTEGER,DIMENSION(8) :: MINF,MAXF                                  
-      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                           
-      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                           
-      DATA LX /   0,   1,   0,   0,   2,   0,   0,   1,   1,   0,       &
-                  3,   0,   0,   2,   2,   1,   0,   1,   0,   1,       &
-                  4,   0,   0,   3,   3,   1,   0,   1,   0,   2,       &
-                  2,   0,   2,   1,   1,                                &
-                  5,   0,   0,   4,   4,   1,   0,   1,   0,   3,       &
-                  3,   2,   0,   2,   0,   3,   1,   1,   2,   2,       &
-                  1,                                                    &
-                  6,   0,   0,   5,   5,   1,   0,   1,   0,   4,       &
-                  4,   2,   0,   2,   0,   4,   1,   1,   3,   3,       &
-                  0,   3,   3,   2,   1,   2,   1,   2/                  
-      DATA KX /   0,   7,   0,   0,  14,   0,   0,   7,   7,   0,       &
-                 21,   0,   0,  14,  14,   7,   0,   7,   0,   7,       &
-                 28,   0,   0,  21,  21,   7,   0,   7,   0,  14,       &
-                 14,   0,  14,   7,   7,                                &
-                 35,   0,   0,  28,  28,   7,   0,   7,   0,  21,       &
-                 21,  14,   0,  14,   0,  21,   7,   7,  14,  14,       &
-                  7,                                                    &
-                 42,   0,   0,  35,  35,   7,   0,   7,   0,  28,       &
-                 28,  14,   0,  14,   0,  28,   7,   7,  21,  21,       &
-                  0,  21,  21,  14,   7,  14,   7,  14/                  
-      DATA JX /   0,  49,   0,   0,  98,   0,   0,  49,  49,   0,       &
-                147,   0,   0,  98,  98,  49,   0,  49,   0,  49,       &
-                196,   0,   0, 147, 147,  49,   0,  49,   0,  98,       &
-                 98,   0,  98,  49,  49,                                &
-                245,   0,   0, 196, 196,  49,   0,  49,   0, 147,       &
-                147,  98,   0,  98,   0, 147,  49,  49,  98,  98,       &
-                 49,                                                    &
-                294,   0,   0, 245, 245,  49,   0,  49,   0, 196,       &
-                196,  98,   0,  98,   0, 196,  49,  49, 147, 147,       &
-                  0, 147, 147,  98,  49,  98,  49,  98/                  
-      DATA IX /   1, 344,   1,   1, 687,   1,   1, 344, 344,   1,       &
-               1030,   1,   1, 687, 687, 344,   1, 344,   1, 344,       &
-               1373,   1,   1,1030,1030, 344,   1, 344,   1, 687,       &
-                687,   1, 687, 344, 344,                                &
-               1716,   1,   1,1373,1373, 344,   1, 344,   1,1030,       &
-               1030, 687,   1, 687,   1,1030, 344, 344, 687, 687,       &
-                344,                                                    &
-               2059,   1,   1,1716,1716, 344,   1, 344,   1,1373,       &
-               1373, 687,   1, 687,   1,1373, 344, 344,1030,1030,       &
-                  1,1030,1030, 687, 344, 687, 344, 687/                  
-      DATA LY /   0,   0,   1,   0,   0,   2,   0,   1,   0,   1,       &
-                  0,   3,   0,   1,   0,   2,   2,   0,   1,   1,       &
-                  0,   4,   0,   1,   0,   3,   3,   0,   1,   2,       &
-                  0,   2,   1,   2,   1,                                &
-                  0,   5,   0,   1,   0,   4,   4,   0,   1,   2,       &
-                  0,   3,   3,   0,   2,   1,   3,   1,   2,   1,       &
-                  2,                                                    &
-                  0,   6,   0,   1,   0,   5,   5,   0,   1,   2,       &
-                  0,   4,   4,   0,   2,   1,   4,   1,   3,   0,       &
-                  3,   2,   1,   3,   3,   1,   2,   2/                  
-      DATA KY /   0,   0,   7,   0,   0,  14,   0,   7,   0,   7,       &
-                  0,  21,   0,   7,   0,  14,  14,   0,   7,   7,       &
-                  0,  28,   0,   7,   0,  21,  21,   0,   7,  14,       &
-                  0,  14,   7,  14,   7,                                &
-                  0,  35,   0,   7,   0,  28,  28,   0,   7,  14,       &
-                  0,  21,  21,   0,  14,   7,  21,   7,  14,   7,       &
-                 14,                                                    &
-                  0,  42,   0,   7,   0,  35,  35,   0,   7,  14,       &
-                  0,  28,  28,   0,  14,   7,  28,   7,  21,   0,       &
-                 21,  14,   7,  21,  21,   7,  14,  14/                  
-      DATA JY /   0,   0,  49,   0,   0,  98,   0,  49,   0,  49,       &
-                  0, 147,   0,  49,   0,  98,  98,   0,  49,  49,       &
-                  0, 196,   0,  49,   0, 147, 147,   0,  49,  98,       &
-                  0,  98,  49,  98,  49,                                &
-                  0, 245,   0,  49,   0, 196, 196,   0,  49,  98,       &
-                  0, 147, 147,   0,  98,  49, 147,  49,  98,  49,       &
-                 98,                                                    &
-                  0, 294,   0,  49,   0, 245, 245,   0,  49,  98,       &
-                  0, 196, 196,   0,  98,  49, 196,  49, 147,   0,       &
-                147,  98,  49, 147, 147,  49,  98,  98/                  
-      DATA IY /   1,   1, 344,   1,   1, 687,   1, 344,   1, 344,       &
-                  1,1030,   1, 344,   1, 687, 687,   1, 344, 344,       &
-                  1,1373,   1, 344,   1,1030,1030,   1, 344, 687,       &
-                  1, 687, 344, 687, 344,                                &
-                  1,1716,   1, 344,   1,1373,1373,   1, 344, 687,       &
-                  1,1030,1030,   1, 687, 344,1030, 344, 687, 344,       &
-                687,                                                    &
-                  1,2059,   1, 344,   1,1716,1716,   1, 344, 687,       &
-                  1,1373,1373,   1, 687, 344,1373, 344,1030,   1,       &
-               1030, 687, 344,1030,1030, 344, 687, 687/                  
-      DATA LZ /   0,   0,   0,   1,   0,   0,   2,   0,   1,   1,       &
-                  0,   0,   3,   0,   1,   0,   1,   2,   2,   1,       &
-                  0,   0,   4,   0,   1,   0,   1,   3,   3,   0,       &
-                  2,   2,   1,   1,   2,                                &
-                  0,   0,   5,   0,   1,   0,   1,   4,   4,   0,       &
-                  2,   0,   2,   3,   3,   1,   1,   3,   1,   2,       &
-                  2,                                                    &
-                  0,   0,   6,   0,   1,   0,   1,   5,   5,   0,       &
-                  2,   0,   2,   4,   4,   1,   1,   4,   0,   3,       &
-                  3,   1,   2,   1,   2,   3,   3,   2/                  
-      DATA KZ /   0,   0,   0,   7,   0,   0,  14,   0,   7,   7,       &
-                  0,   0,  21,   0,   7,   0,   7,  14,  14,   7,       &
-                  0,   0,  28,   0,   7,   0,   7,  21,  21,   0,       &
-                 14,  14,   7,   7,  14,                                &
-                  0,   0,  35,   0,   7,   0,   7,  28,  28,   0,       &
-                 14,   0,  14,  21,  21,   7,   7,  21,   7,  14,       &
-                 14,                                                    &
-                  0,   0,  42,   0,   7,   0,   7,  35,  35,   0,       &
-                 14,   0,  14,  28,  28,   7,   7,  28,   0,  21,       &
-                 21,   7,  14,   7,  14,  21,  21,  14/                  
-      DATA JZ /   0,   0,   0,  49,   0,   0,  98,   0,  49,  49,       &
-                  0,   0, 147,   0,  49,   0,  49,  98,  98,  49,       &
-                  0,   0, 196,   0,  49,   0,  49, 147, 147,   0,       &
-                 98,  98,  49,  49,  98,                                &
-                  0,   0, 245,   0,  49,   0,  49, 196, 196,   0,       &
-                 98,   0,  98, 147, 147,  49,  49, 147,  49,  98,       &
-                 98,                                                    &
-                  0,   0, 294,   0,  49,   0,  49, 245, 245,   0,       &
-                 98,   0,  98, 196, 196,  49,  49, 196,   0, 147,       &
-                147,  49,  98,  49,  98, 147, 147,  98/                  
-      DATA IZ /   1,   1,   1, 344,   1,   1, 687,   1, 344, 344,       &
-                  1,   1,1030,   1, 344,   1, 344, 687, 687, 344,       &
-                  1,   1,1373,   1, 344,   1, 344,1030,1030,   1,       &
-                687, 687, 344, 344, 687,                                &
-                  1,   1,1716,   1, 344,   1, 344,1373,1373,   1,       &
-                687,   1, 687,1030,1030, 344, 344,1030, 344, 687,       &
-                687,                                                    &
-                  1,   1,2059,   1, 344,   1, 344,1716,1716,   1,       &
-                687,   1, 687,1373,1373, 344, 344,1373,   1,1030,       &
-               1030, 344, 687, 344, 687,1030,1030, 687/                 
-!-----------------------------------------------------------------------                                                                       
-!     PREPARE SHELL INFORMATION/FOR HONDO INTEGRATION                   
-      IF(NELEC==2) GO TO 200      
-      NORM = .TRUE.  
-!                                                                       
-!     ----- PERMUTE ISH AND JSH SHELLS, FOR THEIR TYPE                  
-!     THIS IS DONE FOR SPEED REASONS.  THE CODE GETS THE RIGHT ANSWER   
-!     WITHOUT THE ANGULAR MOMENTUM FLIPPING, AND THEREFORE A CALLING    
-!     ARGUMENT ALLOWS ONE DO EXACTLY THE integral BLOCK AS SPECIFIED,   
-!     SHOULD THAT BE DESIRED.                                           
-!                                                                       
-      IANDJ = ISH == JSH                                              
-      IF (KTYPE(ISH) < KTYPE(JSH)  .and.  FLIP) THEN                 
-       INU = JSH                                                      
-       JNU = ISH                                                      
-       NGTI = NGTH(2)                                                 
-       NGTJ = NGTH(1)                                                 
-      ELSE                                                              
-       INU = ISH                                                      
-       JNU = JSH                                                      
-       NGTI = NGTH(1)                                                 
-       NGTJ = NGTH(2)                                                 
-      END IF                                                            
-!                                                                       
-!     ----- ISHELL                                                      
-!                                                                       
-      I = KATOM(INU)                                                    
-      AX = Cxyz(1,I)                                                       
-      AY = Cxyz(2,I)                                                       
-      AZ = Cxyz(3,I)                                                       
-      I1 = KSTART(INU)                                                  
-      I2 = I1+KNG(INU)-1                                                
-      LIT = KTYPE(INU)                                                  
-      MINI = KMIN(INU)                                                  
-      MAXI = KMAX(INU)                                                  
-      LOCI = KLOC(INU)-MINI                                             
-      NGA = 0                                                           
-      DO I = I1,I2                                                  
-       NGA = NGA+1                                                    
-       GA(NGA) = EX(I)                                                
-       CSA(NGA) = CS(I)                                               
-       CPA(NGA) = CP(I)                                               
-       CDA(NGA) = CD(I)                                               
-       CFA(NGA) = CF(I)                                               
-       CGA(NGA) = CG(I)                                               
-       CHA(NGA) = CH(I)                                               
-       CIA(NGA) = CI(I)                                               
-      END DO                                                          
-!                                                                       
-!     ----- JSHELL                                                      
-!                                                                       
-      J = KATOM(JNU)                                                    
-      BX = Cxyz(1,J)                                                       
-      BY = Cxyz(2,J)                                                       
-      BZ = Cxyz(3,J)                                                       
-      J1 = KSTART(JNU)                                                  
-      J2 = J1+KNG(JNU)-1                                                
-      LJT = KTYPE(JNU)                                                  
-      MINJ = KMIN(JNU)                                                  
-      MAXJ = KMAX(JNU)                                                  
-      LOCJ = KLOC(JNU)-MINJ                                             
-      NGB = 0                                                           
-      DO J = J1,J2                                                  
-       NGB = NGB+1                                                    
-       GB(NGB) = EX(J)                                                
-       CSB(NGB) = CS(J)                                               
-       CPB(NGB) = CP(J)                                               
-       CDB(NGB) = CD(J)                                               
-       CFB(NGB) = CF(J)                                               
-       CGB(NGB) = CG(J)                                               
-       CHB(NGB) = CH(J)                                               
-       CIB(NGB) = CI(J)                                               
-      END DO                                                          
-      RAB = ((AX-BX)*(AX-BX) + (AY-BY)*(AY-BY) + (AZ-BZ)*(AZ-BZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS                
-!                                                                       
-      IJ = 0                                                            
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       NX = IX(I)                                                     
-       NY = IY(I)                                                     
-       NZ = IZ(I)                                                     
-       IF (IANDJ) JMAX = I                                            
-       DO J = MINJ,JMAX                                           
-        IJ = IJ+1                                                   
-        IJX(IJ) = NX+JX(J)                                          
-        IJY(IJ) = NY+JY(J)                                          
-        IJZ(IJ) = NZ+JZ(J)                                          
-        IJGT(IJ) = NGTI*(I-MINI)+NGTJ*(J-MINJ)+1                    
-       END DO                                                   
-      END DO                                                         
-      RETURN                                                            
-!     ******                                                            
-!                                                                       
-!        K AND L SHELL                                                  
-!                                                                       
-  200 CONTINUE    
-      NORM  = .FALSE.      
-      KANDL = .FALSE.                                 
-      SAME  = .FALSE.          
+      INTEGER :: DI, DK
+      INTEGER(4) :: SHLS(2)
+      INTEGER :: NSHELL, ISH, KSH, ERR
+      INTEGER :: DAUXcgto(NSHELLAUX)
 
-      KNU = KSH                                                      
-      LNU = 1                                                      
-      NGTK = NGTH(3)                                                 
-      NGTL = NGTH(4)                                                 
-!                                                                       
-!     ----- K SHELL                                                     
-!                                                                       
-      K = KATOMaux(KNU)                                                 
-      CX = Cxyz(1,K)                                                       
-      CY = Cxyz(2,K)                                                       
-      CZ = Cxyz(3,K)                                                       
-      K1 = KSTARTAUX(KNU)   !
-      K2 = K1+KNGAUX(KNU)-1 !
-      LKT = KTYPEaux(KNU)                                               
-      MINK = MINF(LKT)                                                  
-      MAXK = MAXF(LKT)                                                  
-      LOCK = KLOCaux(KNU)-MINK                                          
-      NGC = 0                                                           
-      DO K = K1,K2                                                  
-       NGC = NGC+1                                                    
-       GC(NGC) = EXaux(K)                                             
-       CSC(NGC) = Caux(K)                                            
-       CPC(NGC) = Caux(K)                                         
-       CDC(NGC) = Caux(K)                                             
-       CFC(NGC) = Caux(K)                                             
-       CGC(NGC) = Caux(K)                                             
-       CHC(NGC) = Caux(K)                                             
-       CIC(NGC) = Caux(K)                                             
-      END DO                                                          
-!                                                                       
-!     ----- LSHELL (Unity Shell)                                                     
-!                                                                       
-      L = 1                                                    
-      DX = 0                                                       
-      DY = 0                                                       
-      DZ = 0                                                       
-      L1 = 1                                                
-      L2 = 1                                                
-      LLT = 1                                                  
-      MINL = 1                                                  
-      MAXL = 1                                                  
-      LOCL = 1                                             
-      NGD = 0                                                           
-      DO L = L1,L2                                                  
-       NGD = NGD+1                                                    
-       GD(NGD) = 0                                                
-       CSD(NGD) = 1                                             
-       CPD(NGD) = 1                                              
-       CDD(NGD) = 1                                               
-       CFD(NGD) = 1                                               
-       CGD(NGD) = 1                                               
-       CHD(NGD) = 1                                               
-       CID(NGD) = 1                                               
-      END DO                                                          
-      NROOTS = (LIT+LJT+LKT+LLT-2)/2                                    
-      RCD = ((CX-DX)*(CX-DX) + (CY-DY)*(CY-DY) + (CZ-DZ)*(CZ-DZ))       
-!                                                                       
-!     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS                
-!                                                                       
-      KL = 0                                                            
-      LMAX = MAXL                                                       
-      DO K = MINK,MAXK                                              
-       NX = KX(K)                                                     
-       NY = KY(K)                                                     
-       NZ = KZ(K)                                                     
-       IF (KANDL) LMAX = K                                            
-       DO L = MINL,LMAX                                           
-        KL = KL+1                                                   
-        KLX(KL) = NX+LX(L)                                          
-        KLY(KL) = NY+LY(L)                                          
-        KLZ(KL) = NZ+LZ(L)                                          
-        KLGT(KL) = NGTK*(K-MINK)+NGTL*(L-MINL)                      
-       END DO                                                       
-      END DO                                                          
-      MAX = KL                                                          
-      DO 320 I = 1,IJ                                                   
-      IF (SAME) MAX = I                                                 
-  320 IK(I) = MAX                                                       
-      IJKL = IJ*KL                                                      
-      IF (SAME) IJKL = IJ*(IJ+1)/2
+      INTEGER(4),ALLOCATABLE,DIMENSION(:,:) :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:)
 
-      RETURN                                                            
-      END       
-
-! PDPT_msqrt
-      SUBROUTINE PDPT_msqrt(GMAT,N,IPRINTOPT)
-      INTEGER :: N,IPRINTOPT,I,J,NTRUNC
-      DOUBLE PRECISION :: GMAT(N,N),TOL
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: VEC,AUX,AUX2
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EIG,W
-
-      ALLOCATE(VEC(N,N),AUX(N,N),AUX2(N,N))
-      ALLOCATE(EIG(N),W(N))
-!
-      TOL = 1.0d-10
-      AUX = GMAT
-      CALL DIAG(N,AUX,VEC,EIG,W)
-!
-      NTRUNC = 0
-      AUX = 0.0d0
-      DO I=1,N
-       IF (EIG(I)<=TOL) THEN
-        NTRUNC = NTRUNC + 1
-        EIG(I) = 0.0D0
-        DO J=1,N
-         VEC(J,I) = 0.0d0
-        END DO
-       ELSE
-        AUX(I,I) = 1.0/DSQRT(EIG(I))
-       END IF
+      INTEGER(4), EXTERNAL :: CINTcgto_cart, cint2c2e_cart, cint1e_ovlp_cart
+      INTEGER(4), EXTERNAL :: CINTcgto_spheric, cint2c2e_sph, cint1e_ovlp_sph
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+!     2e- Integrals (S,P,D,F,G & L Shells)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NSHELL = NBAS - NSHELLAUX
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      !$OMP PARALLEL &
+      !$OMP PRIVATE(II, KK, ISH, KSH, LQSUM, BLK, DI, DK, ERR, SHLS)
+      !$OMP DO SCHEDULE(DYNAMIC)
+      DO ISH = 1,NSHELLAUX                          ! II Shell
+       SHLS(1) = ISH-1 + NSHELL
+       DI = DAUXcgto(ISH)
+       DO KSH = 1,ISH                               ! KK Shell
+        SHLS(2) = KSH-1 + NSHELL
+        DK = DAUXcgto(KSH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
+!       Compute 2e- Integrals                      
+!       Select integral code for ERI calculation
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ALLOCATE(BLK(DI,DK))
+        IF(IGTYP==1) ERR = cint2c2e_cart(BLK, SHLS, ATM4, NAT, BAS4,    &
+                NBAS, ENV, 0_8)
+        IF(IGTYP==2) ERR = cint2c2e_sph(BLK, SHLS, ATM4, NAT, BAS4,     &
+                NBAS, ENV, 0_8)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       Transfer integrals to G matrix
+!- - - - - - - - - - - - - - - - - - - - - - -
+        CALL QOUT2Clib(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
+!- - - - - - - - - - - - - - - - - - - - - - -
+        DEALLOCATE(BLK)
+       END DO
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
 
-      IF(IPRINTOPT==1.AND.NTRUNC>0) THEN
-        WRITE(6,*) "RI Warning - Number of values truncated from metric:",NTRUNC
-      END IF
-
-      DEALLOCATE(EIG,W)
-      CALL DGEMM("N","N",N,N,N,1.0D0,VEC,N,AUX,N,0.0D0,AUX2,N)
-      CALL DGEMM("N","T",N,N,N,1.0D0,AUX2,N,VEC,N,0.0D0,GMAT,N)
-      DEALLOCATE(VEC,AUX,AUX2)
-
+!-----------------------------------------------------------------------
+      RETURN
       END
 
 ! QOUT2C                                             
-      SUBROUTINE QOUT2C(GMAT,NBFaux,GHONDO,MAXG)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      LOGICAL IANDJ,KANDL,SAME
-      COMMON/MISC  /IANDJ,KANDL,SAME                                  
-      COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL           
-      COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                &
-                    MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,            &
-                    NIJ,IJ,KL                                          
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
+      SUBROUTINE QOUT2Clib(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
+      IMPLICIT NONE                             
 !
-      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux) :: GMAT
-      DOUBLE PRECISION,DIMENSION(MAXG) :: GHONDO
-      INTEGER,DIMENSION(8) :: MINF,MAXF
-      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                 
-      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/                 
+      INTEGER, INTENT(IN) :: DI, DK
+      INTEGER, INTENT(IN) :: NBFaux,  NSHELLAUX, ISH, KSH
+      INTEGER, INTENT(IN) :: LOCAUX(NSHELLAUX)
+      DOUBLE PRECISION, INTENT(INOUT) :: GMAT(NBFaux, NBFaux)
+      DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DK)
+
+      INTEGER :: I, K, I1, I3, LOCI, LOCK
+      LOGICAL :: SAME
+
 !-----------------------------------------------------------------------                                                                       
 !     Get Auxiliary Basis Info. 
 !-----------------------------------------------------------------------
-      SAME  = ISH == KSH                            
-      MINI = MINF(KTYPEaux(ISH))                                        
-      MINK = MINF(KTYPEaux(KSH))                                        
-      MAXI = MAXF(KTYPEaux(ISH))                                        
-      MAXK = MAXF(KTYPEaux(KSH))                                        
-      LOCI = KLOCaux(ISH)-MINI                                         
-      LOCK = KLOCaux(KSH)-MINK                                          
+      SAME = (ISH == KSH)                                         
+      LOCI = LOCAUX(ISH)
+      LOCK = LOCAUX(KSH)
+
 !-----------------------------------------------------------------------                                                                       
 !     Store (k|l) ERIs in G matrix 
 !-----------------------------------------------------------------------
-      DO 1 I = MINI,MAXI                                              
-        I_INDEX = (I-MINI)*LSTRI + 1                                   
-        DO K =  MINK,MAXK                                       
-          IK_INDEX = (K-MINK)*LSTRK + I_INDEX                    
-          IF(SAME.and.K>I)GO TO 1                 
-          VAL = GHONDO( IK_INDEX )
-          I1 = LOCI+I                                           
-          I3 = LOCK+K                                           
-          GMAT(I1,I3) = VAL
-          GMAT(I3,I1) = VAL
+      DO I = 1,DI                                              
+        DO K = 1,DK                                       
+          IF(SAME.and.K>I) CYCLE                 
+          I1 = LOCI + I - 1                                           
+          I3 = LOCK + K - 1                                           
+          GMAT(I1,I3) = BLK(I, K)
+          GMAT(I3,I1) = BLK(I, K)
         END DO
-    1 CONTINUE                                                       
+      END DO
 !-----------------------------------------------------------------------                                                                       
       RETURN                                                            
-      END                                                               
+      END
 
 ! QOUT3C                                     
-      SUBROUTINE QOUT3C(BUFP2,GHONDO,MAXG,GMAT,NBF,NBFaux,              &
-                        KLOC,KMIN,KMAX,NSHELL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                               
-      LOGICAL IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME                                  
-      COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL           
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
+      SUBROUTINE QOUT3Clib(BUFP2, GMAT, NBF, NBFAUX, BLK, DI, DJ, DK,  &
+            ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLAUX)
+      IMPLICIT NONE                               
 !
-      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
-      DOUBLE PRECISION,DIMENSION(NBFaux,NBFaux)::GMAT
-      DOUBLE PRECISION,DIMENSION(MAXG)::GHONDO
-      INTEGER,DIMENSION(8) :: MINF,MAXF
-      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/                 
-      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/      
-      INTEGER :: T
+      INTEGER, INTENT(IN) :: NBF, NBFAUX
+      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLAUX
+      INTEGER, INTENT(IN) :: DI, DJ, DK
+      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCAUX(NSHELLAUX)
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2, NBFAUX)
+      DOUBLE PRECISION, INTENT(IN) :: GMAT(NBFAUX, NBFAUX)
+      DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DJ, DK)
+
+
+      LOGICAL :: IANDJ    
+      INTEGER :: DJEFF, I
+      INTEGER :: J, K, L, M, N, KK, MN, T
+      INTEGER :: LOCI, LOCJ, LOCK
+      DOUBLE PRECISION :: VAL
 !-----------------------------------------------------------------------                                                                       
 !     Get Basis and Auxiliary Basis Info. 
 !-----------------------------------------------------------------------
-      IANDJ = ISH == JSH                                              
-      MINI = KMIN(ISH)                                                  
-      MINJ = KMIN(JSH)                                                  
-      MINK = MINF(KTYPEaux(KSH))                                        
-      MAXI = KMAX(ISH)                                                  
-      MAXJ = KMAX(JSH)                                                  
-      MAXK = MAXF(KTYPEaux(KSH))                                        
-      LOCI = KLOC(ISH)-MINI                                             
-      LOCJ = KLOC(JSH)-MINJ                                             
-      LOCK = KLOCaux(KSH)-MINK                                          
+      IANDJ = ISH == JSH                                                  
+      LOCI = LOC(ISH)                                   
+      LOCJ = LOC(JSH)                                    
+      LOCK = LOCAUX(KSH)
+
 !-----------------------------------------------------------------------                                                                       
 !     Build B tensor (Only Upper Triangular)
 !      b_mn^l = sum_k (mn|k) G^{-1/2}_{kl}
 !-----------------------------------------------------------------------
-      JMAX = MAXJ                                                       
-      DO I = MINI,MAXI                                              
-       I_INDEX = (I-MINI)*LSTRI + 1                                   
-       IF (IANDJ) JMAX = I                                            
-       DO J = MINJ,JMAX                                           
-        IJ_INDEX = (J-MINJ)*LSTRJ + I_INDEX                         
-        DO K = MINK,MAXK                                       
-          IJK_INDEX = (K-MINK)*LSTRK + IJ_INDEX                    
-          VAL = GHONDO( IJK_INDEX ) 
-          M = LOCI+I                                           
-          N = LOCJ+J                                           
-          KK = LOCK+K                                           
-          IF (M <= N) GO TO 100                             
-          T = M                                                
-          M = N                                               
-          N = T                                                
-  100     MN = M + N*(N-1)/2
+      DO I = 1, DI     
+       DJEFF = MERGE(I, DJ, IANDJ)                                     
+       DO J = 1, DJEFF
+        DO K = 1, DK
+          M = LOCI + I - 1
+          N = LOCJ + J - 1
+          KK = LOCK + K - 1                                           
+          VAL = BLK(I, J, K)
+
+          IF (M > N) THEN
+            T = M
+            M = N
+            N = T
+          END IF
+          MN = M + N*(N-1)/2
+
           DO L=1,NBFaux
-           BUFP2(MN,L) = BUFP2(MN,L) + VAL*GMAT(KK,L)
+           BUFP2(MN, L) = BUFP2(MN, L) + VAL * GMAT(KK, L)
           END DO
+
         END DO
        END DO                                                       
       END DO
 !-----------------------------------------------------------------------                                                                       
       RETURN 
-      END                                                               
+      END SUBROUTINE
 
-! QOUT3CModChol
-      SUBROUTINE QOUT3CModChol(BUFP2,GHONDO,MAXG,NBF,NBFaux,            &
-                               KLOC,KMIN,KMAX,NSHELL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL IANDJ,KANDL,SAME
-      COMMON/MISC/IANDJ,KANDL,SAME
-      COMMON/ERIOUT/ISH,JSH,KSH,LSH,LSTRI,LSTRJ,LSTRK,LSTRL
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
+! QOUT3C                                     
+      SUBROUTINE QOUT3CModChollib(BUFP2, GMAT, NBF, NBFAUX, BLK,        &
+            DI, DJ, DK, ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLAUX)
+      IMPLICIT NONE                               
 !
-      INTEGER,DIMENSION(NSHELL) :: KLOC,KMIN,KMAX
-      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
-      DOUBLE PRECISION,DIMENSION(MAXG)::GHONDO
-      INTEGER,DIMENSION(8) :: MINF,MAXF
-      DATA MINF / 1, 2,  5, 11, 21, 36, 57, 1/
-      DATA MAXF / 1, 4, 10, 20, 35, 56, 84, 4/
+      INTEGER, INTENT(IN) :: NBF, NBFAUX
+      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLAUX
+      INTEGER, INTENT(IN) :: DI, DJ, DK
+      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCAUX(NSHELLAUX)
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2, NBFAUX)
+      DOUBLE PRECISION, INTENT(IN) :: GMAT(NBFAUX, NBFAUX)
+      DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DJ, DK)
+
+      LOGICAL :: IANDJ    
+      INTEGER :: DJEFF, I
+      INTEGER :: J, K, L, M, N, KK, MN, T
+      INTEGER :: LOCI, LOCJ, LOCK
+      DOUBLE PRECISION :: VAL
 !-----------------------------------------------------------------------                                                                       
 !     Get Basis and Auxiliary Basis Info. 
 !-----------------------------------------------------------------------
-      IANDJ = ISH == JSH
-      MINI = KMIN(ISH)
-      MINJ = KMIN(JSH)
-      MINK = MINF(KTYPEaux(KSH))
-      MAXI = KMAX(ISH)
-      MAXJ = KMAX(JSH)
-      MAXK = MAXF(KTYPEaux(KSH))
-      LOCI = KLOC(ISH)-MINI
-      LOCJ = KLOC(JSH)-MINJ
-      LOCK = KLOCaux(KSH)-MINK
-!-----------------------------------------------------------------------                                                                       
-!     Store (mn|P) (Only Upper Triangular)
-!-----------------------------------------------------------------------
-      JMAX = MAXJ
-      DO I = MINI,MAXI
-       I_INDEX = (I-MINI)*LSTRI + 1
-       IF (IANDJ) JMAX = I
-       DO 1 J = MINJ,JMAX
-        IJ_INDEX = (J-MINJ)*LSTRJ + I_INDEX
-        DO K =  MINK,MAXK
-          IJK_INDEX = (K-MINK)*LSTRK + IJ_INDEX
-          VAL = GHONDO( IJK_INDEX )
-          M = LOCI+I
-          N = LOCJ+J
-          KK = LOCK+K
-          IF (M <= N) GO TO 100
-          MT = M
-          M = N
-          N = MT
-  100     MN = M + N*(N-1)/2
-          BUFP2(MN,KK) = VAL
-        END DO
-    1  CONTINUE
-      END DO
-!-----------------------------------------------------------------------                                                                       
-      RETURN
-      END
+      IANDJ = ISH == JSH                                                  
+      LOCI = LOC(ISH)                                   
+      LOCJ = LOC(JSH)                                    
+      LOCK = LOCAUX(KSH)
 
-! QOUTaux
-      SUBROUTINE QOUTaux(BUFP2,GLIBRETA,NBF,NBFaux,ISH,JSH,KLOC,NSHELL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER,DIMENSION(NSHELL) :: KLOC
-      DIMENSION GLIBRETA(*)
-      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,NBFaux) :: BUFP2
-      INTEGER :: ORII,ORIJ,ORIK
-      COMMON/ORI/ORII,ORIJ,ORIK
-      INTEGER :: ISH,JSH
-      LOGICAL IANDJ
+!-----------------------------------------------------------------------                                                                       
+!     Build B tensor (Only Upper Triangular)
+!      b_mn^l = sum_k (mn|k) G^{-1/2}_{kl}
 !-----------------------------------------------------------------------
-!     Pack 4-indices into 1 word.
-!     Write Label & integral on Unit 1 if DONTW = .False.
-!-----------------------------------------------------------------------
-      IANDJ = ISH == JSH
-      LOCI = KLOC(ISH)
-      LOCJ = KLOC(JSH)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IJN = 0
-      JMAX = ORIJ
-      DO I = 1,ORII
-       I_INDEX = (I-1)*ORIJ*NBFaux
-       IF (IANDJ) JMAX = I
-       DO J = 1,JMAX
-        IJ_INDEX = (J-1)*NBFaux + I_INDEX
-        IJN = IJN+1
-        KLN = 0
-        DO K = 1,NBFaux
-         IJK_INDEX = (K-1) + IJ_INDEX + 1
-         VAL = GLIBRETA( IJK_INDEX )
-         I1 = LOCI+I-1
-         I2 = LOCJ+J-1
-         I3 = K
-         IF (I1 <= I2) GO TO 100
-         N = I1
-         I1 = I2
-         I2 = N
-  100    CONTINUE
-         MN = I1 + I2*(I2-1)/2
-         BUFP2(MN,K) = VAL
+      DO I = 1, DI     
+       DJEFF = MERGE(I, DJ, IANDJ)                                     
+       DO J = 1, DJEFF
+        DO K = 1, DK
+          M = LOCI + I - 1
+          N = LOCJ + J - 1
+          KK = LOCK + K - 1                                           
+          VAL = BLK(I, J, K)
+
+          IF (M > N) THEN
+            T = M
+            M = N
+            N = T
+          END IF
+          MN = M + N*(N-1)/2
+
+          BUFP2(MN,KK) = VAL
+
         END DO
-       END DO
+       END DO                                                       
       END DO
-!-----------------------------------------------------------------------
-      RETURN
-      END
+!-----------------------------------------------------------------------                                                                       
+      RETURN 
+      END SUBROUTINE
 
 !----------------------------------------------------------------------!
 !                                                                      !

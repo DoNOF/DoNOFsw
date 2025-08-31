@@ -61,6 +61,12 @@
       INTEGER :: INTTYPE
       INTEGER :: CR, CM, TIMESTART, TIMEFINISH
       DOUBLE PRECISION :: RATE
+
+      INTEGER :: SIZE_ENV, NBAS                          !LIBCINT
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ENV0  !LIBCINT
+      INTEGER,ALLOCATABLE,DIMENSION(:,:) :: ATM0, BAS0   !LIBCINT
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ENV   !LIBCINT
+      INTEGER,ALLOCATABLE,DIMENSION(:,:) :: ATM, BAS     !LIBCINT
 !-----------------------------------------------------------------------
 !     MPI initialization
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -104,7 +110,7 @@
 !   NPRIMImax: Maximum Number of Gaussian Functions
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL NAMELIST_INPRUN(IRUNTYP,ICH,MUL,NINTEG,IDONTW,IEMOM,EVEC,    &
-                           ILIBRETA,IECP,IHSSCAL,IPROJECT,ISIGMA,       &
+                           ILIBCINT,IECP,IHSSCAL,IPROJECT,ISIGMA,IGTYP, &
                            NATmax,NSHELLmax,NPRIMImax,IHUBBARD)
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
@@ -116,7 +122,7 @@
 !-----------------------------------------------------------------------
 !      Initialize for the integral quadratures if ERI HONDO Calculator
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(ILIBRETA==0)CALL INIINTQUAD
+       IF(ILIBCINT==0)CALL INIINTQUAD
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE(ZAN0(NATmax),Cxyz0(3,NATmax),IAN0(NATmax),IMIN0(NATmax),&
                 IMAX0(NATmax),ZMASS0(NATmax),KSTART0(NSHELLmax),        &
@@ -127,14 +133,20 @@
                 CS0(NPRIMImax),CP0(NPRIMImax),CD0(NPRIMImax),           &
                 CF0(NPRIMImax),CG0(NPRIMImax),CH0(NPRIMImax),           &
                 CI0(NPRIMImax))
+
+        SIZE_ENV = 20 + 3*NATmax + 2*NPRIMImax !LIBCINT
+        ALLOCATE(ENV0(SIZE_ENV))               !LIBCINT
+        ALLOCATE(ATM0(6,NATmax))               !LIBCINT
+        ALLOCATE(BAS0(8,NSHELLmax))            !LIBCINT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Read in Basis Set and get initial Molecular Orbitals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       CALL START(NAT,NATmax,NBF,NBFaux,NQMT,NE,NA,NB,NSHELL,NSHELLmax, &
-                  NSHELLaux,NPRIMI,NPRIMImax,ZAN0,Cxyz0,IAN0,IMIN0,     &
-                  IMAX0,ZMASS0,KSTART0,KATOM0,KTYPE0,KNG0,KLOC0,KMIN0,  &
-                  KMAX0,INTYP0,ISH0,ITYP0,C10,C20,EX0,CS0,CP0,CD0,CF0,  &
-                  CG0,CH0,CI0)
+       CALL START(IGTYP,NAT,NATmax,NBF,NBFaux,NQMT,NE,NA,NB,NSHELL,     &
+                  NSHELLmax,NSHELLaux,NPRIMI,NPRIMImax,NPRIMIaux,       &
+                  ZAN0,Cxyz0,IAN0,IMIN0,IMAX0,ZMASS0,KSTART0,KATOM0,    &
+                  KTYPE0,KNG0,KLOC0,KMIN0,KMAX0,INTYP0,ISH0,ITYP0,      &
+                  C10,C20,EX0,CS0,CP0,CD0,CF0,CG0,CH0,CI0,SIZE_ENV,ENV0,&
+                  ATM0,BAS0) !LIBCINT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      NAT: Number of Atoms             
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -189,6 +201,18 @@
        CI(1:nprimi) = CI0(1:nprimi)      
        deallocate(ISH0,ITYP0,C10,C20,EX0,CS0,CP0,CD0,CF0,CG0,CH0,CI0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Copy LIBCINT variables
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       SIZE_ENV = 20 + 3*NAT + 2*NPRIMI + 2*NPRIMIaux !LIBCINT
+       NBAS = NSHELL + NSHELLaux                      !LIBCINT
+       ALLOCATE(ENV(SIZE_ENV))                        !LIBCINT
+       ALLOCATE(ATM(6,NAT))                           !LIBCINT
+       ALLOCATE(BAS(8,NBAS))                          !LIBCINT
+       ENV(1:SIZE_ENV) = ENV0(1:SIZE_ENV)             !LIBCINT
+       ATM(1:6, 1:NAT) = ATM0(1:6, 1:NAT)             !LIBCINT
+       BAS(1:8, 1:NBAS) = BAS0(1:8, 1:NBAS)           !LIBCINT
+       DEALLOCATE(ENV0,ATM0,BAS0)                     !LIBCINT
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Header on the output file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !
@@ -224,22 +248,26 @@
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,   &
-                      CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,1,1)
+                      CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,  &
+                      NBAS,BAS,IGTYP,1,1)
        ELSE IF(IRUNTYP==3)THEN
         CALL OPTIMIZE(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,   &
                       KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,  &
-                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,GRADS,    &
-                      IRUNTYP,IHSSCAL,IPROJECT,ISIGMA)
+                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,SIZE_ENV, &
+                      ENV,ATM,NBAS,BAS,IGTYP,GRADS,IRUNTYP,IHSSCAL,     &
+                      IPROJECT,ISIGMA)
        ELSE IF(IRUNTYP==4)THEN
         CALL HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,    &
                      KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,   &
                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,GRADS,     &
-                     IRUNTYP,IPROJECT,ISIGMA)
+                     IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,          &
+                     NBAS,BAS,IGTYP)
        ELSE IF(IRUNTYP==5)THEN
         CALL MOLDYN (NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,  &
-                     CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)                     
+                     CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,&
+                     NBAS,BAS,IGTYP)                     
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        DEALLOCATE(ZAN,ZMASS,Cxyz,GRADS,IAN,IMIN,IMAX)

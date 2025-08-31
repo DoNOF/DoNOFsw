@@ -224,6 +224,7 @@
 !-----------------------------------------------------------------------
       IVIOORTHO=0
       CSCMAX=0.0d0
+      !$OMP PARALLEL DO PRIVATE(IQ,JQ,CSC,i) REDUCTION(+:IVIOORTHO) REDUCTION(MAX: CSCMAX)
       DO IQ=1,NBF
        DO JQ=1,IQ
         CSC=0.0d0
@@ -241,6 +242,7 @@
         ENDIF
        ENDDO
       ENDDO
+      !$OMP END PARALLEL DO
       IF(IPRINTOPT==0)RETURN
       IF(IVIOORTHO==0)THEN
        WRITE(6,1)

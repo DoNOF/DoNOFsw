@@ -59,13 +59,13 @@
             NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,                 &
             KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,                 &
             C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,                   &
-            DIPS,NOPTCG,IPRINTOPT)
+            DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NOPTCG,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER :: NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI
       INTEGER :: IRUNTYP,NOPTCG,IPRINTOPT
       LOGICAL RESTART
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
-      COMMON/USELIBRETA/ILIBRETA                  
+      COMMON/USELIBCINT/ILIBCINT                  
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/INTFIL/NINTMX
@@ -88,6 +88,10 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AHCORE,OVERLAP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: XINTS            
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFaux
+
+      INTEGER :: SIZE_ENV,NBAS            !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
 !-----------------------------------------------------------------------
 !     Allocate necessary arrays for 1e- and 2e- integrals + Guess
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -112,15 +116,9 @@
           NINTEGtm = NBF*(NBF+1)*(NBF*NBF+NBF+2)/8       
           NINTEGAUXtm = NBF*(NBF+1)/2*NBFaux        
         end if
-!- - - - - - - - - - - - - - - - - - - -       
-!      Use only 1 record if DONTW = T      
-!- - - - - - - - - - - - - - - - - - - -
-        if(IERITYP==1.or.IERITYP==3)then
-          NINTMX = NINTEGtm 
-          NINTEG = NINTEGtm 
-        endif
       ELSE
         NINTEGtm = NINTEG
+        NINTEGAUXtm = 0
       ENDIF
       ALLOCATE(BUF(NINTEGtm),IBUF(NINTEGtm),BUFaux(NINTEGAUXtm))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -133,7 +131,7 @@
                CP,CD,CF,CG,CH,CI,NPRIMI,Cxyz,H,S,EiHF,CHF,              &
                BUF,IBUF,BUFaux,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,        &
                NINTEGAUXtm,NINTEGt,NREC,XINTS,NSH2,IDONTW,              &
-               INPUTC,IPRINTOPT,ZAN)
+               INPUTC,IPRINTOPT,ZAN,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Preparing for RunNOF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -159,21 +157,22 @@
         NVAL=3+6+10                                            
       END IF                                                            
       ALLOCATE(DQOInt(NVAL*NBFT),AUX(NVAL*784))
-      if(ILIBRETA==0)then
+      if(ILIBCINT==0)then
         CALL PRCALC(DQOInt,AUX,NVAL,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,&
            KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz) 
-      else if(ILIBRETA==1)then
-        CALL PRCALClib(DQOInt,AUX,NVAL,NBFT,KATOM,KLOC,KMIN,KMAX,NSHELL)
+      else if(ILIBCINT==1)then
+        CALL PRCALClib(DQOInt,NVAL,NBFT,SIZE_ENV,ENV,NAT,ATM,NSHELL,    &
+                NBAS,BAS,IGTYP)
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     PNOF Calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL RunNOF(NAT,NBF,NBFT,NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,    &
-          KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
-          C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF,&
-          DIPN,QUADN,OCTUN,NVAL,DQOInt,NINTEG,NREC,IBUF,BUF,    &
-          BUFaux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,IRUNTYP,DIPS, &
-          XINTS,IPRINTOPT)
+          KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,         &
+          C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF,        &
+          DIPN,QUADN,OCTUN,NVAL,DQOInt,NINTEG,NREC,IBUF,BUF,            &
+          BUFaux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,IRUNTYP,DIPS,         &
+          XINTS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
       DEALLOCATE(AHCORE,OVERLAP,CHF,EiHF,DIPN,QUADN,OCTUN,DQOInt,AUX)
       DEALLOCATE(IBUF,BUF,BUFaux,XINTS)
       NOPTCGMPI = NOPTCG
@@ -219,14 +218,15 @@
 ! PNOFGRAD
       SUBROUTINE PNOFGRAD(COEF,QD,RO,ELAG,GRADS,ATMNAME,KATOM,KTYPE,    &
                           KLOC,KKMIN,KKMAX,KSTART,KNG,CX0,CY0,CZ0,ZNUC, &
-                          EX1,CS,CP,CD,CF,CG,CJ12,CK12,XINTS,IPRINTOPT)
+                          EX1,CS,CP,CD,CF,CG,CJ12,CK12,XINTS,SIZE_ENV,  &
+                          ENV,NAT,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/USELIBRETA/ILIBRETA      
+      COMMON/USELIBCINT/ILIBCINT      
 !
       INTEGER,INTENT(IN)::IPRINTOPT
       CHARACTER*4 ATMNAME(NATOMS)
@@ -241,15 +241,20 @@
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5),INTENT(IN)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2),INTENT(IN)::XINTS
       DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
+
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)      
 !-----------------------------------------------------------------------
 !     ONE-ELECTRON CONTRIBUTION TO THE GRADIENT
 !-----------------------------------------------------------------------
       CALL STVDERNOF(COEF,QD,RO,ELAG,GRADS,KATOM,KTYPE,KLOC,KKMIN,KKMAX,&
-                     KSTART,KNG,CX0,CY0,CZ0,ZNUC,EX1,CS,CP,CD,CF,CG)
+                     KSTART,KNG,CX0,CY0,CZ0,ZNUC,EX1,CS,CP,CD,CF,CG,    &
+                     SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
 !-----------------------------------------------------------------------
 !     TWO-ELECTRON CONTRIBUTION TO THE GRADIENT
 !-----------------------------------------------------------------------
-      if(ILIBRETA==0)then
+      if(ILIBCINT==0)then
        IF((IPNOF==5 .or. IPNOF==7) .and. NSOC==0) THEN
         CALL JKDERNOF5(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,QD,RO,   &
                        GRADS,CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ATMNAME,    &
@@ -259,13 +264,15 @@
                       CK12,QD,RO,GRADS,CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,  &
                       ATMNAME,XINTS,IPRINTOPT)
        ENDIF
-      else if(ILIBRETA==1)then                    
+      else if(ILIBCINT==1)then                    
        IF((IPNOF==5 .or. IPNOF==7) .and. NSOC==0) THEN
-        CALL JKDERNOF5lib(KATOM,KTYPE,KLOC,KKMIN,KKMAX,QD,RO,GRADS,     & 
-                          ATMNAME,XINTS,IPRINTOPT)                      
-       ELSE                                                             
+        CALL JKDERNOF5lib(KATOM,KTYPE,KLOC,KKMIN,KKMAX,QD,RO,GRADS,     &
+                          ATMNAME,XINTS,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,  &
+                          IGTYP,IPRINTOPT)                  
+       ELSE                                                            
         CALL JKDERNOFlib(KATOM,KTYPE,KLOC,KKMIN,KKMAX,CJ12,CK12,        &
-                         QD,RO,GRADS,ATMNAME,XINTS,IPRINTOPT)
+                         QD,RO,GRADS,ATMNAME,XINTS,SIZE_ENV,ENV,NAT,ATM,&
+                         NBAS,BAS,IGTYP,IPRINTOPT)
        ENDIF
       end if
 !-----------------------------------------------------------------------
@@ -275,13 +282,14 @@
 ! STVDERNOF
       SUBROUTINE STVDERNOF(COEF,QD,RO,ELAG,GRADS,KATOM,KTYPE,KLOC,      &
                            KKMIN,KKMAX,KSTART,KNG,CX0,CY0,CZ0,ZNUC,     &
-                           EX1,CS,CP,CD,CF,CG)
+                           EX1,CS,CP,CD,CF,CG,SIZE_ENV,ENV,NAT,ATM,NBAS,&
+                           BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL FROZEN
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200) 
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/USELIBRETA/ILIBRETA
+      COMMON/USELIBCINT/ILIBCINT
 !      
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KTYPE,KLOC,KKMIN,KKMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN)::KSTART,KNG  
@@ -295,6 +303,10 @@
       DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT):: GRADS
       DOUBLE PRECISION,DIMENSION(NBFT)::LEPS
       DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
+
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)     
 !-----------------------------------------------------------------------
 !     MAKE GRADIENT ZERO
       GRADS=ZERO
@@ -308,11 +320,12 @@
 !     GET LAGRANGIAN MATRIX (LEPS)    
       CALL AOLAGRAN(COEF,ELAG,LEPS,NBF,NBFT)
 !     COMPUTE AND ADD OVERLAP DERIVATIVES
-      if(ILIBRETA==0)then
+      if(ILIBCINT==0)then
        CALL SDERNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,            &
                     CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,LEPS,GRADS)
-      else if(ILIBRETA==1)then                    
-       CALL SDERNOFlib(KATOM,KLOC,KKMIN,KKMAX,LEPS,GRADS)
+      else if(ILIBCINT==1)then     
+       CALL SDERNOFlib(NSHELL,NBF,NBFT,LEPS,SIZE_ENV,ENV,  &
+                       NAT,ATM,NBAS,BAS,IGTYP,GRADS)
       end if      
 !-----------------------------------------------------------------------
 !     One-electron hamiltonian contribution
@@ -332,21 +345,22 @@
 !      
 !     HELLMANN-FEYNMAN FORCE      
 !
-      if(ILIBRETA==0)then
+      if(ILIBCINT==0)then
        CALL HELFEYNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,          &
                       CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZNUC,DM2,GRADS)
-      else if(ILIBRETA==1)then                    
-       CALL HELFEYNOFlib(KATOM,KLOC,KKMIN,KKMAX,CX0,CY0,CZ0,ZNUC,DM2,   &
-                         GRADS)
+      else if(ILIBCINT==1)then       
+       CALL HELFEYNOFlib(NBF,NBFT,NSHELL,CX0,CY0,CZ0,ZNUC,DM2,GRADS,    &
+               SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
       end if            
 !                  
 !     INTEGRAL FORCE (AO DERIVATIVE CONTRIBUTION)                  
 !
-      if(ILIBRETA==0)then
+      if(ILIBCINT==0)then
        CALL TVDERNOF(KATOM,KTYPE,KLOC,KKMIN,KKMAX,KSTART,KNG,           &
                      CX0,CY0,CZ0,EX1,CS,CP,CD,CF,CG,ZNUC,DM2,GRADS)
-      else if(ILIBRETA==1)then                    
-       CALL TVDERNOFlib(KATOM,KLOC,KKMIN,KKMAX,CX0,CY0,CZ0,ZNUC,DM2,GRADS)
+      else if(ILIBCINT==1)then                   
+       CALL TVDERNOFlib(NBF,NBFT,NSHELL,DM2,GRADS,SIZE_ENV,ENV,NAT,ATM, &
+                        NBAS,BAS,IGTYP)
       end if
 !                  
       DEALLOCATE(DM2)
@@ -6140,146 +6154,204 @@
       
 !----------------------------------------------------------------------!
 !                                                                      !
-!       2020 Use Libreta open source library for ERI calculation       !
+!       2025 Use LIBCINT open source library for ERI calculation       !
 !                                                                      !
 !  implemented by Juan Felipe Huan Lew Yee and Jorge Martin del Campo  ! 
 !                                                                      !
 !----------------------------------------------------------------------!
 
 ! SDERNOFlib
-      SUBROUTINE SDERNOFlib(KATOM,KLOC,KKMIN,KKMAX,EPS,DE)
-      USE ISO_C_BINDING            
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KLOC,KKMIN,KKMAX
-      DOUBLE PRECISION,DIMENSION(NBFT),INTENT(IN)::EPS
-      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
-!      
-      INTEGER,DIMENSION(NBF)::IA
-!
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      DOUBLE PRECISION,DIMENSION(2352)::SBLKDERIV
+      SUBROUTINE SDERNOFlib(NSHELL,NBF,NBFT,EPS,SIZE_ENV,ENV, &
+                            NAT,ATM,NBAS,BAS,IGTYP,DE)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+
+      DOUBLE PRECISION, DIMENSION(NBFT), INTENT(IN) :: EPS
+      DOUBLE PRECISION, DIMENSION(3, NAT), INTENT(INOUT) :: DE
+
+      INTEGER :: II, JJ, I, J, LI, LJ, IAT, JAT, ISH, ERR, IGTYP
+      INTEGER :: SIZE_ENV, NAT, NBAS
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: IA(NBF), LOC(NSHELL), Dcgto(NSHELL)
+
+      INTEGER :: DI, DJ
+      INTEGER(4) :: SHLS(2)
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_ipovlp_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_ipovlp_cart
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+
 !
       DO I=1,NBF
         IA(I) = (I*I-I)/2
-      ENDDO   
+      ENDDO
 !
 !     ----- I SHELL
 !
       DO II = 1,NSHELL
-!
-        IAT = KATOM(II)
-        MINI = KKMIN(II)
-        MAXI = KKMAX(II)
-        LOCI = KLOC(II)-MINI
+        IAT = BAS(1,II) + 1
+        SHLS(1) = II - 1
+        DI = Dcgto(II)
 !
 !     ----- J SHELL
 !
         DO JJ = 1,II
-!
-          JAT = KATOM(JJ)
-          MINJ = KKMIN(JJ)
-          MAXJ = KKMAX(JJ)
-          LOCJ = KLOC(JJ)-MINJ
           IF(II.EQ.JJ) CYCLE
+          JAT = BAS(1, JJ) + 1
+          SHLS(2) = JJ - 1
+          DJ = Dcgto(JJ)
 
-!lib          CALL svalderiv(BASLIB,II,JJ,SBLKDERIV)
+          ALLOCATE(BLK(DI, DJ, 3))
+          BLK = 0.0D0
 
-          IJ=0
-          DO I=MINI,MAXI
-            DO J=MINJ,MAXJ
-              NN=IA(LOCI+I)+(LOCJ+J)
-              DEN = EPS(NN)
-
-              DE(1,IAT)=DE(1,IAT)+(SBLKDERIV(IJ+1)*DEN)
-              DE(2,IAT)=DE(2,IAT)+(SBLKDERIV(IJ+2)*DEN)
-              DE(3,IAT)=DE(3,IAT)+(SBLKDERIV(IJ+3)*DEN)
-              DE(1,JAT)=DE(1,JAT)-(SBLKDERIV(IJ+1)*DEN)
-              DE(2,JAT)=DE(2,JAT)-(SBLKDERIV(IJ+2)*DEN)
-              DE(3,JAT)=DE(3,JAT)-(SBLKDERIV(IJ+3)*DEN)
-              IJ = IJ + 3
+          IF(IGTYP==1) ERR = cint1e_ipovlp_cart(BLK, SHLS, ATM4, NAT,   &
+                  BAS4, NBAS, ENV)
+          IF(IGTYP==2) ERR = cint1e_ipovlp_sph(BLK, SHLS, ATM4, NAT,    &
+                  BAS4, NBAS, ENV)
+          DO I=1, DI
+            LI = LOC(II) + I - 1
+            DO J=1,DJ
+              LJ = LOC(JJ) + J - 1
+              IJ=IA(LI) + LJ
+              DEN = EPS(IJ)
+!
+              DE(1, IAT) = DE(1, IAT) - BLK(I, J, 1)*DEN
+              DE(2, IAT) = DE(2, IAT) - BLK(I, J, 2)*DEN
+              DE(3, IAT) = DE(3, IAT) - BLK(I, J, 3)*DEN
+              DE(1, JAT) = DE(1, JAT) + BLK(I, J, 1)*DEN
+              DE(2, JAT) = DE(2, JAT) + BLK(I, J, 2)*DEN
+              DE(3, JAT) = DE(3, JAT) + BLK(I, J, 3)*DEN
             END DO
           END DO
+        DEALLOCATE(BLK)
         ENDDO
       ENDDO
-
-!
-!     ----- END OF SHELL LOOPS -----
-!  
 !-----------------------------------------------------------------------      
       RETURN
       END
 
-! HELFEYNOFlib
-      SUBROUTINE HELFEYNOFlib(KATOM,KLOC,KKMIN,KKMAX,CX0,CY0,CZ0,       &
-                              ZAN,PM,DE)
-      USE ISO_C_BINDING                                          
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KLOC,KKMIN,KKMAX
-      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::PM
-      DOUBLE PRECISION,DIMENSION(NBFT)::P
-      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
-! 
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      DOUBLE PRECISION,DIMENSION(2352)::VBLKDERIV
-!
-      LOGICAL::IANDJ
-      INTEGER,DIMENSION(NBF)::IA
-!
+      SUBROUTINE HELFEYNOFlib(NBF,NBFT,NSHELL,CX0,CY0,CZ0,ZAN,PM,DE,     &
+                              SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+! !!
+      INTEGER, INTENT(IN) :: NAT, NSHELL, NBF, NBFT, SIZE_ENV, NBAS, IGTYP
+
+      DOUBLE PRECISION, DIMENSION(NAT), INTENT(IN) :: CX0, CY0, CZ0, ZAN
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: PM
+      DOUBLE PRECISION, DIMENSION(NBFT) :: P
+      DOUBLE PRECISION, DIMENSION(3,NAT), INTENT(INOUT) :: DE
+
+      INTEGER(4) :: DI, DJ
+      INTEGER(4) :: SHLS(2)
+      INTEGER :: II, JJ, I, J, LI, LJ, IC, ERR
+      INTEGER,DIMENSION(NSHELL) :: LOC
+      INTEGER, DIMENSION(NBF) :: IA
+      INTEGER :: Dcgto(NSHELL)
+
+
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+
+      DOUBLE PRECISION :: ZNUCC, CX, CY, CZ
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_iprinv_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_iprinv_cart
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NSHELL))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
+
 !     ----- HELMANN-FEYNMAN GRADIENT TERM -----
 !     INTEGRAL TYPE IS <II/H'/JJ> = <II/V'/JJ>
 !                     
-
-      DO I=1,NBF
+      DO I=1, NBF
         IA(I) = (I*I-I)/2
-      ENDDO   
-      CALL SQUARETRIAN2(PM,P,NBF,NBFT)
-      P=P*0.5D+00
+      ENDDO
+
+      CALL SQUARETRIAN2(PM, P, NBF, NBFT)
+      P = P * 0.5D+00
 !
 !     ----- I SHELL
 !
-      DO II = 1,NSHELL
+      DO II = 1, NSHELL
 !
-        I = KATOM(II)
-        MINI = KKMIN(II)
-        MAXI = KKMAX(II)
-        LOCI = KLOC(II)-MINI
+        SHLS(1) = II-1
+        DI = Dcgto(II)
 !
 !     ----- J SHELL
 !
-        DO JJ = 1,II
+        DO JJ = 1, NSHELL
 !
-          J = KATOM(JJ)
-          MINJ = KKMIN(JJ)
-          MAXJ = KKMAX(JJ)
-          LOCJ = KLOC(JJ)-MINJ
-          IANDJ = II .EQ. JJ
-          DO IC = 1,NATOMS
-            ZNUCC = -ZAN(IC)
+          SHLS(2) = JJ-1
+          DJ = Dcgto(JJ)
+
+          DO IC = 1, NAT
+            ZNUCC = ZAN(IC)
             CX = CX0(IC)
             CY = CY0(IC)
             CZ = CZ0(IC)
 
-!lib            CALL helfeyvalderiv(BASLIB,II,JJ,VBLKDERIV,CX,CY,CZ,ZAN(IC))
+            ENV(5) = CX
+            ENV(6) = CY
+            ENV(7) = CZ
+            ALLOCATE(BLK(DI,DJ,3))
+            BLK = 0.0D0
+            if(IGTYP==1) ERR = cint1e_iprinv_cart(BLK, SHLS, ATM4, NAT, &
+                    BAS4, NBAS, ENV)
+            if(IGTYP==2) ERR = cint1e_iprinv_sph(BLK, SHLS, ATM4, NAT,  &
+                    BAS4, NBAS, ENV)
 
-            IJ=0
-            DO I=MINI,MAXI
-              JMAX=MAXJ
-              IF(IANDJ) JMAX=I
-              DO J=MINJ,JMAX
-                NDUM = IA(LOCI+I)+(LOCJ+J)
-                DEN = P(NDUM)
-                IF(IANDJ.AND.I.EQ.J) DEN=DEN*0.5D+00
-                DE(1,IC) = DE(1,IC)+VBLKDERIV(IJ+1)*DEN
-                DE(2,IC) = DE(2,IC)+VBLKDERIV(IJ+2)*DEN
-                DE(3,IC) = DE(3,IC)+VBLKDERIV(IJ+3)*DEN
-                IJ = IJ + 3
+            DO I=1,DI
+              LI = LOC(II) + I - 1
+              DO J=1,DJ
+                LJ = LOC(JJ) + J - 1
+                DEN = PM(LI, LJ)
+                DE(1, IC) = DE(1, IC) - BLK(I, J, 1) * DEN * ZNUCC
+                DE(2, IC) = DE(2, IC) - BLK(I, J, 2) * DEN * ZNUCC
+                DE(3, IC) = DE(3, IC) - BLK(I, J, 3) * DEN * ZNUCC
               ENDDO
             ENDDO
+            DEALLOCATE(BLK)
 
           ENDDO
 !
@@ -6287,7 +6359,7 @@
 !
         ENDDO
       ENDDO
-
+      ENV(5:7) = 0.0D0
 !
 !     ----- END OF *SHELL* LOOPS -----
 !             
@@ -6296,95 +6368,123 @@
       END      
 
 ! TVDERNOFlib
-      SUBROUTINE TVDERNOFlib(KATOM,KLOC,KKMIN,KKMAX,CX0,CY0,CZ0,        &
-                             ZAN,PM,DE)
-      USE ISO_C_BINDING                                          
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KATOM,KLOC,KKMIN,KKMAX
-      DOUBLE PRECISION,DIMENSION(NATOMS),INTENT(IN)::CX0,CY0,CZ0,ZAN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF),INTENT(IN)::PM
-      DOUBLE PRECISION,DIMENSION(NBFT)::P
-      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::DE
-!      
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      DOUBLE PRECISION,DIMENSION(2352)::TBLKDERIV      
-      DOUBLE PRECISION,DIMENSION(2352)::VBLKDERIV
-!
-      INTEGER,DIMENSION(NBF)::IA
-      DOUBLE PRECISION::ZNUCC
+      SUBROUTINE TVDERNOFlib(NBF,NBFT,NSHELL,PM,DE,SIZE_ENV,ENV, &
+                            NAT,ATM,NBAS,BAS, IGTYP)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      
+      INTEGER, INTENT(IN) :: NAT, NBAS, SIZE_ENV, IGTYP
+      DOUBLE PRECISION, DIMENSION(NBF,NBF), INTENT(IN) :: PM
+      DOUBLE PRECISION, DIMENSION(3,NAT), INTENT(INOUT) :: DE
+      DOUBLE PRECISION, DIMENSION(SIZE_ENV), INTENT(IN) :: ENV
+      INTEGER, DIMENSION(6,NAT), INTENT(IN) :: ATM
+      INTEGER, DIMENSION(8,NBAS), INTENT(IN) :: BAS
+    
+      DOUBLE PRECISION, DIMENSION(NBFT) :: P
+      INTEGER, DIMENSION(NBF) :: IA
+      INTEGER, DIMENSION(NSHELL) :: LOC
+      INTEGER :: Dcgto(NSHELL)
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+      INTEGER(4) :: DI, DJ, SHLS(2)
+      INTEGER :: II, JJ, I, J, LI, LJ, IAT, JAT, ERR
+
+      INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_ipkin_sph
+      INTEGER, EXTERNAL :: CINT1e_nuc_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_ipnuc_cart
+      INTEGER, EXTERNAL :: CINT1e_nuc_cart
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      Dcgto(1) = DI
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        Dcgto(ISH) = DI
+      END DO
 !-----------------------------------------------------------------------
 !
 !     ----- BASIS FUNCTION DERIVATIVE CONTRIBUTIONS TO GRADIENT -----
 !     INTEGRALS ARE OF TYPE <II'/H/JJ> = <II'/T+V/JJ>
 !
-      DO I=1,NBF
+      DO I=1, NBF
         IA(I) = (I*I-I)/2
       ENDDO
       IAZ=0
-      CALL SQUARETRIAN2(PM,P,NBF,NBFT)
-      P=P*0.5D+00  
+      CALL SQUARETRIAN2(PM, P, NBF, NBFT)
+      P = P * 0.5D+00  
 !
 !     ----- I SHELL
 !
-      DO II = 1,NSHELL
+      DO II = 1, NSHELL
 !      
-        IAT = KATOM(II)
-        MINI = KKMIN(II)
-        MAXI = KKMAX(II)
-        LOCI = KLOC(II)-MINI
+        IAT = BAS(1,II) + 1
+        SHLS(1) = II - 1
+        DI = Dcgto(II)
 !
 !     ----- J SHELL
 !
         DO JJ = 1,NSHELL
 !
-          JAT = KATOM(JJ)
-          MINJ = KKMIN(JJ)
-          MAXJ = KKMAX(JJ)
-          LOCJ = KLOC(JJ)-MINJ
+          JAT = BAS(1,JJ) + 1
+          SHLS(2) = JJ - 1
+          DJ = Dcgto(JJ)
 
-!lib          CALL tvalderiv(BASLIB,II,JJ,TBLKDERIV)
+          ALLOCATE(BLK(DI, DJ, 3))
+          BLK = 0.0D0
 
-          IJ = 0
-          DO I=MINI,MAXI
-            DO J=MINJ,MAXJ
-              NN = IA(MAX0(LOCI+I,LOCJ+J))+MIN0(LOCI+I,LOCJ+J)
+          IF(IGTYP==1) ERR = cint1e_ipkin_cart(BLK, SHLS, ATM4, NAT,    &
+                  BAS4, NBAS, ENV)
+          IF(IGTYP==2) ERR = cint1e_ipkin_sph(BLK, SHLS, ATM4, NAT,     &
+                  BAS4, NBAS, ENV)
+          DO I=1,DI
+            LI = LOC(II) + I - 1
+            DO J=1,DJ
+              LJ = LOC(JJ) + J - 1
+              NN = IA(MAX0(LI, LJ))+MIN0(LI, LJ)
               DEN = P(NN)
-              DE(1,IAT)=DE(1,IAT) + TBLKDERIV(IJ+1)*DEN
-              DE(2,IAT)=DE(2,IAT) + TBLKDERIV(IJ+2)*DEN
-              DE(3,IAT)=DE(3,IAT) + TBLKDERIV(IJ+3)*DEN
+              DE(1, IAT)=DE(1, IAT) - BLK(I, J, 1) * DEN
+              DE(2, IAT)=DE(2, IAT) - BLK(I, J, 2) * DEN
+              DE(3, IAT)=DE(3, IAT) - BLK(I, J, 3) * DEN
               IJ = IJ + 3
             ENDDO
           ENDDO
+        DEALLOCATE(BLK)
+
 !
 !     ..... NUCLEAR ATTRACTION
 !
-          DO IC = 1,NATOMS
-            IF(IC.LE.NATOMS) THEN
-              ZNUCC = -ZAN(IC)
-              CX = CX0(IC)
-              CY = CY0(IC)
-              CZ = CZ0(IC)
-            ENDIF
-!
-!lib            CALL vvalderiv(BASLIB,II,JJ,VBLKDERIV,CX,CY,CZ,ZAN(IC))
-!
-            IJ=0
-            DO I=MINI,MAXI
-              DO J=MINJ,MAXJ
-                IF((IC.GT.NATOMS).AND.(IAT.EQ.IAZ)) CYCLE
-                NN = IA(MAX0(LOCI+I,LOCJ+J))+MIN0(LOCI+I,LOCJ+J)
-                DEN = P(NN)
-                DE(1,IAT)=DE(1,IAT)+VBLKDERIV(IJ+1)*DEN
-                DE(2,IAT)=DE(2,IAT)+VBLKDERIV(IJ+2)*DEN
-                DE(3,IAT)=DE(3,IAT)+VBLKDERIV(IJ+3)*DEN
-                IJ = IJ + 3
-              ENDDO
+        ALLOCATE(BLK(DI,DJ,3))
+        BLK = 0.0D0
+        IF(IGTYP==1) ERR = cint1e_ipnuc_cart(BLK, SHLS, ATM4, NAT, BAS4,&
+                NBAS, ENV)
+        IF(IGTYP==2) ERR = cint1e_ipnuc_sph(BLK, SHLS, ATM4, NAT, BAS4, &
+                NBAS, ENV)
+        DO I=1, DI
+          LI = LOC(II) + I - 1
+            DO J=1, DJ
+              LJ = LOC(JJ) + J - 1
+!             IF((IC.GT.NATOMS).AND.(IAT.EQ.IAZ)) CYCLE
+              NN = IA(MAX0(LI, LJ)) + MIN0(LI, LJ)
+              DEN = P(NN)
+              DE(1, IAT)=DE(1, IAT) - BLK(I, J, 1) * DEN
+              DE(2, IAT)=DE(2, IAT) - BLK(I, J, 2) * DEN
+              DE(3, IAT)=DE(3, IAT) - BLK(I, J, 3) * DEN
+              IJ = IJ + 3
             ENDDO
           ENDDO
-        ENDDO
-      ENDDO
+          DEALLOCATE(BLK)
+        END DO
+      END DO
 !
 !     ----- END OF SHELL LOOPS -----
 !
@@ -6394,7 +6494,9 @@
 
 ! JKDERNOF5lib
       SUBROUTINE JKDERNOF5lib(KATOM,KTYPE,KLOC,KKMIN,KKMAX,QD,RO,GRADS, &
-                              ATMNAME,XINTS,IPRINTOPT)
+                              ATMNAME,XINTS,SIZE_ENV,ENV,NAT,ATM,NBAS,  &
+                              BAS,IGTYP,IPRINTOPT)
+
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       LOGICAL FROZEN
@@ -6415,6 +6517,7 @@
       INTEGER,DIMENSION(35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(:),ALLOCATABLE::IJKLG
       INTEGER::TOTCOUNT,INVTYP,KANG,I
+      INTEGER(4) :: DI,DJ,DK,DL
       INTEGER::II,JJ,KK,LL,MAXLL,ISH,JSH,KSH,LSH,IIAT,JJAT,KKAT,LLAT
       INTEGER::MINJ,MAXJ,MINK,MAXK,MINL,MAXL,MINI,MAXI
       INTEGER::NUMI,NUMJ,NUMK,NUML
@@ -6424,6 +6527,11 @@
       DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::DAB
       DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
       DOUBLE PRECISION,PARAMETER::TEN=10.0D+00,TENM9=1.0D-09
+
+      !LIBCINT
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 !     ROUTINE BASCHK DO:
       KANG=0
@@ -6501,18 +6609,18 @@
 !          
 !         SELECT INDICES FOR SHELL BLOCK
 !
-          CALL JKDSHLNOFlib(ISH,JSH,KSH,LSH,KTYPE,KLOC,KKMIN,KKMAX,     &
-                            MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL,    &
-                            IIEQJJ,KKEQLL,IJEQKL,NUMI,NUMJ,NUMK,NUML)     
-          CALL JKDNDXNOFlib(NUMJ,NUMK,NUML,MINI,MAXI,MINJ,MAXJ,MINK,    &
-                            MAXK,MINL,MAXL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,     &
-                            IIEQJJ,KKEQLL,IJEQKL,IJKLG,MAXNUM)          
+          CALL JKDSHLNOFlib(ISH,JSH,KSH,LSH,IIEQJJ,KKEQLL,IJEQKL,DI,DJ, &
+                            DK,DL,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)         
+          CALL JKDNDXNOFlib(DI,DJ,DK,DL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ, &
+                            KKEQLL,IJEQKL,IJKLG,MAXNUM,ISH,JSH,KSH,LSH, &
+                            NBF,NSHELL,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,   &
+                            IGTYP)
 !                      
 !         OBTAIN 2e DENSITY FOR THIS SHELL BLOCK                      
 !
-          CALL DABNOF5lib(ISH,JSH,KSH,LSH,KKMIN,KKMAX,KLOC,IGXYZ,       &
-                          JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL,       &
-                          IA,DAB,MAXNUM,DABMAX,CJAUX,CKAUX)
+          CALL DABNOF5lib(ISH,JSH,KSH,LSH,IGXYZ,JGXYZ,KGXYZ,LGXYZ,      &
+                          IIEQJJ,KKEQLL,IJEQKL,IA,DAB,MAXNUM,DABMAX,    &
+                          CJAUX,CKAUX,NAT,ATM,NBAS,BAS,IGTYP)
 !
 !         FINE SCREENING, ON INTEGRAL VALUE TIMES DENSITY FACTOR
 !         ONLY WORKS IF SCHWARZ SCREENING IS ON (NATOMS>5)
@@ -6520,10 +6628,10 @@
 !
 !         EVALUATE DERIVATIVE INTEGRAL AND ADD TO THE GRADIENT
 !
-          CALL JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,MINI,MAXI,MINJ,    &
-                            MAXJ,MINK,MAXK,MINL,MAXL,IIEQJJ,KKEQLL,     &
-                            IJEQKL,SKIPI,SKIPJ,SKIPK,SKIPL,IJKLG,MAXNUM,&
-                            INVTYP,IIAT,JJAT,KKAT,LLAT,GRADS)   
+          CALL JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,IIEQJJ,KKEQLL,     &
+                            IJEQKL,SKIPI,SKIPJ,SKIPK,SKIPL,IJKLG,       &
+                            MAXNUM,INVTYP,IIAT,JJAT,KKAT,LLAT,          &
+                            SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP,GRADS)   
 !      
          ENDDO
         ENDDO
@@ -6560,7 +6668,8 @@
 
 ! JKDERNOFlib
       SUBROUTINE JKDERNOFlib(KATOM,KTYPE,KLOC,KKMIN,KKMAX,CJ12,CK12,    &
-                             QD,RO,GRADS,ATMNAME,XINTS,IPRINTOPT)
+                             QD,RO,GRADS,ATMNAME,XINTS,SIZE_ENV,ENV,NAT,&
+                             ATM,NBAS,BAS,IGTYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       LOGICAL FROZEN
@@ -6578,6 +6687,7 @@
       INTEGER,INTENT(IN)::IPRINTOPT
 !     INTERMEDIATE VARIABLES 
       INTEGER,DIMENSION(NBF)::IA
+      INTEGER(4) :: DI,DJ,DK,DL
       INTEGER,DIMENSION(35)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(:),ALLOCATABLE::IJKLG
       INTEGER::MAXNUM
@@ -6591,6 +6701,11 @@
       DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::DAB
       DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00,ONE=1.0D+00
       DOUBLE PRECISION,PARAMETER::TEN=10.0D+00,TENM9=1.0D-09
+
+      !LIBCINT
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 !     ROUTINE BASCHK DO:
       KANG=0
@@ -6666,18 +6781,18 @@
 !                                                                       
 !         SELECT INDICES FOR SHELL BLOCK                                
 !                                                                       
-          CALL JKDSHLNOFlib(ISH,JSH,KSH,LSH,KTYPE,KLOC,KKMIN,KKMAX,     &
-                            MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL,    &
-                            IIEQJJ,KKEQLL,IJEQKL,NUMI,NUMJ,NUMK,NUML)         
-          CALL JKDNDXNOFlib(NUMJ,NUMK,NUML,MINI,MAXI,MINJ,MAXJ,MINK,    &   
-                            MAXK,MINL,MAXL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,     &
-                            IIEQJJ,KKEQLL,IJEQKL,IJKLG,MAXNUM)          
+          CALL JKDSHLNOFlib(ISH,JSH,KSH,LSH,IIEQJJ,KKEQLL,IJEQKL,DI,DJ, &
+                            DK,DL,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)         
+          CALL JKDNDXNOFlib(DI,DJ,DK,DL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ, &
+                            KKEQLL,IJEQKL,IJKLG,MAXNUM,ISH,JSH,KSH,LSH, &
+                            NBF,NSHELL,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,   &
+                            IGTYP)
 !                      
 !         OBTAIN 2e DENSITY FOR THIS SHELL BLOCK                      
 !
-          CALL DABNOF2lib(ISH,JSH,KSH,LSH,KKMIN,KKMAX,KLOC,             &
-                          IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL, &
-                          IA,P,DAB,MAXNUM,DABMAX,DAAUX,DAAUX2)
+          CALL DABNOF2lib(ISH,JSH,KSH,LSH,IGXYZ,JGXYZ,KGXYZ,LGXYZ,      &
+                          IIEQJJ,KKEQLL,IJEQKL,IA,P,DAB,MAXNUM,DABMAX,  &
+                          DAAUX,DAAUX2,NAT,ATM,NBAS,BAS,IGTYP)
 !
 !         FINE SCREENING, ON INTEGRAL VALUE TIMES DENSITY FACTOR
 !         ONLY WORKS IF SCHWARZ SCREENING IS ON (NATOMS>5)
@@ -6685,10 +6800,11 @@
 !
 !         EVALUATE DERIVATIVE INTEGRAL AND ADD TO THE GRADIENT
 !
-          CALL JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,MINI,MAXI,MINJ,    &
-                            MAXJ,MINK,MAXK,MINL,MAXL,IIEQJJ,KKEQLL,     &
+          CALL JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,IIEQJJ,KKEQLL,     &
                             IJEQKL,SKIPI,SKIPJ,SKIPK,SKIPL,IJKLG,       &
-                            MAXNUM,INVTYP,IIAT,JJAT,KKAT,LLAT,GRADS)   
+                            MAXNUM,INVTYP,IIAT,JJAT,KKAT,LLAT,          &
+                            SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP,GRADS)   
+
 !      
          ENDDO
         ENDDO
@@ -6724,90 +6840,129 @@
       END
       
 ! JKDSHLNOFlib
-      SUBROUTINE JKDSHLNOFlib(ISH,JSH,KSH,LSH,KTYPE,KLOC,KKMIN,KKMAX,   &
-                              MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL,  &
-                              IIEQJJ,KKEQLL,IJEQKL,NUMI,NUMJ,NUMK,NUML)
+      SUBROUTINE JKDSHLNOFlib(ISH,JSH,KSH,LSH,IIEQJJ,KKEQLL,IJEQKL,     &
+                              DI,DJ,DK,DL,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,&
+                              IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       INTEGER,INTENT(IN)::ISH,JSH,KSH,LSH
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KTYPE,KLOC,KKMIN,KKMAX
-      INTEGER,INTENT(OUT)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
-      INTEGER,INTENT(OUT)::NUMI,NUMJ,NUMK,NUML
       LOGICAL,INTENT(OUT)::IIEQJJ,KKEQLL,IJEQKL
+
+      INTEGER(4) :: DI, DJ, DK, DL, I, J, K, L
+      INTEGER(4) :: DJEFF, DKEFF, DLEFF
+
+      INTEGER :: SIZE_ENV, NAT, NBAS, IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: IA(NBF), LOC(NSHELL)
+
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+      DABMAX=ZER         
+!
+!     GET 2e DENSITY FOR THIS SHELL BLOCK
+!
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      IF(IGTYP==1) THEN
+        DI = CINTcgto_cart(ISH-1, BAS4)
+        DJ = CINTcgto_cart(JSH-1, BAS4)
+        DK = CINTcgto_cart(KSH-1, BAS4)
+        DL = CINTcgto_cart(LSH-1, BAS4)
+      ELSEIF(IGTYP==2) THEN
+        DI = CINTcgto_spheric(ISH-1, BAS4)
+        DJ = CINTcgto_spheric(JSH-1, BAS4)
+        DK = CINTcgto_spheric(KSH-1, BAS4)
+        DL = CINTcgto_spheric(LSH-1, BAS4)
+      END IF
+      
 !-----------------------------------------------------------------------
       IIEQJJ=ISH.EQ.JSH
       KKEQLL=KSH.EQ.LSH
       IJEQKL=ISH.EQ.KSH.AND.JSH.EQ.LSH
-!     ----- ISHELL -----
-      LIT=KTYPE(ISH)
-      MINI=KKMIN(ISH)
-      MAXI=KKMAX(ISH)
-      NUMI=MAXI-MINI+1
-      LOCI=KLOC(ISH)-MINI
-!     ----- JSHELL -----
-      LJT=KTYPE(JSH)
-      MINJ=KKMIN(JSH)
-      MAXJ=KKMAX(JSH)
-      NUMJ=MAXJ-MINJ+1
-      LOCJ=KLOC(JSH)-MINJ
-!     ----- KSHELL -----
-      LKT=KTYPE(KSH)
-      MINK=KKMIN(KSH)
-      MAXK=KKMAX(KSH)
-      NUMK=MAXK-MINK+1
-      LOCK=KLOC(KSH)-MINK
-!     ----- LSHELL -----
-      LLTT=KTYPE(LSH)
-      MINL=KKMIN(LSH)
-      MAXL=KKMAX(LSH)
-      NUML=MAXL-MINL+1
-      LOCL=KLOC(LSH)-MINL
 !-----------------------------------------------------------------------
       RETURN
       END
 
 ! JKDNDXNOFlib
-      SUBROUTINE JKDNDXNOFlib(NUMJ,NUMK,NUML,MINI,MAXI,MINJ,MAXJ,       &
-                              MINK,MAXK,MINL,MAXL,IGXYZ,JGXYZ,KGXYZ,    &
-                              LGXYZ,IIEQJJ,KKEQLL,IJEQKL,IJKLG,MAXNUM)
+      SUBROUTINE JKDNDXNOFlib(DI,DJ,DK,DL,IGXYZ,JGXYZ,KGXYZ,            &
+                              LGXYZ,IIEQJJ,KKEQLL,IJEQKL,IJKLG,MAXNUM,  &
+                              II,JJ,KK,LL,NBF,NSHELL,SIZE_ENV,ENV,NAT,  &
+                              ATM,NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       INTEGER,DIMENSION(MAXNUM)::IJKLG
-      INTEGER,INTENT(IN)::NUMJ,NUMK,NUML
-      INTEGER,INTENT(IN)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
       INTEGER,DIMENSION(35),INTENT(OUT)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
+
+      INTEGER(4) :: DI, DJ, DK, DL, I, J, K, L
+      INTEGER(4) :: DJEFF, DKEFF, DLEFF
+
+      INTEGER :: SIZE_ENV, NAT, NBAS
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: IA(NBF), LOC(NSHELL)
+
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
+!-----------------------------------------------------------------------
+      DABMAX=ZER         
+!
+!     GET 2e DENSITY FOR THIS SHELL BLOCK
+!
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
 !     ----- PREPARE INDICES FOR PAIRS OF (I,J) FUNCTIONS -----
-      NI=NUML*NUMK*NUMJ
-      DO I=MINI,MAXI
-        IGXYZ(I)=NI*(I-MINI)+1
+      NI=DL*DK*DJ
+      DO I=1,DI
+        IGXYZ(I)=NI*(I-1)+1
       ENDDO
-      NJ=NUML*NUMK
-      DO J=MINJ,MAXJ
-        JGXYZ(J)=NJ*(J-MINJ)
+
+      NJ=DL*DK
+      DO J=1,DJ
+        JGXYZ(J)=NJ*(J-1)
       ENDDO
 !     ----- PREPARE INDICES FOR PAIRS OF (K,L) FUNCTIONS -----
-      NK=NUML
-      DO K=MINK,MAXK
-        KGXYZ(K)=NK*(K-MINK)
+      NK=DL
+      DO K=1,DK
+        KGXYZ(K)=NK*(K-1)
       ENDDO
       NL=1
-      DO L=MINL,MAXL
-         LGXYZ(L)=NL*(L-MINL)
+      DO L=1,DL
+         LGXYZ(L)=NL*(L-1)
       ENDDO
 !     ----- PREPARE INDICES FOR (IJ/KL) -----
       IJKL=0
-      DO I=MINI,MAXI
-        JMAX=MAXJ
-        IF(IIEQJJ) JMAX=I
-        DO J=MINJ,JMAX
-          KMAX=MAXK
-          IF(IJEQKL) KMAX=I
-          DO K=MINK,KMAX
-            LMAX=MAXL
-            IF(KKEQLL           ) LMAX=K
-            IF(IJEQKL.AND.K.EQ.I) LMAX=J
-            DO L=MINL,LMAX
+      DO I=1,DI
+        DJEFF = MERGE(I, DJ, IIEQJJ)
+        DO J=1,DJEFF
+          DKEFF = MERGE(I, DK, IJEQKL)
+          DO K=1,DKEFF
+            DLEFF = MERGE(K, DL, KKEQLL)
+            DLEFF = MERGE(J, DLEFF, IJEQKL .AND. K.EQ.I)
+            DO L=1,DLEFF
               IJKL=IJKL+1
               NN=((IGXYZ(I)+JGXYZ(J))+KGXYZ(K))+LGXYZ(L)
               IJKLG(IJKL)=   NN
@@ -6820,108 +6975,143 @@
       END
 
 ! DABNOF2lib
-      SUBROUTINE DABNOF2lib(II,JJ,KK,LL,KKMIN,KKMAX,KLOC,IGXYZ,         &
-                            JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL,     &
-                            IA,DA,DAB,MAXNUM,DABMAX,DAAUX,DAAUX2)
+      SUBROUTINE DABNOF2lib(II,JJ,KK,LL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ, &
+                            KKEQLL,IJEQKL,IA,DA,DAB,MAXNUM,DABMAX,DAAUX,&
+                            DAAUX2,NAT,ATM,NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 !
-      INTEGER,INTENT(IN)::II,JJ,KK,LL
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KLOC,KKMIN,KKMAX
-      INTEGER,DIMENSION(35),INTENT(IN)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
-      INTEGER,DIMENSION(NBF),INTENT(IN)::IA
-      INTEGER,INTENT(IN)::MAXNUM
-      LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DA
-      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN)::DAAUX,DAAUX2
-      DOUBLE PRECISION,INTENT(OUT)::DABMAX
-      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::DAB
-      DOUBLE PRECISION,PARAMETER::ZER=0.0D+00,PT5=0.5D+00
+      INTEGER,INTENT(IN) :: II,JJ,KK,LL,MAXNUM,NAT,NBAS,IGTYP
+      INTEGER,DIMENSION(35),INTENT(IN) :: IGXYZ,JGXYZ,KGXYZ,LGXYZ
+      LOGICAL,INTENT(IN) :: IIEQJJ,KKEQLL,IJEQKL
+      INTEGER,DIMENSION(NBF),INTENT(IN) :: IA
+      DOUBLE PRECISION,DIMENSION(NBF,NBFT),INTENT(IN) :: DA,DAAUX,DAAUX2
+      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT) :: DAB
+      DOUBLE PRECISION,INTENT(OUT) :: DABMAX
+      DOUBLE PRECISION,PARAMETER :: ZER=0.0D0, PT5=0.5D0
+
+
+      INTEGER(4) :: DI, DJ, DK, DL, I ,J, K, L
+      INTEGER(4) :: DJEFF, DKEFF, DLEFF
+
+      INTEGER :: LOC(NSHELL)
+
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
 !-----------------------------------------------------------------------
       DABMAX=ZER         
 !
 !     GET 2e DENSITY FOR THIS SHELL BLOCK
 !
-      MINI= KKMIN(II)
-      MINJ= KKMIN(JJ)
-      MINK= KKMIN(KK)
-      MINL= KKMIN(LL)
-      LOCI= KLOC(II)-MINI
-      LOCJ= KLOC(JJ)-MINJ
-      LOCK= KLOC(KK)-MINK
-      LOCL= KLOC(LL)-MINL
-      MAXI= KKMAX(II)
-      MAXJ= KKMAX(JJ)
-      MAXK= KKMAX(KK)
-      MAXL= KKMAX(LL)
-         DO I=MINI,MAXI
-            JMAX= MAXJ
-            IF(IIEQJJ) JMAX= I
-            DO J=MINJ,JMAX
-               IAJ= MAX0(LOCI+I,LOCJ+J)
-               IIJ= MIN0(LOCI+I,LOCJ+J)
-               KMMAX=MAXK
-               IF(IJEQKL) KMMAX= I
-               DO K=MINK,KMMAX
-                  LMAX= MAXL
-                  IF(KKEQLL) LMAX= K
-                  IF(IJEQKL .AND. K.EQ.I) LMAX= J
-                  DO L=MINL,LMAX
-                     KAL= MAX0(LOCK+K,LOCL+L)
-                     KIL= MIN0(LOCK+K,LOCL+L)
-                     IN = IAJ
-                     JN = IIJ
-                     KN = KAL
-                     LN = KIL
-                     IF(IN.LT.KN .OR.(IN.EQ.KN .AND. JN.LT.LN)) THEN
-                        IN = KAL
-                        JN = KIL
-                        KN = IAJ
-                        LN = IIJ
-                     ENDIF
-                     IJ = IA(IN)+JN
-                     IK = IA(IN)+KN
-                     IL = IA(IN)+LN
-                     JK = IA(MAX0(JN,KN))+MIN0(JN,KN)
-                     JL = IA(JN)+LN
-                     IF(JN.LT.KN) JL = IA(MAX0(JN,LN))+MIN0(JN,LN)
-                     KL = IA(KN)+LN
-!                    CONTRACT OVER THE 2nd NO COEFFICIENT
-                     DF1=ZER
-                     DQ1=ZER
-                     DO LQ=1,NBF5
-                      DF1 = DF1 + DAAUX(LQ,KL)*DA(LQ,IJ)
-                      DQ1 = DQ1 + DAAUX2(LQ,JK)*DA(LQ,IL)
-                      DQ1 = DQ1 + DAAUX2(LQ,JL)*DA(LQ,IK)
-                     ENDDO
-!                    BUILD THE DENSITY TERM SUMMING COULOMB-LIKE
-!                    AND EXCHANGE-LIKE PARTS
-                     DF1 = DF1 + DF1 - DQ1
-!                    AVOID DOUBLE COUNTING OF DIAGONAL TERMS                     
-                     IF(JN.EQ.IN               ) DF1= DF1*PT5
-                     IF(LN.EQ.KN               ) DF1= DF1*PT5
-                     IF(KN.EQ.IN .AND. LN.EQ.JN) DF1= DF1*PT5
-                     IF(DABMAX.LT. ABS(DF1)) DABMAX= ABS(DF1)
-! IGXYZ AND J, K, AND L ARE SET UP IN JKDNDX
-                     IJKL=IGXYZ(I)+JGXYZ(J)+KGXYZ(K)+LGXYZ(L)
-                     DAB(IJKL)= DF1
-                  ENDDO
-               ENDDO
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+      END DO
+
+      IF(IGTYP==1) THEN
+        DI = CINTcgto_cart(II-1, BAS4)
+        DJ = CINTcgto_cart(JJ-1, BAS4)
+        DK = CINTcgto_cart(KK-1, BAS4)
+        DL = CINTcgto_cart(LL-1, BAS4)
+     ELSE IF(IGTYP==2) THEN
+        DI = CINTcgto_spheric(II-1, BAS4)
+        DJ = CINTcgto_spheric(JJ-1, BAS4)
+        DK = CINTcgto_spheric(KK-1, BAS4)
+        DL = CINTcgto_spheric(LL-1, BAS4)
+      END IF
+
+      LOCI=LOC(II) - 1
+      LOCJ=LOC(JJ) - 1
+      LOCK=LOC(KK) - 1
+      LOCL=LOC(LL) - 1
+
+      DO I=1,DI
+        DJEFF = MERGE(I, DJ, IIEQJJ)
+        DO J=1,DJEFF
+          LI = LOCI + I
+          LJ = LOCJ + J
+          IAJ= MAX0(LI,LJ)
+          IIJ= MIN0(LI,LJ)
+          DKEFF = MERGE(I, DK, IJEQKL)
+          DO K=1,DKEFF
+            DLEFF = MERGE(K, DL, KKEQLL)
+            DLEFF = MERGE(J, DLEFF, IJEQKL .AND. K.EQ.I)
+            DO L=1,DLEFF
+              LK = LOCK + K
+              LLL = LOCL + L
+              KAL= MAX0(LK,LLL)
+              KIL= MIN0(LK,LLL)
+              IN = IAJ
+              JN = IIJ
+              KN = KAL
+              LN = KIL
+              IF(IN.LT.KN .OR.(IN.EQ.KN .AND. JN.LT.LN)) THEN
+                IN = KAL
+                JN = KIL
+                KN = IAJ
+                LN = IIJ
+              ENDIF
+              IJ = IA(IN)+JN
+              IK = IA(IN)+KN
+              IL = IA(IN)+LN
+              JK = IA(MAX0(JN,KN))+MIN0(JN,KN)
+              JL = IA(JN)+LN
+              IF(JN.LT.KN) JL = IA(MAX0(JN,LN))+MIN0(JN,LN)
+              KL = IA(KN)+LN
+!             CONTRACT OVER THE 2nd NO COEFFICIENT
+              DF1=ZER
+              DQ1=ZER
+              DO LQ=1,NBF5
+                DF1 = DF1 + DAAUX(LQ,KL)*DA(LQ,IJ)
+                DQ1 = DQ1 + DAAUX2(LQ,JK)*DA(LQ,IL)
+                DQ1 = DQ1 + DAAUX2(LQ,JL)*DA(LQ,IK)
+              ENDDO
+!             BUILD THE DENSITY TERM SUMMING COULOMB-LIKE
+!             AND EXCHANGE-LIKE PARTS
+              DF1 = DF1 + DF1 - DQ1
+!             AVOID DOUBLE COUNTING OF DIAGONAL TERMS                     
+              IF(JN.EQ.IN               ) DF1= DF1*PT5
+              IF(LN.EQ.KN               ) DF1= DF1*PT5
+              IF(KN.EQ.IN .AND. LN.EQ.JN) DF1= DF1*PT5
+              IF(DABMAX.LT. ABS(DF1)) DABMAX= ABS(DF1)
+!             IGXYZ AND J, K, AND L ARE SET UP IN JKDNDX
+              IJKL=IGXYZ(I)+JGXYZ(J)+KGXYZ(K)+LGXYZ(L)
+              DAB(IJKL)= DF1
+              ENDDO
             ENDDO
-         ENDDO
+          ENDDO
+        ENDDO
 !-----------------------------------------------------------------------
       RETURN
       END        
 
 ! DABNOF5lib
-      SUBROUTINE DABNOF5lib(II,JJ,KK,LL,KKMIN,KKMAX,KLOC,IGXYZ,         &
-                            JGXYZ,KGXYZ,LGXYZ,IIEQJJ,KKEQLL,IJEQKL,     &
-                            IA,DAB,MAXNUM,DABMAX,CJAUX,CKAUX)
+      SUBROUTINE DABNOF5lib(II,JJ,KK,LL,IGXYZ,JGXYZ,KGXYZ,LGXYZ,IIEQJJ, &
+                            KKEQLL,IJEQKL,IA,DAB,MAXNUM,DABMAX,CJAUX,   &
+                            CKAUX,NAT,ATM,NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      INTEGER,INTENT(IN)::II,JJ,KK,LL
-      INTEGER,DIMENSION(NSHELL),INTENT(IN)::KLOC,KKMIN,KKMAX
+      INTEGER,INTENT(IN)::II,JJ,KK,LL,IGTYP
+      INTEGER(4) :: DI, DJ, DK, DL, I ,J, K, L
+      INTEGER(4) :: DJEFF, DKEFF, DLEFF
       INTEGER,DIMENSION(35),INTENT(IN)::IGXYZ,JGXYZ,KGXYZ,LGXYZ
       INTEGER,DIMENSION(NBF),INTENT(IN)::IA
       INTEGER,INTENT(IN)::MAXNUM
@@ -6930,98 +7120,130 @@
       DOUBLE PRECISION,INTENT(OUT)::DABMAX
       DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(OUT)::DAB
       DOUBLE PRECISION,PARAMETER::ZER=0.0D+00,PT5=0.5D+00
+      INTEGER :: NAT, NBAS
+      INTEGER(4) :: LOC(NSHELL)
+
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
 !-----------------------------------------------------------------------
       DABMAX=ZER         
 !
 !     GET 2e DENSITY FOR THIS SHELL BLOCK
 !
-      MINI= KKMIN(II)
-      MINJ= KKMIN(JJ)
-      MINK= KKMIN(KK)
-      MINL= KKMIN(LL)
-      LOCI= KLOC(II)-MINI
-      LOCJ= KLOC(JJ)-MINJ
-      LOCK= KLOC(KK)-MINK
-      LOCL= KLOC(LL)-MINL
-      MAXI= KKMAX(II)
-      MAXJ= KKMAX(JJ)
-      MAXK= KKMAX(KK)
-      MAXL= KKMAX(LL)
-         DO I=MINI,MAXI
-            JMAX= MAXJ
-            IF(IIEQJJ) JMAX= I
-            DO J=MINJ,JMAX
-               IAJ= MAX0(LOCI+I,LOCJ+J)
-               IIJ= MIN0(LOCI+I,LOCJ+J)
-               KMMAX=MAXK
-               IF(IJEQKL) KMMAX= I
-               DO K=MINK,KMMAX
-                  LMAX= MAXL
-                  IF(KKEQLL) LMAX= K
-                  IF(IJEQKL .AND. K.EQ.I) LMAX= J
-                  DO L=MINL,LMAX
-                     KAL= MAX0(LOCK+K,LOCL+L)
-                     KIL= MIN0(LOCK+K,LOCL+L)
-                     IN = IAJ
-                     JN = IIJ
-                     KN = KAL
-                     LN = KIL
-                     IF(IN.LT.KN .OR.(IN.EQ.KN .AND. JN.LT.LN)) THEN
-                        IN = KAL
-                        JN = KIL
-                        KN = IAJ
-                        LN = IIJ
-                     ENDIF
-                     IJ = IA(IN)+JN
-                     IK = IA(IN)+KN
-                     IL = IA(IN)+LN
-                     JK = IA(MAX0(JN,KN))+MIN0(JN,KN)
-                     JL = IA(JN)+LN
-                     IF(JN.LT.KN) JL = IA(MAX0(JN,LN))+MIN0(JN,LN)
-                     KL = IA(KN)+LN
-                     DF1 = ZER
-                     DQ1 = ZER
-                     DF1 = CJAUX(IJ,KL)
-                     DQ1 = CKAUX(JK,IL) + CKAUX(JL,IK)
-                     DF1 = DF1 + DF1 - DQ1
-!                    AVOID DOUBLE COUNTING OF DIAGONAL TERMS                     
-                     IF(JN.EQ.IN               ) DF1= DF1*PT5
-                     IF(LN.EQ.KN               ) DF1= DF1*PT5
-                     IF(KN.EQ.IN .AND. LN.EQ.JN) DF1= DF1*PT5
-                     IF(DABMAX.LT. ABS(DF1)) DABMAX= ABS(DF1)
-! IGXYZ AND J, K, AND L ARE SET UP IN JKDNDX
-                     IJKL=IGXYZ(I)+JGXYZ(J)+KGXYZ(K)+LGXYZ(L)
-                     DAB(IJKL)= DF1
-                  ENDDO
-               ENDDO
+!-----------------------------------------------------------------------
+! LOC indicates the starting location of each shell in the AO basis
+!-----------------------------------------------------------------------
+      LOC(1) = 1
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      DO ISH = 2,NSHELL
+        LOC(ISH) = LOC(ISH-1) + DI
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+      END DO
+
+      IF(IGTYP==1) THEN
+        DI = CINTcgto_cart(II-1, BAS4)
+        DJ = CINTcgto_cart(JJ-1, BAS4)
+        DK = CINTcgto_cart(KK-1, BAS4)
+        DL = CINTcgto_cart(LL-1, BAS4)
+      ELSE IF(IGTYP==2) THEN
+        DI = CINTcgto_spheric(II-1, BAS4)
+        DJ = CINTcgto_spheric(JJ-1, BAS4)
+        DK = CINTcgto_spheric(KK-1, BAS4)
+        DL = CINTcgto_spheric(LL-1, BAS4)
+      END IF
+
+      LOCI=LOC(II) - 1
+      LOCJ=LOC(JJ) - 1
+      LOCK=LOC(KK) - 1
+      LOCL=LOC(LL) - 1
+      DO I=1,DI
+        DJEFF = MERGE(I, DJ, IIEQJJ)
+        DO J=1,DJEFF
+          LI = LOCI + I
+          LJ = LOCJ + J
+          IAJ= MAX0(LI,LJ)
+          IIJ= MIN0(LI,LJ)
+          DKEFF = MERGE(I, DK, IJEQKL)
+          DO K=1,DKEFF
+            DLEFF = MERGE(K, DL, KKEQLL)
+            DLEFF = MERGE(J, DLEFF, IJEQKL .AND. K.EQ.I)
+            DO L=1,DLEFF
+              LK = LOCK + K
+              LLL = LOCL + L
+              KAL= MAX0(LK,LLL)
+              KIL= MIN0(LK,LLL)
+              IN = IAJ
+              JN = IIJ
+              KN = KAL
+              LN = KIL
+              IF(IN.LT.KN .OR.(IN.EQ.KN .AND. JN.LT.LN)) THEN
+                IN = KAL
+                JN = KIL
+                KN = IAJ
+                LN = IIJ
+              ENDIF
+              IJ = IA(IN)+JN
+              IK = IA(IN)+KN
+              IL = IA(IN)+LN
+              JK = IA(MAX0(JN,KN))+MIN0(JN,KN)
+              JL = IA(JN)+LN
+              IF(JN.LT.KN) JL = IA(MAX0(JN,LN))+MIN0(JN,LN)
+              KL = IA(KN)+LN
+
+!             IGXYZ AND J, K, AND L ARE SET UP IN JKDNDX
+              IJKL=IGXYZ(I)+JGXYZ(J)+KGXYZ(K)+LGXYZ(L)
+              DAB(IJKL) = 2.0D0 * CJAUX(IJ,KL) - (CKAUX(JK,IL) + CKAUX(JL,IK))
+
+!             AVOID DOUBLE COUNTING OF DIAGONAL TERMS                     
+              IF (JN .EQ. IN) DAB(IJKL) = DAB(IJKL) * PT5
+              IF (LN .EQ. KN) DAB(IJKL) = DAB(IJKL) * PT5
+              IF (KN .EQ. IN .AND. LN .EQ. JN) DAB(IJKL) = DAB(IJKL) * PT5
+              IF (ABS(DAB(IJKL)) > DABMAX) DABMAX = ABS(DAB(IJKL))
+
+              ENDDO
             ENDDO
-         ENDDO
+          ENDDO
+        ENDDO
 !-----------------------------------------------------------------------
       RETURN
       END      
 
 ! JKDSPDNOFlib
-      SUBROUTINE JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,MINI,MAXI,MINJ,  &
-                              MAXJ,MINK,MAXK,MINL,MAXL,IIEQJJ,KKEQLL,   &
+      SUBROUTINE JKDSPDNOFlib(TOTCOUNT,DAB,II,JJ,KK,LL,IIEQJJ,KKEQLL,   &
                               IJEQKL,SKIPI,SKIPJ,SKIPK,SKIPL,IJKLG,     &
-                              MAXNUM,INVTYP,IIAT,JJAT,KKAT,LLAT,GRADS)  
+                              MAXNUM,INVTYP,IIAT,JJAT,KKAT,LLAT,        &
+                              SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP,GRADS)  
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      INTEGER,INTENT(IN)::MAXNUM
+      INTEGER,INTENT(IN)::MAXNUM,IGTYP
       DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(IN)::DAB
       LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
       LOGICAL,INTENT(IN)::SKIPI,SKIPJ,SKIPK,SKIPL
-      INTEGER,INTENT(IN)::MINI,MAXI,MINJ,MAXJ,MINK,MAXK,MINL,MAXL
       INTEGER,INTENT(IN)::INVTYP,IIAT,JJAT,KKAT,LLAT
       INTEGER,INTENT(INOUT)::TOTCOUNT
-      DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION,DIMENSION(3,NAT),INTENT(INOUT)::GRADS
       DOUBLE PRECISION,DIMENSION(12)::FD
       INTEGER,DIMENSION(MAXNUM),INTENT(IN)::IJKLG
 
+      INTEGER :: SIZE_ENV,NBAS
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
+
       FD = 0.0d0
       CALL DSPDFSNOFlib(TOTCOUNT,IJKLG,DAB,SKIPI,SKIPJ,SKIPK,SKIPL,     &
-                        MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,MAXNUM, &
-                        IIEQJJ,KKEQLL,IJEQKL,FD,II,JJ,KK,LL)
+                        MAXNUM,IIEQJJ,KKEQLL,IJEQKL,FD,II,JJ,KK,LL,     &
+                        SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
       CALL JKDINVNOF(INVTYP,FD,GRADS,IIAT,JJAT,KKAT,LLAT)
 !-----------------------------------------------------------------------
       RETURN
@@ -7029,75 +7251,121 @@
 
 ! DSPDFSNOFlib
       SUBROUTINE DSPDFSNOFlib(IIFINT,IJKLG,DAB,SKIPI,SKIPJ,SKIPK,SKIPL, &
-                              MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,  &
-                              MAXNUM,IIEQJJ,KKEQLL,IJEQKL,FD,II,JJ,KK,LL)
-      USE ISO_C_BINDING
+                             MAXNUM,IIEQJJ,KKEQLL,IJEQKL,FD,II,JJ,KK,LL,&
+                             SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
+                             
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL,INTENT(IN)::IIEQJJ,KKEQLL,IJEQKL
-      LOGICAL,INTENT(IN)::SKIPI,SKIPJ,SKIPK,SKIPL
-      INTEGER,INTENT(IN)::MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL
-      INTEGER,INTENT(INOUT)::IIFINT
-      INTEGER,DIMENSION(MAXNUM),INTENT(IN)::IJKLG
-      DOUBLE PRECISION,DIMENSION(12),INTENT(INOUT)::FD
-      DOUBLE PRECISION,DIMENSION(MAXNUM),INTENT(IN)::DAB
-!
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
-      DOUBLE PRECISION,DIMENSION(30000)::BLK
+
+      INTEGER :: I, J, K, L, IGTYP
+      INTEGER :: DJEFF, DKEFF, DLEFF
+      LOGICAL, INTENT(IN) :: IIEQJJ, KKEQLL, IJEQKL
+      LOGICAL, INTENT(IN) :: SKIPI, SKIPJ, SKIPK, SKIPL
+      INTEGER, INTENT(INOUT) :: IIFINT
+      INTEGER, DIMENSION(MAXNUM), INTENT(IN) :: IJKLG
+      DOUBLE PRECISION, DIMENSION(12), INTENT(INOUT) :: FD
+      DOUBLE PRECISION, DIMENSION(MAXNUM), INTENT(IN) :: DAB
+
+      INTEGER :: SIZE_ENV, NBAS
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6, NAT), BAS(8, NBAS)
+
+      INTEGER(4) :: SHLS(4)
+      INTEGER :: DI, DJ, DK, DL
+      DOUBLE PRECISION, ALLOCATABLE :: BLK1(:,:,:,:,:), BLK2(:,:,:,:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLK3(:,:,:,:,:), BLK4(:,:,:,:,:)
+      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
+
+      INTEGER, EXTERNAL :: CINTcgto_cart, cint2e_ip1_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric, cint2e_ip1_sph
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!                      LIBCINT use INT(4) arrays
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
+      ATM4 = ATM
+      BAS4 = BAS
 !-----------------------------------------------------------------------
-!      avoiding warnings    
-       II = II 
-       JJ = JJ
-       KK = KK
-       LL = LL
-!lib      CALL erisvalderiv(BASLIB,II,JJ,KK,LL,BLK)
+
+      IF(IGTYP==1) THEN
+        DI = CINTcgto_cart(II-1, BAS4)
+        DJ = CINTcgto_cart(JJ-1, BAS4)
+        DK = CINTcgto_cart(KK-1, BAS4)
+        DL = CINTcgto_cart(LL-1, BAS4)
+      ELSE IF(IGTYP==2) THEN
+        DI = CINTcgto_spheric(II-1, BAS4)
+        DJ = CINTcgto_spheric(JJ-1, BAS4)
+        DK = CINTcgto_spheric(KK-1, BAS4)
+        DL = CINTcgto_spheric(LL-1, BAS4)
+      END IF
+
+      SHLS = [II-1, JJ-1, KK-1, LL-1]
+      ALLOCATE(BLK1(DI,DJ,DK,DL,3))
+      IF(IGTYP==1) err = cint2e_ip1_cart(BLK1, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+      IF(IGTYP==2) err = cint2e_ip1_sph(BLK1, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+
+      SHLS = [JJ-1, II-1, KK-1, LL-1]
+      ALLOCATE(BLK2(DJ,DI,DK,DL,3))
+      IF(IGTYP==1) err = cint2e_ip1_cart(BLK2, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+      IF(IGTYP==2) err = cint2e_ip1_sph(BLK2, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+
+      SHLS = [KK-1, LL-1, II-1, JJ-1]
+      ALLOCATE(BLK3(DK,DL,DI,DJ,3))
+      IF(IGTYP==1) err = cint2e_ip1_cart(BLK3, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+      IF(IGTYP==2) err = cint2e_ip1_sph(BLK3, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+
+      SHLS = [LL-1, KK-1, II-1, JJ-1]
+      ALLOCATE(BLK4(DL,DK,DI,DJ,3))
+      IF(IGTYP==1) err = cint2e_ip1_cart(BLK4, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
+      IF(IGTYP==2) err = cint2e_ip1_sph(BLK4, SHLS, ATM4, NAT, BAS4, NBAS, ENV, 0_8)
 
       IJKLN=0
-      NIJKL = 0
-      DO I=MINI,MAXI
-        JMAX=MAXJ
-        IF(IIEQJJ) JMAX=I
-        DO J=MINJ,JMAX
-          KMAX=MAXK
-          IF(IJEQKL) KMAX=I
-          DO K=MINK,KMAX
-            LMAX=MAXL
-            IF(KKEQLL           ) LMAX=K
-            IF(IJEQKL.AND.K.EQ.I) LMAX=J
-            DO L=MINL,LMAX
-              IJKLN=IJKLN+1
-              NN=IJKLG(IJKLN)
+      DO I=1, DI
+        DJEFF = MERGE(I, DJ, IIEQJJ)
+        DO J=1, DJEFF
+          DKEFF = MERGE(I, DK, IJEQKL)
+          DO K=1, DKEFF
+            DLEFF = MERGE(K, DL, KKEQLL)
+            DLEFF = MERGE(J, DLEFF, IJEQKL.AND.K.EQ.I)
+            DO L=1, DLEFF
+              IJKLN = IJKLN+1
+              NN = IJKLG(IJKLN)
 !
-              IF(SKIPI) GO TO 530
+              IF (.NOT. SKIPI) THEN
+                IIFINT = IIFINT + 3
+                FD(1) = FD(1) - BLK1(I,J,K,L,1)*DAB(NN)
+                FD(2) = FD(2) - BLK1(I,J,K,L,2)*DAB(NN)
+                FD(3) = FD(3) - BLK1(I,J,K,L,3)*DAB(NN)
+              END IF
 !
-              IIFINT=IIFINT+3
-              FD( 1)=FD( 1)+BLK(NIJKL+1)*DAB(NN)
-              FD( 2)=FD( 2)+BLK(NIJKL+2)*DAB(NN)
-              FD( 3)=FD( 3)+BLK(NIJKL+3)*DAB(NN)
-  530         IF(SKIPJ) GO TO 550
+              IF (.NOT. SKIPJ) THEN
 !
               IIFINT=IIFINT+3 
-              FD( 4)=FD( 4)+BLK(NIJKL+4)*DAB(NN)
-              FD( 5)=FD( 5)+BLK(NIJKL+5)*DAB(NN)
-              FD( 6)=FD( 6)+BLK(NIJKL+6)*DAB(NN)
-  550         IF(SKIPK) GO TO 570
+              FD( 4)=FD( 4)-BLK2(J,I,K,L,1)*DAB(NN)
+              FD( 5)=FD( 5)-BLK2(J,I,K,L,2)*DAB(NN)
+              FD( 6)=FD( 6)-BLK2(J,I,K,L,3)*DAB(NN)
+              END IF
+              IF (.NOT. SKIPK) THEN
 !
               IIFINT=IIFINT+3
-              FD( 7)=FD( 7)+BLK(NIJKL+7)*DAB(NN)
-              FD( 8)=FD( 8)+BLK(NIJKL+8)*DAB(NN)
-              FD( 9)=FD( 9)+BLK(NIJKL+9)*DAB(NN)
-  570         IF(SKIPL) GO TO 600
+              FD( 7)=FD( 7)-BLK3(K,L,I,J,1)*DAB(NN)
+              FD( 8)=FD( 8)-BLK3(K,L,I,J,2)*DAB(NN)
+              FD( 9)=FD( 9)-BLK3(K,L,I,J,3)*DAB(NN)
+              END IF
+              IF (.NOT. SKIPL) THEN
 !
               IIFINT=IIFINT+3
-              FD(10)=FD(10)+BLK(NIJKL+10)*DAB(NN)
-              FD(11)=FD(11)+BLK(NIJKL+11)*DAB(NN)
-              FD(12)=FD(12)+BLK(NIJKL+12)*DAB(NN)
-  600         CONTINUE
-              NIJKL = NIJKL + 12
+              FD(10)=FD(10)-BLK4(L,K,I,J,1)*DAB(NN)
+              FD(11)=FD(11)-BLK4(L,K,I,J,2)*DAB(NN)
+              FD(12)=FD(12)-BLK4(L,K,I,J,3)*DAB(NN)
+              END IF
 !
             ENDDO
           ENDDO
         ENDDO
       ENDDO
 
-      END      
+      DEALLOCATE(BLK1)
+      DEALLOCATE(BLK2)
+      DEALLOCATE(BLK3)
+      DEALLOCATE(BLK4)
+
+      END

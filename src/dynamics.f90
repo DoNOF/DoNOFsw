@@ -20,7 +20,8 @@
 SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
                   ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,KLOC, &
                   INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG, &
-                  CH,CI,GRADS,IRUNTYP,DIPS)
+                  CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
+                  IGTYP)
 
  IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !-----------------------------------------------------------------------
@@ -48,6 +49,10 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
       !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
  COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),               &
              KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
+
+ INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
+ DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
 !-----------------------------------------------------------------------
 ! internal variables  
 !-----------------------------------------------------------------------
@@ -88,7 +93,7 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
   read(31,*) tres
   do iatom=1,nat
    read(31,*) atom,Cxyz(1,iatom), Cxyz(2,iatom), Cxyz(3,iatom),         &
-                   Vxyz(1,iatom), Vxyz(2,iatom), Vxyz(3,iatom)                 
+                   Vxyz(1,iatom), Vxyz(2,iatom), Vxyz(3,iatom)                
   enddo
   close(31)
 ! restart message
@@ -137,7 +142,8 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
  call beever(init,NAT,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,   &
              NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN, &
              IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
-             C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+             C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV, &
+             ENV,ATM,NBAS,BAS,IGTYP)
  ICOEF = ICOEFORI             
 !-----------------------------------------------------------------------
 ! compute potential energy (au) in t + dt
@@ -190,7 +196,8 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
   call beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,  &
               NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN,&
               IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,&
-              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,&
+              ENV,ATM,NBAS,BAS,IGTYP)
 !-----------------------------------------------------------------------
 !  compute potential energy (au)
 !-----------------------------------------------------------------------
@@ -262,7 +269,7 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
                   velflag,NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI, &
                   ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
                   KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,     &
-                  GRADS,IRUNTYP,DIPS)  
+                  GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)  
 !-----------------------------------------------------------------------
 ! init: flag to init propagator (in)
 ! nat: number of atoms in the system (in)
@@ -298,6 +305,10 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
  DOUBLE PRECISION,DIMENSION(3,NAT):: GRADS
  DOUBLE PRECISION,DIMENSION(3) :: DIPS
 !-----------------------------------------------------------------------
+ INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
+ DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+!-----------------------------------------------------------------------
 ! internal variables  
 !-----------------------------------------------------------------------
  INTEGER :: i
@@ -316,7 +327,8 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 !-----------------------------------------------------------------------
    CALL PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
            r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
-           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,   &
+           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
    forces=-GRADS
 
    if (dt == 0) then
@@ -344,7 +356,8 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 
    CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
             ZAN,r1,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,&
-        KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+        KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,&
+           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
    
    forces=-GRADS
 !-----------------------------------------------------------------------
@@ -415,7 +428,8 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 !-----------------------------------------------------------------------
    CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
            r2,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
-           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS)
+           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,   &
+           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
    
    forces=-GRADS
 !-----------------------------------------------------------------------
@@ -495,7 +509,7 @@ end
 subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                ZAN,r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
                KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,        &
-               GRADS,IRUNTYP,DIPS)
+               GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
  IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !-----------------------------------------------------------------------
 ! interface
@@ -523,7 +537,7 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
  character (4), parameter :: seedname='GCF-'
  character (2)  :: str
  character (len=10) :: fileIn
- character (len=20) :: MLD_FILE
+ character (len=22) :: MLD_FILE
  character (len=8) :: str1
 
  INTEGER :: i,igcfmin(1)
@@ -531,8 +545,17 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
  DOUBLE PRECISION, dimension (ngcf) :: Epot, EELEC_temp, EN_temp
  real(kind=8), parameter :: fstoau = 41.341373336561364d0  
 !-----------------------------------------------------------------------
+ INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
+ DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+!-----------------------------------------------------------------------
 ! init var
 !-----------------------------------------------------------------------
+ do i=1,nat
+  ENV(20+3*(i-1)+1) = r0(1,i)
+  ENV(20+3*(i-1)+2) = r0(2,i)
+  ENV(20+3*(i-1)+3) = r0(3,i) 
+ enddo
  Epot(:) = 0.d0
 !
  if(snapshot=='T')then
@@ -543,6 +566,7 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
 ! begin loop over GCF guess
 !-----------------------------------------------------------------------
  do i=1,ngcf
+  write (str,'(i2)') i
 !-----------------------------------------------------------------------    
 ! Save MLD file in snapshot-t.mld
 !-----------------------------------------------------------------------
@@ -550,7 +574,8 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
    if(ngcf==1)then
     MLD_FILE = 'snapshot-'//trim(adjustl(str1))//".mld"
    else
-    MLD_FILE = 'snapshot-'//trim(adjustl(str1))//'-'//char(i)//".mld"
+    MLD_FILE = 'snapshot-'//trim(adjustl(str1))//'-'                    &
+                //trim(adjustl(str))//".mld"
    end if
    OPEN(17,FILE=MLD_FILE,STATUS='UNKNOWN',FORM='FORMATTED',             &
            ACCESS='SEQUENTIAL') 
@@ -566,7 +591,6 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
 !-----------------------------------------------------------------------
 ! assign name to the variable fileIn
 !-----------------------------------------------------------------------
-  write (str,'(i2)') i
   fileIn = trim(seedname)//trim(adjustl(str))
 !-----------------------------------------------------------------------
 ! open GCF-i in unit 3
@@ -580,7 +604,8 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
   CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,r0,&
                 IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,   &
                 KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,      &
-                IRUNTYP,DIPS,0,1)    ! ,0) short print on output file
+                IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,0,1)
+                ! ,0) short print on output file
 !-----------------------------------------------------------------------
 ! store temporal variables
 !-----------------------------------------------------------------------

@@ -14,6 +14,15 @@ The solution is established optimizing the energy functional with respect to the
 
 **Requisites.** You need a FORTRAN compiler, either gfortran or ifort. Optionally, you may want to install OpenMPI for parallel execution.
 
+0. Install ![libcint](https://github.com/sunqm/libcint). The following instructions are provided as example.
+~~~
+git clone http://github.com/sunqm/libcint.git
+cd libcint
+mkdir build; cd build
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr/local/lib ..
+sudo make install
+~~~
+
 1. Clone the code with
 ~~~
 git clone https://github.com/DoNOF/DoNOFsw
@@ -24,12 +33,16 @@ git clone https://github.com/DoNOF/DoNOFsw
 make serialg # gfortran serial -> /exe/DoNOFg.x
 ~~~
 
-Other options are:
+The possible options are:
 ~~~
-make mpig    # gfortran mpi    -> /exe/DoNOFmpig.x
-make mping   # gfortran mpi (for recent linux versions)
-make serial  # ifort serial    -> /exe/DoNOF.x
-make mpi     # ifort mpi       -> /exe/DoNOFmpi.x
+make serialg # gfortran Serial      -> /exe/DoNOFg.x
+make ompg    # gfortran OpenMP      -> /exe/DoNOFompg.x
+make mpig    # gfortran MPI         -> /exe/DoNOFmpig.x
+make hybridg # gfortran OpenMP+MPI  -> /exe/DoNOFhybridg.x
+make serial  # ifort Serial         -> /exe/DoNOF.x
+make omp     # ifort OpenMP         -> /exe/DoNOFomp.x
+make mpi     # ifort MPI            -> /exe/DoNOFmpi.x
+make hybrid  # ifort OpenMP+MPI     -> /exe/DoNOFhybrid.x
 ~~~
 
 3. The executable will be placed inside /exe
@@ -38,7 +51,7 @@ make mpi     # ifort mpi       -> /exe/DoNOFmpi.x
 
 Several input files can be found inside /examples. A basic single point calculation with the GNOF functional looks like the following:
 ~~~
- &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP='FULL' /
+ &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 USELIB=T ERITYP='FULL' /
  $DATA
  Water (H2O)
  cc-pVDZ
@@ -55,11 +68,14 @@ If the input is placed in a file called filename.inp, it can be executed with
 ~~~
 the output will be placed in filename.out.
 
-Other options for execution are:
+The possible options are:
 ~~~
+./run_donofg filename     # gfortran serial
+./run_donofompg filename  # gfortran omp
 ./run_donofmpig filename  # gfortran mpi
-./run_donof     filename  # ifort serial
-./run_donofmpi  filename  # ifort mpi
+./run_donof filename     # ifort serial
+./run_donofomp filename  # ifort omp
+./run_donofmpi filename  # ifort mpi
 ~~~
 
 ## Capabilities

@@ -6,11 +6,12 @@
 !======================================================================!
 
 ! START                                            
-      SUBROUTINE START(NATOMS,NATmax,NBF,NBFaux,NUQMT,NELEC,NALP,NBET,  &
-                       NSHELL,NSHELLmax,NSHELLSaux,NPRIMI,NPRIMImax,    &
-                       ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE, &
-                       KNG,KLOC,KMIN,KMAX,INTIPO,ISHPIR,ITIPO,C1,C2,EX, &
-                       CS,CP,CD,CF,CG,CH,CI)
+      SUBROUTINE START(IGTYP,NATOMS,NATmax,NBF,NBFaux,NUQMT,NELEC,NALP, &
+                      NBET,NSHELL,NSHELLmax,NSHELLSaux,NPRIMI,NPRIMImax,&
+                      NPRIMIaux,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,    &
+                      KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,INTIPO,ISHPIR,     &
+                      ITIPO,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,SIZE_ENV,ENV, &
+                      ATM,BAS) !LIBCINT
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       CHARACTER(4) :: ERITYP,GEN 
       CHARACTER(5) :: RITYP 
@@ -30,6 +31,7 @@
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !      
+      INTEGER :: IGTYP
       INTEGER,DIMENSION(NATmax) :: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
       INTEGER,DIMENSION(NSHELLmax) :: KLOC,KMIN,KMAX,INTIPO
@@ -41,12 +43,17 @@
       DOUBLE PRECISION,DIMENSION(3) :: VMOI
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COM
+
+      INTEGER :: SIZE_ENV                         !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)           !LIBCINT
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)  !LIBCINT
 !-----------------------------------------------------------------------
 !     Read the Molecule and its normal basis set
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL MOLECULE(NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,C1,C2,EX,  &
-                    CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,KTYPE,KNG,KLOC,   &
-                    KMIN,KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz)
+      CALL MOLECULE(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,     &
+                    NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,     &
+                    KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,    &
+                    ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS) !LIBCINT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     True Nuclear Charges
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -143,10 +150,11 @@
       END                                                               
 
 ! MOLECULE
-      SUBROUTINE MOLECULE(NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,     &
-                          C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,   &
-                          KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,    &
-                          ISHPIR,ITIPO,ZAN,Cxyz)
+      SUBROUTINE MOLECULE(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,         &
+                         NPRIMImax,NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,&
+                         CI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN, &
+                         IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,&
+                         ATM,BAS) !LIBCINT
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/FRAME /U1,U2,U3,V1,V2,V3,WW1,WW2,WW3,X0,Y0,Z0     ! PTGRP            
       CHARACTER(80) :: TITLE, BASIS_FILE
@@ -159,9 +167,14 @@
       DOUBLE PRECISION,DIMENSION(NATmax) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATmax) :: Cxyz
 !
+      INTEGER :: IGTYP
       INTEGER,DIMENSION(NATmax)  :: IMIN,IMAX
       INTEGER,DIMENSION(NSHELLmax) :: INTIPO
-      INTEGER,DIMENSION(NPRIMImax) :: ISHPIR,ITIPO 
+      INTEGER,DIMENSION(NPRIMImax) :: ISHPIR,ITIPO
+
+      INTEGER :: SIZE_ENV                           !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)             !LIBCINT
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)    !LIBCINT
 !
 #include "mpip.h"
 !-----------------------------------------------------------------------
@@ -184,9 +197,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Read Atoms
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL ATOMS(NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,C1,C2,EX,CS,  &
-                 CP,CD,CF,CG,CH,CI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,    &
-                 KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz)
+      CALL ATOMS(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,        &
+                 NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,  &
+                 KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,&
+                 ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS) !LIBCINT
       CALL SETLAB(KATOM,KMIN,KMAX,NSHELL,ZAN)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       RETURN
@@ -197,11 +211,11 @@
       END
 
 ! ATOMS                                            
-      SUBROUTINE ATOMS(NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,C1PIR,  &
-                       C2PIR,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,KTYPE,&
-                       KNG,KLOC,KMIN,KMAX,IMINPIR,IMAXPIR,INTIPO,       &
-                       ISHPIR,ITIPO,ZAN,Cxyz)
-      USE ISO_C_BINDING      
+      SUBROUTINE ATOMS(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,  &
+                       NPRIMIaux,C1PIR,C2PIR,EX,CS,CP,CD,CF,CG,CH,CI,   &
+                       KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMINPIR,   &
+                       IMAXPIR,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,   &
+                       ENV,ATM,BAS) !LIBCINT
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
       DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
@@ -220,9 +234,7 @@
       COMMON/MAPSHEL/MAPSHL(600,48),NT
       COMMON/TRANSF/XP,YP,ZP 
 !
-      COMMON/USELIBRETA/ILIBRETA
-      TYPE(C_PTR),DIMENSION(600)::BASLIB
-      COMMON/LIBRETA/BASLIB
+      COMMON/USELIBCINT/ILIBCINT
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
 !
@@ -257,6 +269,7 @@
       CHARACTER(10) :: ATOMNM,ENDWRD
       DATA ENDWRD /'$END      '/                                        
 !
+      INTEGER :: IGTYP
       LOGICAL :: SPRKLE,QMCHKA,QMCHKB,FILE_EXISTS      
       CHARACTER(80) :: BASIS_FILE,PREFIX,BASIS_FILE_1
       COMMON/BASIS_FILE/BASIS_FILE
@@ -267,13 +280,23 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CPP,CDD,SCFAC
       INTEGER,ALLOCATABLE,DIMENSION(:) :: INTYP,NS,KS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CINP
+
+      INTEGER :: OFF, OFF_PRIM                     !LIBCINT
+      INTEGER :: SIZE_ENV                          !LIBCINT
+      DOUBLE PRECISION :: ENV(SIZE_ENV)            !LIBCINT
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)   !LIBCINT
+      DOUBLE PRECISION,EXTERNAL :: CINTgto_norm    !LIBCINT
+
+      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
+                      KSTARTaux(700),KNGaux(700)
+      COMMON/EXCaux/EXaux(2000),Caux(2000)
 !-----------------------------------------------------------------------
       ALLOCATE(INTYP(NPRIMImax),NS(NATmax),KS(NATmax))  
       ALLOCATE(EXX(6),CSS(6),CPP(6),CDD(6),SCFAC(4))
       ALLOCATE(CSINP(NPRIMImax),CPINP(NPRIMImax),CDINP(NPRIMImax))
       ALLOCATE(CFINP(NPRIMImax),CGINP(NPRIMImax))
       ALLOCATE(CHINP(NPRIMImax),CIINP(NPRIMImax))
-      IF(ILIBRETA==1)ALLOCATE(CINP(NPRIMImax))
+      IF(ILIBCINT==1)ALLOCATE(CINP(NPRIMImax))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NT = 1                         ! No symmetry point group - > C1
       PI = 2.0d0*DASIN(1.0d0)
@@ -551,7 +574,7 @@
 !      COEFFICIENTS (STORED AT DIFFERENT -KSTART- VALUES).              
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
        NSHELL = NSHELL + 1
-       if(IECP>0.or.ILIBRETA==1)then
+       if(IECP>0.or.ILIBCINT==1)then
         IF(NSHELL>600)THEN
          WRITE(6,'(1X,A30,I6,A16)')                                      &
           'Stop: No more than NSHELLmax (',NSHELLmax,') shells allowed'
@@ -636,14 +659,10 @@
          CG(K) = CGINP(K)                                               
          CH(K) = CHINP(K)                                               
          CI(K) = CIINP(K)
-!        Store unnormalized coefficients for libreta
-         IF(ILIBRETA==1) CINP(K) = C1
+!        Store unnormalized coefficients for libint
+         IF(ILIBCINT==1) CINP(K) = C1
+         !CINP(K) = C1 !LIBCINT
         END DO
-!       Create basis in libreta
-        if(ILIBRETA==1)then
-!lib         CALL CREATEBASIS(BASLIB(NSHELL),EX(K1:K2),CINP(K1:K2),         &
-!lib                          Cxyz(1:3,NAT),ITYP-1,K2-K1+1)
-        end if                  
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                          
 !      Normalize Primitive Basis Functions
@@ -774,7 +793,81 @@
       IF(NGAUSS==0.or.NSHELL==0)THEN    
        WRITE(6,'(32A)')'Stop: No basis functions defined' 
        CALL ABRT                                                      
-      END IF                                                            
+      END IF
+
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Fill ENV, ATM and BAS for Libcint
+!     The specifications can be found in the LIBCINT documentation
+!     but are briefly summarized in the following.
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ENV
+!- - - - - - - - - - - - - - - -  
+!     (0) X 20          : Free for internal use (do not fill)
+!     (X,Y,Z) X NAT     : Coordinates of each atom
+!     (Exps) + (Coeffs) : Exponents and Coefficients of the primitives
+!         X NSHELL        of a given shell
+!- - - - - - - - - - - - - - - -  
+!     ATM
+!- - - - - - - - - - - - - - - -  
+!     ATM(1, IAT)       : Nuclear Charge of I atom
+!     ATM(2, IAT)       : Index of the X coordinate of I atom in ENV
+!- - - - - - - - - - - - - - - -  
+!     BAS
+!- - - - - - - - - - - - - - - -  
+!     BAS(1, IBAS)      : Atom index where the shell is centered
+!     BAS(2, IBAS)      : Angular momentum of the shell
+!     BAS(3, IBAS)      : Number of primitives in the shell
+!     BAS(4, IBAS)      : Number of coefficientes per primitive
+!     BAS(6, IBAS)      : Index of the first exponent of the shell in ENV
+!     BAS(7, IBAS)      : Index of the first coeff of the shell in ENV
+!- - - - - - - - - - - - - - - -  
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ILIBCINT==1) THEN
+        LOC = 0
+        ENV = 0.0D0
+        ATM = 0
+        BAS = 0
+        OFF = 20
+        OFF_PRIM = 20 + NAT*3
+        DO IAT=1,NAT
+          OFF = 20 + (IAT-1)*3
+          ATM(1,IAT) = ZAN(IAT)
+          ATM(2,IAT) = OFF
+          ENV(OFF+1) = Cxyz(1,IAT)
+          ENV(OFF+2) = Cxyz(2,IAT)
+          ENV(OFF+3) = Cxyz(3,IAT)
+
+          NS1 = KS(IAT)
+          NS2 = NS1+NS(IAT)-1
+          DO ISH = NS1,NS2
+            BAS(1,ISH) = IAT - 1
+            BAS(2,ISH) = INTYP(ISH) - 1
+            BAS(3,ISH) = KNG(ISH)
+            BAS(4,ISH) = 1
+            BAS(6,ISH) = OFF_PRIM
+            BAS(7,ISH) = OFF_PRIM + KNG(ISH)
+
+            I1 = KSTART(ISH)
+            I2 = I1+KNG(ISH)-1
+            I0 = 0
+            DO IG = I1,I2
+               I0 = I0 + 1
+               E = EX(IG)
+              ENV(OFF_PRIM + I0) = EX(IG)
+              ENV(OFF_PRIM + KNG(ISH) + I0) = CINP(IG) *                  &
+                      CINTgto_norm(BAS(2,ISH), ENV(BAS(6,ISH)+I0))
+            END DO
+            OFF_PRIM = OFF_PRIM + 2*KNG(ISH)
+            L = BAS(2,ISH)
+            IF(IGTYP==1) THEN
+              LOC = LOC + (L + 1) * (L + 2) / 2
+            ELSE IF(IGTYP==2) THEN
+              LOC = LOC + 2 * L + 1
+            END IF
+          END DO
+        END DO
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !             Form Transformation Tables for Atoms and Shells
@@ -966,22 +1059,55 @@
        INTIPO(I)=INTYP(I)                                             
       ENDDO
 !-----------------------------------------------------------------------
-      WRITE(6,500)NSHELL,NPRIMI,NUM
+      IF(IGTYP==1) WRITE(6,500)NSHELL,NPRIMI,NUM
+      IF(IGTYP==2) WRITE(6,501)NSHELL,NPRIMI,NUM
+      NSHELLaux = 0
+      NPRIMIaux = 0
       IF (IERITYP==2 .or. IERITYP==3) THEN
-       if(ILIBRETA==0)then
+       if(ILIBCINT==0)then
         IF(IRITYP==1) THEN
-          CALL AUXREAD(NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
+          CALL AUXREAD(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
         ELSE IF(IRITYP==2) THEN
-         CALL AUXGEN(NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux,NUMaux, &
-                    IGEN,ISTAR,EX,ZAN)       
+          CALL AUXGEN(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux, &
+                 NUMaux,IGEN,ISTAR,EX,ZAN)       
         END IF
-       else if(ILIBRETA==1)then
-        CALL AUXGENlib(NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux,      &
-                       NUMaux,EX,ZAN,Cxyz)
+       else if(ILIBCINT==1)then
+        IF(IRITYP==1) THEN
+          CALL AUXREADlib(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
+        ELSE IF(IRITYP==2) THEN
+          CALL AUXGENlib(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,        &
+                  NSHELLaux,NUMaux,EX,ZAN,Cxyz)
+        END IF
        end if
-       WRITE(6,550)NSHELLaux,NUMaux
+      IF(IGTYP==1) WRITE(6,550)NSHELLaux,NUMaux
+      IF(IGTYP==2) WRITE(6,551)NSHELLaux,NUMaux
       END IF
-      WRITE(6,600)NE,ICH,MUL,NA,NB,NAT                         
+      WRITE(6,600)NE,ICH,MUL,NA,NB,NAT          
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Fill ENV, and BAS for Libcint with Auxiliary basis
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ILIBCINT==1) THEN
+        I1 = 0
+        DO I=1,NSHELLaux
+          IBAS = NSHELL + I
+          BAS(1,IBAS) = KATOMaux(I) - 1
+          BAS(2,IBAS) = KTYPEaux(I) - 1
+          BAS(3,IBAS) = KNGaux(I)
+          BAS(4,IBAS) = 1
+          BAS(6,IBAS) = OFF_PRIM
+          BAS(7,IBAS) = OFF_PRIM + KNGaux(I)
+          DO I0=1,KNGaux(I)
+          I1 = I1 + 1
+          ENV(OFF_PRIM + I0) = EXaux(I1)
+          ENV(OFF_PRIM + KNGaux(I) + I0) = Caux(I1) *                    &
+                         CINTgto_norm(BAS(2,IBAS), ENV(BAS(6,IBAS)+I0))
+          END DO
+          OFF_PRIM = OFF_PRIM + 2*KNGaux(I)
+        END DO
+        NPRIMIaux = I1 
+      END IF 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Nuclear Energy with true nuclear charges
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -996,7 +1122,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE(CSINP,CPINP,CDINP,CFINP,CGINP,CHINP,CIINP)
       DEALLOCATE(INTYP,NS,KS,EXX,CSS,CPP,CDD,SCFAC)
-      IF(ILIBRETA==1)DEALLOCATE(CINP)      
+      IF(ILIBCINT==1)DEALLOCATE(CINP)      
 !-----------------------------------------------------------------------                                                                       
   100 FORMAT(1X,'ERROR OCCURED READING ATOM NO.',I4,                    &
                 ', INPUT ATOM NO.',I5,', NAME=',A10/                    &
@@ -1008,8 +1134,13 @@
   500 FORMAT(/1X,'Total Number of Basis Set Shells             =',I5/   &
               1X,'Total Number of Primitives                   =',I5/   &
               1X,'Number of Cartesian Gaussian Basis Functions =',I5)
+  501 FORMAT(/1X,'Total Number of Basis Set Shells             =',I5/   &
+              1X,'Total Number of Primitives                   =',I5/   &
+              1X,'Number of Spherical Gaussian Basis Functions =',I5)
   550 FORMAT( 1X,'Total Number of Auxiliary Basis Set Shells   =',I5/   &
               1X,'Number of Cart. Gaussian Auxiliary Set Func. =',I5)
+  551 FORMAT( 1X,'Total Number of Auxiliary Basis Set Shells   =',I5/   &
+              1X,'Number of Sph. Gaussian Auxiliary Set Func.  =',I5)
   600 FORMAT( 1X,'Number of Electrons                          =',I5/   &
               1X,'Charge of Molecule                           =',I5/   &
               1X,'Spin Multiplicity                            =',I5/   &

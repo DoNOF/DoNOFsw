@@ -12,8 +12,8 @@
 
 ! NAMELIST_INPRUN
       SUBROUTINE NAMELIST_INPRUN(ITYPRUN,ICHARG,MULT,NINTEG,            &
-        IDONTW,IEMOMENTS,EVECTOR,LIBRETA,                               &
-        IECPO,IHSSCAL,IPROJECT,ISIGMA,                                  &
+        IDONTW,IEMOMENTS,EVECTOR,LIBCINT,                               &
+        IECPO,IHSSCAL,IPROJECT,ISIGMA,IGTYP,                            &
         NATmax,NSHELLmax,NPRIMImax,IHUBBARD)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"      
@@ -28,7 +28,7 @@
       COMMON/CONTROL/UNITS
       COMMON/INTOPT/ISCHWZ,IECP,NECP            
       COMMON/RUNTYPE/IRUNTYP
-      COMMON/USELIBRETA/ILIBRETA
+      COMMON/USELIBCINT/ILIBCINT
       COMMON/USEHUBBARD/IHUB
       LOGICAL DONTW,USELIB,USEHUB,HSSCAL,PROJECT
       DOUBLE PRECISION,DIMENSION(3) :: EVECTOR
@@ -43,6 +43,8 @@
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       CHARACTER(3) :: GEN
+      CHARACTER(4) :: GTYP, CART, SPH
+      DATA CART,SPH/'CART','SPH '/
 !----------------------------------------------------------------------!
 !                   --- INPRUN NAMELIST VARIABLES ---                  !
 !----------------------------------------------------------------------!
@@ -79,8 +81,13 @@
 !                  (1 a.u. = 1 Hartree/e*bohr = 5.1422082(15)d+11 V/m)
 !       = 0.0D0    (Default)
 !
-! USELIB           Use Libreta open source library for ERI calculation
-!       = F        HONDO Calculator (Default)
+! USELIB           Use LIBCINT open source library for ERI calculation
+!       = F        HONDO Calculator
+!       = T        LIBCINT (Default)
+!
+! GTYP             Type of Gaussian functions
+!       = CART     Cartesian (Default)
+!       = SPH      Spherical (only if LIBCINT)
 !
 ! USEHUB           Use Hubbard Model
 !       = F        (Default)
@@ -119,7 +126,6 @@
 !       = 2        There is a center of symmetry
 !                  For more info see https://cccbdb.nist.gov/thermo.asp
 !
-!JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
 ! NATmax           Maximum Number of Atoms
 !       = 1001     (Default)
 !
@@ -131,8 +137,8 @@
 !
 !-----------------------------------------------------------------------
       NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,UNITS,EVEC,USELIB,  &
-      USEHUB,DONTW,ERITYP,RITYP,GEN,SMCD,HSSCAL,PROJECT,&
-      ISIGMA,NATmax,NSHELLmax,NPRIMImax
+               GTYP,USEHUB,DONTW,ERITYP,RITYP,GEN,SMCD,HSSCAL,PROJECT,  &
+               ISIGMA,NATmax,NSHELLmax,NPRIMImax
 !-----------------------------------------------------------------------
       TI = 0.0D0                                                           
       TX = 0.0D0                                                           
@@ -146,7 +152,8 @@
       IEMOM     = 1
       UNITS     = ANGS
       EVEC      = 0.0D0     ! EVEC(1,2,3)=0
-      USELIB    = .FALSE.
+      USELIB    = .TRUE.
+      GTYP      = CART
       USEHUB    = .FALSE.
       DONTW     = .TRUE.
       ERITYP    = FULL
@@ -167,7 +174,7 @@
 #ifdef MPI
       CONTINUE
 #else
-      REWIND(5)
+!     REWIND(5)
 #endif
       READ(5,INPRUN,ERR=1,END=1)
 !-----------------------------------------------------------------------
@@ -186,20 +193,24 @@
       END IF
       ITYPRUN = IRUNTYP
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Use Libreta open source library for ERI calculation
+!     Use LIBCINT open source library for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(USELIB)THEN
-        ILIBRETA = 1
+        ILIBCINT = 1
       ELSE
-        ILIBRETA = 0
+        ILIBCINT = 0
       ENDIF
-        LIBRETA = ILIBRETA
-!     Stop if USELIB to use NAG library (E04DKF,E04DGF,F11JEF)
-      IF(ILIBRETA==1)THEN
-        WRITE(6,*)                                                       !lib
-        WRITE(6,*)'Stop: To use the Libreta library you need data.cpp', &!lib
-        '      and uncomment calls to the relevant routines'   !lib
-        CALL ABRT                                                        !lib
+      LIBCINT = ILIBCINT
+!-----------------------------------------------------------------------
+!     Determine GTYP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(GTYP==CART)THEN
+        IGTYP = 1
+      ELSE IF(GTYP==SPH .AND. USELIB)THEN
+        IGTYP = 2
+      ELSE
+        WRITE(6,8) 
+        CALL ABRT
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Hubbard Model
@@ -317,34 +328,32 @@
         WRITE(6,5)
         CALL ABRT
       END IF
-      IF(IECP>0 .and. ILIBRETA==1)THEN        ! ECP only with HONDO
+      IF(IECP>0 .and. ILIBCINT==1)THEN        ! ECP only with HONDO
         WRITE(6,7)
         CALL ABRT
       END IF
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       IF(IECP>0 .and. NATmax>1001)THEN         ! due to COMMON/ECP2/
-        WRITE(6,8)
-        CALL ABRT
-      END IF
-      IF(IECP>0 .and. NSHELLmax>600)THEN      ! due to MAPSHL
         WRITE(6,9)
         CALL ABRT
       END IF
-        IF(ILIBRETA==1 .and. NSHELLmax>600)THEN ! due to BASLIB
+      IF(IECP>0 .and. NSHELLmax>600)THEN      ! due to MAPSHL
         WRITE(6,10)
         CALL ABRT
       END IF
-      IF(IERITYP==2 .and. NSHELLmax>700)THEN  ! due to COMMON/NSHELaux/
+        IF(ILIBCINT==1 .and. NSHELLmax>600)THEN ! due to BASLIB
         WRITE(6,11)
+        CALL ABRT
+      END IF
+      IF(IERITYP==2 .and. NSHELLmax>700)THEN  ! due to COMMON/NSHELaux/
+        WRITE(6,12)
         CALL ABRT
         END IF
       IF(IERITYP==2 .and. NPRIMImax>2000)THEN ! due to COMMON/EXCaux/
-        WRITE(6,12)
+        WRITE(6,13)
         CALL ABRT
       END IF
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       IF(IRUNTYP==5 .and. NATmax>1001)THEN ! due to COMMON/INPDYN_FLAGS/
-        WRITE(6,13)
+        WRITE(6,14)
         CALL ABRT
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -369,14 +378,13 @@
     5 FORMAT(/1X,'Stop: DONTW must be T with ERITYP = RI',/)
     6 FORMAT(/1X,'Stop: ERITYP must be FULL or RI',/)
     7 FORMAT(/1X,'Stop: USELIB must be F with ECP',/) 
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
-    8 FORMAT(/1X,'Stop: NATmax must be <= 1001 with ECP',/) 
-    9 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ECP',/)
-   10 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with USELIB = T',/)
-   11 FORMAT(/1X,'Stop: NHELLmax must be <= 700 with ERITYP = RI',/)
-   12 FORMAT(/1X,'Stop: NPRIMImax must be <= 2000 with ERITYP = RI',/)
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
-   13 FORMAT(/1X,'Stop: NATmax must be <= 1001 with RUNTYP = DYN',/)
+    8 FORMAT(/1X,'Stop: GTYP must be CART or SPH',/) 
+    9 FORMAT(/1X,'Stop: NATmax must be <= 1001 with ECP',/) 
+   10 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ECP',/)
+   11 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with USELIB = T',/)
+   12 FORMAT(/1X,'Stop: NHELLmax must be <= 700 with ERITYP = RI',/)
+   13 FORMAT(/1X,'Stop: NPRIMImax must be <= 2000 with ERITYP = RI',/)
+   14 FORMAT(/1X,'Stop: NATmax must be <= 1001 with RUNTYP = DYN',/)
 !-----------------------------------------------------------------------
       END
 
@@ -419,6 +427,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_STATIC/Ista
+      COMMON/INPNOF_MOD/lmod
       COMMON/INPNOF_EXSTA/NESt,OMEGA1
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
@@ -439,7 +448,7 @@
 !.......... MAXIT21             Maximum number of iterations for 
 !                               optimizing only by NOs keeping fixed ONs 
 !                               if ICOEF = 21 (first part of the Opt.)
-!                      = 10     (Default)
+!                      = 3      (Default)
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Type of Calculation
@@ -514,7 +523,7 @@
 !                      = 5      (Default)
 !
 !.......... MAXITID             Maximum number of external iterations 
-!                      = 100    (Default)
+!                      = 30     (Default)
 !
 !.......... KOOPMANS            Calculate IPs using Koopmans' Theorem 
 !                      = 0      (Default)
@@ -527,11 +536,15 @@
 !                      = 5      PNOF5
 !                      = 6      PNOF6
 !                      = 7      PNOF7
-!                      = 8      GNOF (Default)
+!                      = 8      GNOFx (Default)
 !
 !.......... Ista                Use Static version of PNOF7 
 !                      = 0      PNOF7 (Default)
 !                      = 1      PNOF7s
+!
+!.......... lmod                Select versions of GNOFx
+!                      = 0      GNOF (Default)
+!                      = 1      GNOFm
 !
 !.......... HighSpin            Spin-uncompensated calculation type
 !                      = F      (Default) Multiplet state (Ms=0)
@@ -551,11 +564,11 @@
 !
 !.......... NTHRESHL            Convergence of the Lagrange Multipliers
 !                               THRESHL=10.0**(-NTHRESHL)
-!                      = 3      (Default)
+!                      = 4      (Default)
 !
 !.......... NTHRESHE            Convergence of the total energy
 !                               THRESHE=10.0**(-NTHRESHE)
-!                      = 4      (Default)
+!                      = 6      (Default)
 !
 !.......... NTHRESHEC           Convergence of the total energy (OrbOpt)
 !                               THRESHEC=10.0**(-NTHRESHEC)
@@ -843,22 +856,22 @@
 !-----------------------------------------------------------------------
       NAMELIST/NOFINP/MAXIT,MAXIT21,ICOEF,ISOFTMAX,IORBOPT,IEINI,NO1,   &
                       RHF,NCONVRHF,MAXITRHF,HFDAMP,HFEXTRAP,HFDIIS,HFID,&
-                      NTHRESHEID,MAXITID,KOOPMANS,IPNOF,Ista,HighSpin,  &
-                      NCWO,NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN,       &
-                      MAXLOOP,SCALING,AUTOZEROS,NZEROS,NZEROSm,NZEROSr, &
-                      ITZITER,DIIS,NTHDIIS,NDIIS,PERDIIS,DAMPING,       &
-                      EXTRAP,ERPA,OIMP2,NO1PT2,SC2MCPT,NEX,RESTART,     &
-                      INPUTGAMMA,INPUTC,INPUTFMIUG,NPRINT,INPUTCXYZ,    &
-                      IWRITEC,IMULPOP,MBPT,PRINTLAG,DIAGLAG,IEKT,       &
-                      IAIMPAC,IFCHK,MOLDEN,INICOND,NOUTRDM,NTHRESHDM,   &
-                      NSQT,NOUTCJK,NTHRESHCJK,NOUTTijab,NTHRESHTijab,   &
-                      APSG,NTHAPSG,ORTHO,CHKORTHO,FROZEN,IFROZEN,       &
-                      ICGMETHOD,NESt,OMEGA1,LR,FACT,BETA1,BETA2
+                      NTHRESHEID,MAXITID,KOOPMANS,IPNOF,Ista,lmod,      &
+                      HighSpin,NCWO,NTHRESHL,NTHRESHE,NTHRESHEC,        &
+                      NTHRESHEN,MAXLOOP,SCALING,AUTOZEROS,NZEROS,       &
+                      NZEROSm,NZEROSr,ITZITER,DIIS,NTHDIIS,NDIIS,       &
+                      PERDIIS,DAMPING,EXTRAP,ERPA,OIMP2,NO1PT2,SC2MCPT, &
+                      NEX,RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,NPRINT,  &
+                      INPUTCXYZ,IWRITEC,IMULPOP,MBPT,PRINTLAG,DIAGLAG,  &
+                      IEKT,IAIMPAC,IFCHK,MOLDEN,INICOND,NOUTRDM,        &
+                      NTHRESHDM,NSQT,NOUTCJK,NTHRESHCJK,NOUTTijab,      &
+                      NTHRESHTijab,APSG,NTHAPSG,ORTHO,CHKORTHO,FROZEN,  &
+                      IFROZEN,ICGMETHOD,NESt,OMEGA1,LR,FACT,BETA1,BETA2
 !-----------------------------------------------------------------------
 !     Preset values to namelist variables
 !-----------------------------------------------------------------------
       MAXIT=1000
-      MAXIT21=10
+      MAXIT21=3
       
 !     Type of Calculation
       ICOEF=1
@@ -877,18 +890,19 @@
       HFID=.FALSE.                                ! MO Basis
 !     For HFID=T.and.RHF=F, it may be better to take HFDAMP=HFEXTRAP=F 
       NTHRESHEID=8
-      MAXITID=100
+      MAXITID=30
       KOOPMANS=0
       
 !     PNOF Selection
       IPNOF=8
-      Ista=0                                      ! PNOF7n            
+      Ista=0                                      
+      lmod=0                                      ! GNOF
       HighSpin=.FALSE.                            ! Multiplet      
       NCWO=-1
       
 !     Convergence Criteria in NOF calculation
-      NTHRESHL=3
-      NTHRESHE=4
+      NTHRESHL=4
+      NTHRESHE=6
       NTHRESHEC=8
       NTHRESHEN=10
       
@@ -982,14 +996,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Note: Override AUTOZEROS to False and reduce MAXLOOP for ADAM
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(IORBOPT>1) THEN
-        IF(AUTOZEROS) THEN
-          AUTOZEROS=.FALSE.
-        END IF
-      END IF
-      IF(IORBOPT==4 .AND. MAXLOOP==30) THEN
-        MAXLOOP=10
-      END IF
+      IF(IORBOPT>1 .and. AUTOZEROS)AUTOZEROS=.FALSE.
+      IF(IORBOPT==4 .AND. MAXLOOP==30)MAXLOOP=10
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Automatic selection of NZEROS                
 !     Note: Override the selected values in the namelist
@@ -1092,8 +1100,8 @@
         WRITE(6,'(/,1X,38A,/)')'!DYN: RESTART=FALSE, INPUTCXYZ=0'              
         INPUTGAMMA = 1
         INPUTC = 1
-        INPUTFMIUG = 1
-        WRITE(6,'(  1X,38A,/)')'!INPUTGAMMA=1, INPUTC=1, INPUTFMIUG=1'
+        IF(IORBOPT==1)INPUTFMIUG = 1
+        WRITE(6,'(  1X,38A,/)')'!INPUTGAMMA=1, INPUTC=1'
         IAIMPAC=0
         MOLDEN=0
         INICOND=0
@@ -1155,8 +1163,6 @@
           CALL ABRT       
         ENDIF
       ENDIF
-!
-      IF(IPNOF==8)Ista=0     ! FIs = DSQRT(RO*(1.0d0-RO))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Forced options if Hubbard model is used
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1488,6 +1494,7 @@
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_STATIC/Ista
+      COMMON/INPNOF_MOD/lmod
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/INPNOF_EXSTA/NESt,OMEGA1      
 !-----------------------------------------------------------------------
@@ -1553,10 +1560,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(3<=IPNOF.and.IPNOF<=8)THEN
         WRITE(6,7)IPNOF
-        if(IPNOF==7)THEN
-          if(Ista==1)WRITE(6,*)                                         &
-          'Static Version of Functional PNOF7s:    (Ista)          1'
-        end if
+        if(IPNOF==7.and.Ista==1)WRITE(6,*)                              &
+          'Static Version of Functional:           (Ista)          1'
+        if(IPNOF==8.and.lmod==1)WRITE(6,*)                              &
+          'GNOFm Version of Functional:            (lmod)          1'
       ELSE
         WRITE(6,*)'Stop Program: Select IPNOF between 3 and 8'
         CALL ABRT       
@@ -1564,7 +1571,7 @@
 !- - - - - - - - - - - - - - - - - - - - - -
       IF(MUL>1)THEN
         IF(.NOT.(IPNOF==5.or.IPNOF==7.or.IPNOF==8))THEN
-        WRITE(6,'(/A42)')' Stop: IPNOF must be equal 5,7,8 for MULT>1'
+        WRITE(6,'(/A44)')' Stop: IPNOF must be equal 5,7,8 for MULT>1'
         CALL ABRT       
       ENDIF
       IF(HighSpin)THEN

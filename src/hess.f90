@@ -30,7 +30,8 @@
       SUBROUTINE HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,      &
                  ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,     &
                  ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,          &
-                 GRADS,IRUNTYP,IPROJECT,ISIGMA)
+                 GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,        &
+                 NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
@@ -46,19 +47,27 @@
       DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
       DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE:: HESSIANO,DDM
       DOUBLE PRECISION,DIMENSION(3):: DIPS
-      COMMON/USELIBRETA/ILIBRETA
+
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
+      
+      COMMON/USELIBCINT/ILIBCINT
 !-----------------------------------------------------------------------
       IF (IRUNTYP==4) THEN
-!      Update coordinates of shells if use libreta library for ERIs
-       if(ILIBRETA==1)CALL UPDCOOSHELL(NSHELL,KATOM,Cxyz,NAT)
+!      Update coordinates of shells if use libint library for ERIs
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
-                     CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,0,1)
+                     CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,   &
+                     NBAS,BAS,IGTYP,0,1)
 !      Write Coordinates on File CGGRAD (Unit=11)
        WRITE(11,1)
        DO I=1,NAT
         WRITE(11,2)I,Cxyz(1,I),Cxyz(2,I),Cxyz(3,I)
+        ENV(20+3*(I-1)+1) = Cxyz(1,I)
+        ENV(20+3*(I-1)+2) = Cxyz(2,I)
+        ENV(20+3*(I-1)+3) = Cxyz(3,I)
        ENDDO
 !      Internuclear distances       
        CALL NUCDIST(3*NAT,NAT,Cxyz)
@@ -69,7 +78,7 @@
       CALL HSSNUMd(HESSIANO,3*NAT,Cxyz,GRADS,DIPS,DDM,NINTEG,IDONTW,    &
                    ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,     &
                    KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,     &
-                   CH,CI,IRUNTYP)
+                   CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
 !     Carry out normal mode vibrational analysis
       CALL FGMTRXd(Cxyz,HESSIANO,GRADS,3*NAT,ZAN,ZMASS,DDM,IPROJECT,    &
                    ISIGMA)
@@ -86,7 +95,8 @@
       SUBROUTINE HSSNUMd(FCM,NC1,Cxyz,EG,DIP,DDM,NINTEG,IDONTW,         &
                          ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,          &
                          KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,       &
-                         EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP)
+                         EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,              &
+                         SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL CONVGDELAG,FROZEN
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -97,8 +107,7 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/ELPROP/IEMOM      
-      COMMON/USELIBRETA/ILIBRETA 
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
+      COMMON/USELIBCINT/ILIBCINT 
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !     ARGUMENTS
@@ -115,6 +124,11 @@
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::C1,C2,EX1,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::CD,CF,CG,CH,CI
+
+      INTEGER :: SIZE_ENV,NBAS,IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NATOMS), BAS(8,NBAS)
+
 !     VARIABLES      
       DOUBLE PRECISION,DIMENSION(NC1) :: CDISP,EGDISP
       DOUBLE PRECISION,DIMENSION(2) :: D
@@ -204,15 +218,18 @@
          III = III + 1        
          NV = NVA+ICOORD
          CDISP(NV) = CDISP(NV)+D(IVIB)
+         DO I=1,NV
+           ENV(20+I) = CDISP(I)
+         END DO
 !        ENERGY AND GRADIENT AT DISPLACED GEOM 
          IF(IVIB==NVIB.AND.IAT==NMAXSKIP.AND.ICOORD==3)NOPTCG=1
-!        Update coordinates of shells if use libreta library for ERIs
-         if(ILIBRETA==1)CALL UPDCOOSHELL(NSHELL,KATOM,CDISP,NAT)
+!        Update coordinates of shells if use libint library for ERIs
          CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NATOMS,NBF,NBFaux,NSHELL,    &
                        NPRIMI,ZAN,CDISP,IAN,IMIN,IMAX,KSTART,KATOM,     &
                        KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,         &
                        C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,EGDISP,           &
-                       IRUNTYP,DIP,NOPTCG,0)
+                       IRUNTYP,DIP,SIZE_ENV,ENV,ATM,                    &
+                       NBAS,BAS,IGTYP,NOPTCG,0)
 !        PURIFY THE GRADIENT BY HOUSEHOLDER METHOD
          CALL GRADSPURIFY(EGDISP,NC1)
          ENERGY = EELEC + EN
@@ -723,8 +740,8 @@
         enddo
        ENDIF
 !
-!     Initial Conditions according to normal modes 
-!     Equilibrium Geometry & Zero Point Energy Velocities (Ang/fs)
+!      Initial Conditions according to normal modes
+!      Equilibrium Geometry & Zero Point Energy Velocities (Ang/fs)
 !
        IF(INICOND==1)THEN
         WRITE(11,9080)
@@ -738,14 +755,24 @@
         FREQau = FREQau * AUtoANG*FStoAU/DSQRT(AMUtoAU) !*0.512396293759
 !
         VECt = 0.0d0
-        do iat = 1,NATOMS         
-         io = 3*(iat-1)
-         do j=7,nc1
-          VECt(1+io) = VECt(1+io) + VEC(1+io,j)*FREQau(j)
-          VECt(2+io) = VECt(2+io) + VEC(2+io,j)*FREQau(j)
-          VECt(3+io) = VECt(3+io) + VEC(3+io,j)*FREQau(j)
+
+        IF(NATOMS>2)THEN
+         do iat = 1,NATOMS
+          io = 3*(iat-1)
+          do j=7,nc1
+           VECt(1+io) = VECt(1+io) + VEC(1+io,j)*FREQau(j)
+           VECt(2+io) = VECt(2+io) + VEC(2+io,j)*FREQau(j)
+           VECt(3+io) = VECt(3+io) + VEC(3+io,j)*FREQau(j)
+          enddo
          enddo
-        enddo
+        ELSE IF(NATOMS==2)THEN
+         do iat = 1,NATOMS
+          io = 3*(iat-1)
+          VECt(1+io) = VECt(1+io) + VEC(1+io,6)*FREQau(6)
+          VECt(2+io) = VECt(2+io) + VEC(2+io,6)*FREQau(6)
+          VECt(3+io) = VECt(3+io) + VEC(3+io,6)*FREQau(6)
+         enddo
+        END IF
 !
         ZPE = 0.0d0
         write(33,*) NATOMS
