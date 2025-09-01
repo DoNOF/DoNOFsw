@@ -5184,14 +5184,14 @@
       RETURN
       END
 
-! CJCKD8 = GNOF(lmod=0) GNOFm(lmod=1)
+! CJCKD8 = GNOF(Imod=0) GNOFm(Imod=1)
       SUBROUTINE CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 !
       DOUBLE PRECISION,DIMENSION(NBF5)::RO,BETA
@@ -5205,7 +5205,7 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !          Dynamic and Static Occupation Numbers (ROd,Rd,FIs)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(lmod==0 .OR. lmod==1)then                   ! GNOFm
+      if(Imod==0 .OR. Imod==1)then                   ! GNOFm
        Hcutd = 0.02d0*DSQRT(2.0d0)
       end if
       ROd  = 0.0d0
@@ -5261,7 +5261,7 @@
       FIs = 0.0d0
       DFIs = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(lmod==0 .OR. lmod==1)then
+      if(Imod==0 .OR. Imod==1)then
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      FIs = (Np*Hp)^1/2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5278,7 +5278,7 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !                  - Interpair Electron Correlation -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(lmod==0) THEN
+      IF(Imod==0) THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       CJpq = 2NpNq , CKpq = NpNq
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5359,7 +5359,7 @@
           ENDDO      
          ENDDO
         end if            
-      ELSE IF(lmod==1) THEN
+      ELSE IF(Imod==1) THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       CJpq = 2NpNq , CKpq = NpNq + FIs(p)*FIs(q)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -427,7 +427,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_STATIC/Ista
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       COMMON/INPNOF_EXSTA/NESt,OMEGA1
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
@@ -539,7 +539,7 @@
 !                      = 0      PNOF7 (Default)
 !                      = 1      PNOF7s
 !
-!.......... lmod                Select versions of GNOFx
+!.......... Imod                Select versions of GNOFx
 !                      = 0      GNOF (Default)
 !                      = 1      GNOFm
 !
@@ -853,7 +853,7 @@
 !-----------------------------------------------------------------------
       NAMELIST/NOFINP/MAXIT,MAXIT21,ICOEF,ISOFTMAX,IORBOPT,IEINI,NO1,   &
                       RHF,NCONVRHF,MAXITRHF,HFDAMP,HFEXTRAP,HFDIIS,HFID,&
-                      NTHRESHEID,MAXITID,KOOPMANS,IPNOF,Ista,lmod,      &
+                      NTHRESHEID,MAXITID,KOOPMANS,IPNOF,Ista,Imod,      &
                       HighSpin,NCWO,NTHRESHL,NTHRESHE,NTHRESHEC,        &
                       NTHRESHEN,MAXLOOP,SCALING,AUTOZEROS,NZEROS,       &
                       NZEROSm,NZEROSr,ITZITER,DIIS,NTHDIIS,NDIIS,       &
@@ -893,7 +893,7 @@
 !     PNOF Selection
       IPNOF=8
       Ista=0                                      
-      lmod=0                                      ! GNOF
+      Imod=0                                      ! GNOF
       HighSpin=.FALSE.                            ! Multiplet      
       NCWO=-1
       
@@ -1491,7 +1491,7 @@
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_STATIC/Ista
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/INPNOF_EXSTA/NESt,OMEGA1      
 !-----------------------------------------------------------------------
@@ -1559,8 +1559,8 @@
         WRITE(6,7)IPNOF
         if(IPNOF==7.and.Ista==1)WRITE(6,*)                              &
           'Static Version of Functional:           (Ista)          1'
-        if(IPNOF==8.and.lmod==1)WRITE(6,*)                              &
-          'GNOFm Version of Functional:            (lmod)          1'
+        if(IPNOF==8.and.Imod==1)WRITE(6,*)                              &
+          'GNOFm Version of Functional:            (Imod)          1'
       ELSE
         WRITE(6,*)'Stop Program: Select IPNOF between 3 and 8'
         CALL ABRT       

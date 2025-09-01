@@ -121,7 +121,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       LOGICAL ERIACTIVATED,HighSpin
       COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
@@ -173,7 +173,7 @@
 !     Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(G(NBF,NBF5))
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.        &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO          
        OVERLAP(1,1) = OVERLAP(1,1) ! avoiding warning
@@ -351,7 +351,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+       IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO     CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -923,7 +923,7 @@
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_STATIC/Ista
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       INTEGER,DIMENSION(NSTORE) :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE) :: XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO
@@ -1044,7 +1044,7 @@
 !-----------------------------------------------------------------------!
 !                                G N O F                                !
 !-----------------------------------------------------------------------!
-      IF(IPNOF==8 .AND. lmod==0)THEN
+      IF(IPNOF==8 .AND. Imod==0)THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Dynamic & Static Occupation Numbers (ROd,Rd,FIs)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1348,7 +1348,7 @@
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR      
       COMMON/INPNOF_STATIC/Ista      
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !
       INTEGER,DIMENSION(NSTORE)           :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
@@ -1424,7 +1424,7 @@
 !-----------------------------------------------------------------------!
 !                                G N O F                                !
 !-----------------------------------------------------------------------!
-      IF(IPNOF==8 .AND. lmod==0)THEN
+      IF(IPNOF==8 .AND. Imod==0)THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -!
        ALLOCATE(FI(NBF5),ROd(NBF5),Rd(NBF5))      
 !       
@@ -1478,7 +1478,7 @@
 !-----------------------------------------------------------------------
       DEALLOCATE(DM,DMS,WF,AUX,ELAGao,AA,COEFt)
       IF(IPNOF==7)DEALLOCATE(FI)
-      IF(IPNOF==8.AND.lmod==0)DEALLOCATE(FI,ROd,Rd)
+      IF(IPNOF==8.AND.Imod==0)DEALLOCATE(FI,ROd,Rd)
       RETURN                                     
       END
 
@@ -1492,7 +1492,7 @@
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR      
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !
       INTEGER,DIMENSION(NSTORE)           :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
@@ -1518,7 +1518,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Eliminating the Component associated to the Multiplet (MSpin=0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(NSOC>0.and.(IPNOF==8 .AND. lmod==0))stop ! needs change (1/2, see cjckd8) !!!
+      if(NSOC>0.and.(IPNOF==8 .AND. Imod==0))stop ! needs change (1/2, see cjckd8) !!!
       if(NSOC>0)then      
        CALL DENMATr(DM,COEF,FI,NBF,NB+1,NA)   ! Dfi_op            
        CALL HSTARK(WF,DM,IJKL,XIJKL)          ! Kfi_op
@@ -1526,7 +1526,7 @@
        ELAGao = ELAGao - SGN*MATMUL(WF,DMS)  
       endif
 !-----------------------------------------------------------------------
-      IF(IPNOF==8 .AND. lmod==0)THEN
+      IF(IPNOF==8 .AND. Imod==0)THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Eliminating the Below-Below Contribution (up to NB)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1589,7 +1589,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !
       INTEGER :: NIT
       INTEGER :: ITCALL,ILOOP,IPRINTOPT
@@ -1629,7 +1629,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.        &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -1727,7 +1727,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
          CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -1787,7 +1787,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -1850,7 +1850,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !
       INTEGER :: NIT
       INTEGER :: ITCALL,ILOOP,IPRINTOPT
@@ -1890,7 +1890,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -1988,7 +1988,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
          CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -2048,7 +2048,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -2111,7 +2111,7 @@
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !
       INTEGER :: NIT
       INTEGER :: ITCALL,ILOOP,IPRINTOPT
@@ -2151,7 +2151,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -2249,7 +2249,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
          CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -2309,7 +2309,7 @@
 !      Compute Gradient & Lagrangian Multipliers (ELAG)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.       &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
@@ -2726,7 +2726,7 @@
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
 !      
       INTEGER,DIMENSION(NSTORE) :: IUSER
       DOUBLE PRECISION,DIMENSION(NV) :: Y      
@@ -2751,7 +2751,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
       CALL DENMATr(DEN,COEF,USER(M5),NBF,1,NBF5) ! Density Matrix 
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.        &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
               MSpin==0 .and. IERITYP==1 )THEN
 !AO    CALL ELAGaor(USER(M13),USER(M2),IUSER,USER(M3),COEF,             &
 !AO                 USER(M5),DEN,USER(M8))
@@ -3089,7 +3089,7 @@
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/PUNTEROSSQP/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,MUSE      
-      COMMON/INPNOF_MOD/lmod
+      COMMON/INPNOF_MOD/Imod
       INTEGER,DIMENSION(NSTORE) :: IUSER
       DOUBLE PRECISION,DIMENSION(MUSE) :: USER
       DOUBLE PRECISION,DIMENSION(NV) :: GG
@@ -3102,7 +3102,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
       CALL DENMATr(DEN,COEF,USER(M4),NBF,1,NBF5) ! Density Matrix 
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.lmod==0)) .and.        &
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
               MSpin==0 .and. IERITYP==1 )THEN
        CALL ELAGr(USER(M1),IUSER,USER(M2),COEF,USER(M4),DEN,USER(M7),   &
                   G,IPNOF)
