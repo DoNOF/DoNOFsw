@@ -470,14 +470,13 @@
 !
 !.......... IORBOPT             Select method for NO optimization
 !
-!.......... IORBOPT             Select method for NO optimization
 !                      = 1      Iterative diagonalization (OrbOptFMIUGr)
 !                      = 2      By unitary tranformations (OrbOptRot)
 !                      = 3      Sequential Quadratic Program (OrbOptSQP)
 !                      = 4      Adaptative Momentum (ADAM) (Default)
 !                      = 5      ADABelief                                  
 !                      = 6      YOGI 
-!                      = 7      Decaying Momentum (DEMON)  
+!                      = 7      Decaying Momentum (DEMON)              
 !
 !.......... IEINI               Calculate only the initial energy
 !                      = 0      (Default)
@@ -533,7 +532,7 @@
 !                      = 5      PNOF5
 !                      = 6      PNOF6
 !                      = 7      PNOF7
-!                      = 8      GNOFx (Default)
+!                      = 8      GNOF (Default)
 !
 !.......... Ista                Use Static version of PNOF7 
 !                      = 0      PNOF7 (Default)

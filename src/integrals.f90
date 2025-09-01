@@ -12288,8 +12288,8 @@ END MODULE AOINTS
 
 
 ! AuxERI                                            
-      SUBROUTINE AuxERIModChollib(NINTEGtm, BUFP2, NBF, IPRINTOPT, NSHELL, NAT,&   
-                        SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP)
+      SUBROUTINE AuxERIModChollib(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,  &
+                                  NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
                         
       USE AOINTS 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)

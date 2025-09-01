@@ -1857,7 +1857,7 @@
 
 ! ORDERm
       SUBROUTINE ORDERm(RO,E,ELAG,COEF,FMIUG0,QD,CJ12,CK12,HCORE,QJ,QK, &
-                        DIPx,DIPy,DIPz,IMODE)
+                        DIPx,DIPy,DIPz,MODE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0      
@@ -1876,7 +1876,7 @@
        kmini = k
        im = NO1+k  ! im=no1+1,nb
        MINI = im
-       if(IMODE==1)then ! by RO
+       if(MODE==1)then ! by RO
         DUM = RO(im)
         do i=im,nb
          IF(RO(i)>DUM)THEN
@@ -1885,7 +1885,7 @@
           kmini = MINI - NO1
          ENDIF
         end do
-       else if(IMODE==2)then ! by FMIUG0
+       else if(MODE==2)then ! by FMIUG0
         DUM = FMIUG0(im)
         do i=im,nb
          IF(FMIUG0(i)<DUM)THEN
