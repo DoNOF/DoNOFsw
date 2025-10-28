@@ -1,0 +1,10 @@
+ &INPRUN RUNTYP='DYN' MULT=4 ICHARG=0 /
+ $DATA
+ Title: Dynamics N to H2 (visualize with molden DYN.xyz)
+cc-pVDZ
+N 7.0 0.0000 6.0000  0.0000
+H 1.0 0.0000 0.0000  0.3707
+H 1.0 0.0000 0.0000 -0.3707
+$END
+ &NOFINP IPNOF=8 /
+ &INPDYN Vxyz=0,-0.3,0 /

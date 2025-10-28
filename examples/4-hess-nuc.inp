@@ -1,11 +1,11 @@
- &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP='MIX' GEN='A2*' /
+ &INPRUN RUNTYP='HESS' MULT=1 ICHARG=0 /
  $DATA
- Water (H2O) / HF Optimized Geometry
+ Title: Water GNOFm numerical nuclear Hessian
  cc-pVDZ
 O  8.0  0.0000     0.0000    0.1173
 H  1.0  0.0000     0.7572   -0.4692
 H  1.0  0.0000    -0.7572   -0.4692
  $END
- &NOFINP IPNOF=7 /
+ &NOFINP IPNOF=8 Imod=1 /
 
 

@@ -1,0 +1,11 @@
+ &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP="FULL"/
+ $DATA
+ Title: Water GNOFm single point energy with 4c ERIs - N5 scaling
+ cc-pVDZ
+O  8.0  0.0000     0.0000    0.1173
+H  1.0  0.0000     0.7572   -0.4692
+H  1.0  0.0000    -0.7572   -0.4692
+ $END
+ &NOFINP IPNOF=8 Imod=1 /
+
+
