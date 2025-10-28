@@ -201,7 +201,7 @@
 
 ! FCHKrc      
       SUBROUTINE FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,   &
-                        RO,E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP)
+                        RO,E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
 !-----------------------------------------------------------------------
 !     Create a Formatted Checkpoint input File for Gaussview
 !-----------------------------------------------------------------------
@@ -226,6 +226,7 @@
       DOUBLE PRECISION,DIMENSION(NPRIMI)::EX1,C1,C2
       DOUBLE PRECISION,DIMENSION(3):: DIPS
 
+      INTEGER :: IGTYP
       INTEGER,ALLOCATABLE,DIMENSION(:) :: NUMPRIMi,IZNUC,ISHELLTYP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DMs
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DM
@@ -308,62 +309,69 @@
         LSHELL = 1
        end if
       END DO
+      DO i=1,NSHELL
+        IF(IGTYP .LE. 2 .AND. ISHELLTYP(i) > 1) THEN
+          WRITE(19,17) -ISHELLTYP(i)
+        ELSE
+          WRITE(19,17) ISHELLTYP(i)
+        END IF
+      END DO
       WRITE(19,17)(ISHELLTYP(i),i=1,NSHELL)
 
-      !Start - block fix JFHLewYee
-      ALLOCATE(TMP(NBF,NBF))
-      TMP = COEF
-      LOC = 0
-      DO I=1,NSHELL
-       IF(ISHELLTYP(I).EQ.3) THEN
-        !           1   2   3   4   5   6   7   8   9   10 
-        ! DoNOF:    XXX,YYY,ZZZ,XXY,XXZ,YYX,YYZ,ZZX,ZZY,XYZ
-        !           1   2   3   6   4   5   8   9   7   10 
-        ! Gaussian: XXX,YYY,ZZZ,XYY,XXY,XXZ,XZZ,YZZ,YYZ,XYZ
-        DO J=1,10
-         COEF(LOC+J,:) = TMP(LOC+FORD(J),:)
+      IF (IGTYP.EQ.1) THEN
+        !Start - block fix JFHLewYee
+        ALLOCATE(TMP(NBF,NBF))
+        TMP = COEF
+        LOC = 0
+        DO I=1,NSHELL
+         IF(ISHELLTYP(I).EQ.0) THEN
+           COEF(LOC+1, :) = TMP(LOC+1, :) 
+         ELSE IF(ISHELLTYP(I).EQ.1) THEN
+           COEF(LOC+1, :) = TMP(LOC+1, :) 
+           COEF(LOC+2, :) = TMP(LOC+2, :) 
+           COEF(LOC+3, :) = TMP(LOC+3, :) 
+         ELSE IF(ISHELLTYP(I).EQ.2) THEN
+           COEF(LOC+1, :) = TMP(LOC+1, :) 
+           COEF(LOC+2, :) = TMP(LOC+4, :) 
+           COEF(LOC+3, :) = TMP(LOC+6, :) 
+           COEF(LOC+4, :) = TMP(LOC+2, :)  / sqrt(3.0D0)
+           COEF(LOC+5, :) = TMP(LOC+3, :)  / sqrt(3.0D0)
+           COEF(LOC+6, :) = TMP(LOC+5, :)  / sqrt(3.0D0)
+         ELSE IF(ISHELLTYP(I).EQ.3) THEN
+           COEF(LOC+1, :) = TMP(LOC+1, :) 
+           COEF(LOC+2, :) = TMP(LOC+7, :) 
+           COEF(LOC+3, :) = TMP(LOC+10, :) 
+           COEF(LOC+4, :) = TMP(LOC+4, :)  / sqrt(5.0D0)
+           COEF(LOC+5, :) = TMP(LOC+2, :)  / sqrt(5.0D0)
+           COEF(LOC+6, :) = TMP(LOC+3, :)  / sqrt(5.0D0)
+           COEF(LOC+7, :) = TMP(LOC+6, :)  / sqrt(5.0D0)
+           COEF(LOC+8, :) = TMP(LOC+9, :)  / sqrt(5.0D0)
+           COEF(LOC+9, :) = TMP(LOC+8, :)  / sqrt(5.0D0)
+           COEF(LOC+10,:) = TMP(LOC+5, :)  / sqrt(15.0D0)
+         ELSE IF(ISHELLTYP(I).EQ.4) THEN
+           COEF(LOC+1, :) = TMP(LOC+1, :)
+           COEF(LOC+2, :) = TMP(LOC+11, :)
+           COEF(LOC+3, :) = TMP(LOC+15, :)
+           COEF(LOC+4, :) = TMP(LOC+2, :)  / sqrt(7.0D0)
+           COEF(LOC+5, :) = TMP(LOC+3, :)  / sqrt(7.0D0)
+           COEF(LOC+6, :) = TMP(LOC+7, :)  / sqrt(7.0D0)
+           COEF(LOC+7, :) = TMP(LOC+12, :) / sqrt(7.0D0)
+           COEF(LOC+8, :) = TMP(LOC+10, :) / sqrt(7.0D0)
+           COEF(LOC+9, :) = TMP(LOC+14, :) / sqrt(7.0D0)
+           COEF(LOC+10,:) = TMP(LOC+4, :)  * sqrt(3.0D0) / sqrt(35.0D0)
+           COEF(LOC+11,:) = TMP(LOC+6, :)  * sqrt(3.0D0) / sqrt(35.0D0)
+           COEF(LOC+12,:) = TMP(LOC+13, :) * sqrt(3.0D0) / sqrt(35.0D0)
+           COEF(LOC+13,:) = TMP(LOC+5, :)  / sqrt(35.0D0)
+           COEF(LOC+14,:) = TMP(LOC+8, :)  / sqrt(35.0D0)
+           COEF(LOC+15,:) = TMP(LOC+9, :)  / sqrt(35.0D0)
+         ELSE IF(ISHELLTYP(I).GT.4) THEN
+           !TODO
+         END IF
+         LOC = LOC + (ISHELLTYP(i)+1)*(ISHELLTYP(i)+2)/2 
         END DO
-       ELSE IF(ISHELLTYP(I).EQ.4) THEN
-        !           1    2    3    4    5    6    7    8    9    10   11   12   13   14   15
-        ! DoNOF:    XXXX,YYYY,ZZZZ,XXXY,XXXZ,YYYX,YYYZ,ZZZX,ZZZY,XXYY,XXZZ,YYZZ,XXYZ,YYXZ,ZZXY                    
-        !           3    9    12   7    2    8    15   14   6    11   13   10   5    4    1
-        ! Gaussian: ZZZZ,YZZZ,YYZZ,YYYZ,YYYY,XZZZ,XYZZ,XYYZ,XYYY,XXZZ,XXYZ,XXYY,XXXZ,XXXY,XXXX
-        DO J=1,15
-         COEF(LOC+J,:) = TMP(LOC+GORD(J),:)
-        END DO
-       ELSE IF(ISHELLTYP(I).EQ.5) THEN
-        !           1     2     3     4     5     6     7     8     9     10    11    12   
-        ! DoNOF:    XXXXX,YYYYY,ZZZZZ,XXXXY,XXXXZ,YYYYX,YYYYZ,ZZZZX,ZZZZY,XXXYY,XXXZZ,YYYXX
-        !           13    14    15    16    17    18    19    20    21
-        ! DoNOF:    YYYZZ,ZZZXX,ZZZYY,XXXYZ,YYYXZ,ZZZXY,XXYYZ,XXZZY,YYZZX
-        !           3     9     15    13    7     2     8     18    21    17    6     14   
-        ! Gaussian: ZZZZZ,YZZZZ,YYZZZ,YYYZZ,YYYYZ,YYYYY,XZZZZ,XYZZZ,XYYZZ,XYYYZ,XYYYY,XXZZZ
-        !           20    19    12    11    16    10    5     4     1
-        ! Gaussian: XXYZZ,XXYYZ,XXYYY,XXXZZ,XXXYZ,XXXYY,XXXXZ,XXXXY,XXXXX
-        DO J=1,21
-         COEF(LOC+J,:) = TMP(LOC+HORD(J),:)
-        END DO
-       ELSE IF(ISHELLTYP(I).EQ.6) THEN
-        !           1      2      3      4      5      6      7      8      9      10     11       
-        ! DoNOF:    X6,    Y6,    Z6,    X5Y,   X5Z,   Y5X,   Y5Z,   Z5X,   Z5Y,   X4Y2,  X4Z2
-        !           12     13     14     15     16     17     18     19     20     21     22   
-        ! DoNOF:    Y4X2,  Y4Z2,  Z4X2,  Z4Y2,  X4YZ,  Y4XZ,  Z4XY,  X3Y3,  X3Z3,  Y3Z3,  X3Y2Z  
-        !           23     24     25     26     27     28
-        ! DoNOF:    X3Z2Y, Y3X2Z, Y3Z2X, Z3X2Y, Z3Y2X, X2Y2Z2       
-        !           3      9      15     21     13     7      2      8      18     27     25      
-        ! Gaussian: ZZZZZZ,YZZZZZ,YYZZZZ,YYYZZZ,YYYYZZ,YYYYYZ,YYYYYY,XZZZZZ,XYZZZZ,XYYZZZ,XYYYZZ
-        !           17     6      14     26     28     24     12     20     23     22     19    
-        ! Gaussian: XYYYYZ,XYYYYY,XXZZZZ,XXYZZZ,XXYYZZ,XXYYYZ,XXYYYY,XXXZZZ,XXXYZZ,XXXYYZ,XXXYYY
-        !           11     16     10     5      4      1
-        ! Gaussian: XXXXZZ,XXXXYZ,XXXXYY,XXXXXZ,XXXXXY,XXXXXX
-        DO J=1,28
-         COEF(LOC+J,:) = TMP(LOC+IORD(J),:)
-        END DO
-       END IF
-       LOC = LOC + (ISHELLTYP(i)+1)*(ISHELLTYP(i)+2)/2 
-      END DO
-      DEALLOCATE(TMP)
-      !End - block fix JFHLewYee
+        DEALLOCATE(TMP)
+        !End - block fix JFHLewYee
+      END IF
 
       DEALLOCATE(ISHELLTYP)
 !

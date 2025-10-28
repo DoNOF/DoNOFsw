@@ -6,30 +6,31 @@
 !======================================================================!
 
 ! START                                            
-      SUBROUTINE START(IGTYP,NATOMS,NATmax,NBF,NBFaux,NUQMT,NELEC,NALP, &
-                      NBET,NSHELL,NSHELLmax,NSHELLSaux,NPRIMI,NPRIMImax,&
-                      NPRIMIaux,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,    &
-                      KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,INTIPO,ISHPIR,     &
-                      ITIPO,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,SIZE_ENV,ENV, &
-                      ATM,BAS) !LIBCINT
+      SUBROUTINE START(IGTYP,NATOMS,NATmax,NBF,NBFaux,NUQMT,NELEC,      &
+                       NALP,NBET,NSHELL,NSHELLmax,NSHELLSaux,NPRIMI,    &
+                       NPRIMImax,NPRIMIaux,ZAN,Cxyz,IAN,IMIN,IMAX,      &
+                       ZMASS,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,     &
+                       INTIPO,ISHPIR,ITIPO,C1,C2,EX,CS,CP,CD,CF,CG,     &
+                       CH,CI,NPRIMIecp,NSHELLecp,SIZE_ENV,ENV,ATM,BAS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       CHARACTER(4) :: ERITYP,GEN 
       CHARACTER(5) :: RITYP 
       CHARACTER(8) :: UNITS
-      LOGICAL EFLDL,LINEAR                                                  
+      LOGICAL EFIELDL,LINEAR
 !
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/INFOB/NUMaux,NSHELLaux
-      COMMON/EFLDC_1/EFLDL
-      COMMON/EFLDC_2/EVEC(3) 
-      COMMON/ELPROP/IEMOM      
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
+      COMMON/ELPROP/IEMOM
       COMMON/CONTROL/UNITS  
       COMMON/ZMAT/LINEAR 
-      COMMON/INTOPT/ISCHWZ,IECP,NECP            
+      COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/RUNTYPE/IRUNTYP
       COMMON/WRTGCF/IWRTGCF                                                  
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/USELIBCINT/ILIBCINT
+      INTEGER :: ILIBCINT      
 !      
       INTEGER :: IGTYP
       INTEGER,DIMENSION(NATmax) :: IAN,IMIN,IMAX
@@ -43,17 +44,18 @@
       DOUBLE PRECISION,DIMENSION(3) :: VMOI
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COM
-
-      INTEGER :: SIZE_ENV                         !LIBCINT
-      DOUBLE PRECISION :: ENV(SIZE_ENV)           !LIBCINT
-      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)  !LIBCINT
+!     LIBCINT
+      INTEGER :: SIZE_ENV
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)
+      INTEGER :: NPRIMIecp,NSHELLecp      
 !-----------------------------------------------------------------------
 !     Read the Molecule and its normal basis set
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL MOLECULE(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,     &
                     NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,     &
                     KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,    &
-                    ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS) !LIBCINT
+                    ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     True Nuclear Charges
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -77,8 +79,8 @@
 !     Print Input Run Options
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       WRITE(6,1)IRUNTYP,MUL,ICH,IECP,IEMOM,UNITS
-      if(EFLDL)then
-       WRITE(6,'(/1X,A15,3F10.5)')'Electric Field:',(EVEC(I),I=1,3)
+      if(EFIELDL)then
+       WRITE(6,'(/1X,A15,3F10.5)')'Electric Field:',EFX,EFY,EFZ
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write GCF file for Restart calculations
@@ -87,28 +89,48 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     ECP Input
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL ECPPAR(KTYPE,NSHELL,ZAN,Cxyz)                                                           
+      IDX_ENV = 20 + 3*NAT + 2*NPRIMI + 2*NPRIMIaux !LIBCINT
+      CALL ECPPAR(KTYPE,NSHELL,ZAN,Cxyz,BAS,ENV,SIZE_ENV,NSHELLmax,     &
+                  IDX_ENV,NSHELLaux,NPRIMIecp,NSHELLecp)
+!     To update Z in libcint when ECP
+      IF(ILIBCINT==1) THEN
+       DO IAT=1,NAT
+        ATM(1,IAT) = ZAN(IAT)
+       END DO
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Schwarz inequality on if NAT>5: Integrals < 10.0**(-9) aren't used
+!     Schwarz inequality on if NAT>5: Integrals < CUTOFF aren't used
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(NAT>5)ISCHWZ = 1                                                    
+      IF(NAT>5)ISCHWZ = 1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     ERITYP & GEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
       IF(IERITYP==1)THEN
        ERITYP = 'FULL'
-       WRITE(6,2)1.0D-09,ISCHWZ,ERITYP      
+       if(ISCHWZ==0)then
+        WRITE(6,20)ERITYP
+       else if(ISCHWZ==1)then
+        WRITE(6,21)ERITYP,ISCHWZ,CUTOFF
+       end if
       ELSE IF(IERITYP==2 .OR. IERITYP==3)THEN
        IF(IERITYP==2) ERITYP = 'RI'
        IF(IERITYP==3) ERITYP = 'MIX'
        IF(IRITYP==1) RITYP = 'JKFIT'
        IF(IRITYP==2) RITYP = 'GEN'
        IF(IRITYP==1) THEN
-        WRITE(6,3)1.0D-09,ISCHWZ,ERITYP,RITYP       
+        if(ISCHWZ==0)then
+         WRITE(6,30)ERITYP,RITYP
+        else if(ISCHWZ==1)then
+         WRITE(6,31)ERITYP,RITYP,ISCHWZ,CUTOFF
+        end if
        ELSE IF(IRITYP==2) THEN
         IF(ISTAR==0)WRITE(GEN,'(A1,I1)')    'A',IGEN
         IF(ISTAR==1)WRITE(GEN,'(A1,I1,A1)') 'A',IGEN,'*'
-        WRITE(6,4)1.0D-09,ISCHWZ,ERITYP,RITYP,GEN       
+        if(ISCHWZ==0)then
+         WRITE(6,40)ERITYP,RITYP,GEN
+        else if(ISCHWZ==1)then
+         WRITE(6,41)ERITYP,RITYP,GEN,ISCHWZ,CUTOFF
+        end if
        END IF
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -139,13 +161,18 @@
               1X,'-----------------',/,                                 &
        1X,'IRUNTYP =',I2,2X,'MULT =',I2,2X,'ICHARG =',I3,1X,'IECP =',I2,&
        2X,'IEMOM =',I2,2X,'UNITS = ',A8)                    
-    2 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
-              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5)
-    3 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
-              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5,3X,'AUX =',A6)
-    4 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'CUTOFF =',1P,E8.1,  &
-              3X,'ISCHWZ =',I2,3X,'ERITYP =',A5,3X,'AUX =',A6,           &
-              3X,'GEN =',A5)
+   20 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5)
+   21 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5,       &
+              3X,'ISCHWZ =',I2,3X,'CUTOFF =',1P,E8.1)
+   30 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5,       &
+              3X,'AUX =',A6)
+   31 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5,       &
+              3X,'AUX =',A6,3X,'ISCHWZ =',I2,3X,'CUTOFF =',1P,E8.1)
+   40 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5,       &
+              3X,'AUX =',A6,3X,'GEN =',A5)
+   41 FORMAT(/1X,'Integral Options'/,1X,16(1H-)/1X,'ERITYP =',A5,       &
+              3X,'AUX =',A6,3X,'GEN =',A5,3X,'ISCHWZ =',I2,             &
+              3X,'CUTOFF =',1P,E8.1)
 !-----------------------------------------------------------------------
       END                                                               
 
@@ -154,9 +181,9 @@
                          NPRIMImax,NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,&
                          CI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN, &
                          IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,&
-                         ATM,BAS) !LIBCINT
+                         ATM,BAS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/FRAME /U1,U2,U3,V1,V2,V3,WW1,WW2,WW3,X0,Y0,Z0     ! PTGRP            
+      COMMON/FRAME /U1,U2,U3,V1,V2,V3,WW1,WW2,WW3,X0,Y0,Z0
       CHARACTER(80) :: TITLE, BASIS_FILE
       COMMON/TIT/TITLE
       COMMON/BASIS_FILE/BASIS_FILE
@@ -171,10 +198,10 @@
       INTEGER,DIMENSION(NATmax)  :: IMIN,IMAX
       INTEGER,DIMENSION(NSHELLmax) :: INTIPO
       INTEGER,DIMENSION(NPRIMImax) :: ISHPIR,ITIPO
-
-      INTEGER :: SIZE_ENV                           !LIBCINT
-      DOUBLE PRECISION :: ENV(SIZE_ENV)             !LIBCINT
-      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)    !LIBCINT
+!     LIBCINT
+      INTEGER :: SIZE_ENV
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)
 !
 #include "mpip.h"
 !-----------------------------------------------------------------------
@@ -200,7 +227,7 @@
       CALL ATOMS(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,        &
                  NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,  &
                  KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,&
-                 ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS) !LIBCINT
+                 ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS)
       CALL SETLAB(KATOM,KMIN,KMAX,NSHELL,ZAN)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       RETURN
@@ -215,7 +242,7 @@
                        NPRIMIaux,C1PIR,C2PIR,EX,CS,CP,CD,CF,CG,CH,CI,   &
                        KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMINPIR,   &
                        IMAXPIR,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,   &
-                       ENV,ATM,BAS) !LIBCINT
+                       ENV,ATM,BAS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
       DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
@@ -227,7 +254,7 @@
       CHARACTER(8), DIMENSION(103,7) :: ABASIS
       INTEGER, DIMENSION(103,7) :: IAGAUS
       COMMON/INTNAL/NATIN 
-      COMMON/INTOPT/ISCHWZ,IECP,NECP            
+      COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET                    
       COMMON/INFOB/NUMaux,NSHELLaux
@@ -280,12 +307,12 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CPP,CDD,SCFAC
       INTEGER,ALLOCATABLE,DIMENSION(:) :: INTYP,NS,KS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CINP
-
-      INTEGER :: OFF, OFF_PRIM                     !LIBCINT
-      INTEGER :: SIZE_ENV                          !LIBCINT
-      DOUBLE PRECISION :: ENV(SIZE_ENV)            !LIBCINT
-      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)   !LIBCINT
-      DOUBLE PRECISION,EXTERNAL :: CINTgto_norm    !LIBCINT
+!     LIBCINT
+      INTEGER :: OFF, OFF_PRIM
+      INTEGER :: SIZE_ENV
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)
+      DOUBLE PRECISION,EXTERNAL :: CINTgto_norm
 
       COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
                       KSTARTaux(700),KNGaux(700)
@@ -661,7 +688,6 @@
          CI(K) = CIINP(K)
 !        Store unnormalized coefficients for libint
          IF(ILIBCINT==1) CINP(K) = C1
-         !CINP(K) = C1 !LIBCINT
         END DO
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                          
@@ -1065,18 +1091,18 @@
       NPRIMIaux = 0
       IF (IERITYP==2 .or. IERITYP==3) THEN
        if(ILIBCINT==0)then
-        IF(IRITYP==1) THEN
-          CALL AUXREAD(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
-        ELSE IF(IRITYP==2) THEN
-          CALL AUXGEN(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux, &
-                 NUMaux,IGEN,ISTAR,EX,ZAN)       
-        END IF
+!HONDO  IF(IRITYP==1) THEN
+!HONDO    CALL AUXREAD(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+!HONDO  ELSE IF(IRITYP==2) THEN
+!HONDO    CALL AUXGEN(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux, &
+!HONDO                NUMaux,IGEN,ISTAR,EX,ZAN)
+!HONDO  END IF
        else if(ILIBCINT==1)then
         IF(IRITYP==1) THEN
-          CALL AUXREADlib(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)       
+          CALL AUXREADl(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
         ELSE IF(IRITYP==2) THEN
-          CALL AUXGENlib(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,        &
-                  NSHELLaux,NUMaux,EX,ZAN,Cxyz)
+          CALL AUXGENl(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,          &
+                       NSHELLaux,NUMaux,EX,ZAN,Cxyz)
         END IF
        end if
       IF(IGTYP==1) WRITE(6,550)NSHELLaux,NUMaux
@@ -1101,8 +1127,8 @@
           DO I0=1,KNGaux(I)
           I1 = I1 + 1
           ENV(OFF_PRIM + I0) = EXaux(I1)
-          ENV(OFF_PRIM + KNGaux(I) + I0) = Caux(I1) *                    &
-                         CINTgto_norm(BAS(2,IBAS), ENV(BAS(6,IBAS)+I0))
+          ENV(OFF_PRIM + KNGaux(I) + I0) = Caux(I1) *                   &
+           CINTgto_norm(BAS(2,IBAS), ENV(BAS(6,IBAS)+I0))
           END DO
           OFF_PRIM = OFF_PRIM + 2*KNGaux(I)
         END DO
@@ -1440,10 +1466,9 @@
 ! ENUC                                             
       DOUBLE PRECISION FUNCTION ENUC(N,Z,Cxyz)  
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      LOGICAL EFLDL                                                  
-      COMMON/EFLDC_1/EFLDL
-      COMMON/EFLDC_2/EVEC(3) 
-      DIMENSION Z(N),Cxyz(3,N)                                             
+      LOGICAL EFIELDL
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
+      DIMENSION Z(N),Cxyz(3,N)
 !-----------------------------------------------------------------------                                                        
       REPNUC = 0.0d0                                                     
 !                                                        
@@ -1460,12 +1485,10 @@
        END DO
       END IF                                                        
 !
-      IF(EFLDL)THEN                                                   
+      IF(EFIELDL)THEN
        ANUCF = 0.0d0                                                   
        DO J = 1,N                                                 
-        DO I = 1,3                                              
-         ANUCF = ANUCF - EVEC(I)*Cxyz(I,J)*Z(J)                      
-        END DO
+        ANUCF = ANUCF-(EFX*Cxyz(1,J)+EFY*Cxyz(2,J)+EFZ*Cxyz(3,J))*Z(J)
        END DO
        REPNUC = REPNUC + ANUCF                                        
       END IF 
@@ -2067,29 +2090,76 @@
       END
 
 ! ECPPAR
-      SUBROUTINE ECPPAR(KTYPE,NSHELL,ZAN,Cxyz)
+      SUBROUTINE ECPPAR(KTYPE,NSHELL,ZAN,Cxyz,BAS,ENV,SIZE_ENV,NSHELLmax,&
+                      IDX_ENV,NSHELLaux,NPRIMIecp,NSHELLecp)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/INTOPT/ISCHWZ,IECP,NECP
+      COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                                    
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/ECPDIM/NCOEF1,NCOEF2,J1LEN,J2LEN,LLIM,NLIM,NTLIM,J4LEN      
       CHARACTER(80) ::  BASIS_FILE
       COMMON/BASIS_FILE/BASIS_FILE
 !
-      INTEGER,DIMENSION(NSHELL) :: KTYPE
-      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
-      DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      CHARACTER(8) :: PPNAME,PPTYPE,PTYPE
+      INTEGER, INTENT(IN) :: NSHELL
+      INTEGER, INTENT(IN) :: SIZE_ENV, NSHELLmax
+      INTEGER, INTENT(IN) :: NSHELLaux
+      INTEGER, DIMENSION(NSHELL), INTENT(IN) :: KTYPE
+      DOUBLE PRECISION, DIMENSION(NAT), INTENT(INOUT) :: ZAN
+      DOUBLE PRECISION, DIMENSION(3, NAT), INTENT(IN) :: Cxyz
+  
+      INTEGER, DIMENSION(8, NSHELLmax), INTENT(INOUT) :: BAS
+      DOUBLE PRECISION, DIMENSION(SIZE_ENV), INTENT(INOUT) :: ENV
+      INTEGER, INTENT(INOUT) :: IDX_ENV
+      INTEGER, INTENT(OUT) :: NPRIMIecp, NSHELLecp
+  
+      INTEGER :: I, K, L
+      INTEGER :: NCNTR, ICNTR, JCNTR
+      INTEGER :: NUCZ, IEOF, JEOF, IERR, KSIZE
+      INTEGER :: LMN, LMX, KF, KL, NGPOT, LM1
+      INTEGER :: IADD
+      INTEGER :: NUMECP
+      INTEGER :: MAXANG
+      DOUBLE PRECISION :: Vnn
+   
+      LOGICAL :: FOUND
+
+      CHARACTER(8) :: PPNAME, PPTYPE, PTYPE
       CHARACTER(8), DIMENSION(100) :: TYPELP
       CHARACTER(8) :: ANONE,GEN,BLANK,ENDWRD
       DATA ANONE /'NONE    '/, GEN   /'GEN     '/
       DATA BLANK /'        '/, ENDWRD/'$END    '/
+      CHARACTER(2), DIMENSION(116) :: ELEMENT_SYMB
+      DATA ELEMENT_SYMB / 'H ', 'HE', 'LI', 'BE', 'B ',  &
+                          'C ', 'N ', 'O ', 'F ', 'NE',  &
+                          'NA', 'MG', 'AL', 'SI', 'P ',  &
+                          'S ', 'CL', 'AR', 'K ', 'CA',  &
+                          'SC', 'TI', 'V ', 'CR', 'MN',  &
+                          'FE', 'CO', 'NI', 'CU', 'ZN',  &
+                          'GA', 'GE', 'AS', 'SE', 'BR',  &
+                          'KR', 'RB', 'SR', 'Y ', 'ZR',  &
+                          'NB', 'MO', 'TC', 'RU', 'RH',  &
+                          'PD', 'AG', 'CD', 'IN', 'SN',  &
+                          'SB', 'TE', 'I ', 'XE', 'CS',  &
+                          'BA', 'LA', 'CE', 'PR', 'ND',  &
+                          'PM', 'SM', 'EU', 'GD', 'TB',  &
+                          'DY', 'HO', 'ER', 'TM', 'YB',  &
+                          'LE', 'HF', 'TA', 'W ', 'RE',  &
+                          'OS', 'IR', 'PT', 'AU', 'HG',  &
+                          'TL', 'PB', 'BI', 'PO', 'AT',  &
+                          'RN', 'AC', 'TH', 'PA', 'U ',  &
+                          'NP', 'PU', 'AM', 'CM', 'BK',  &
+                          'CF', 'ES', 'FM', 'MD', 'NO',  &
+                          'LR', 'RF', 'DB', 'SG', 'BH',  &
+                          'HS', 'MT', 'DS', 'RG', 'CN',  &
+                          'NH', 'FL', 'MC', 'LV', 'TS',  &
+                          'OG' /
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     NECP: Number of electrons removed
 !     IZCORE: Number of electrons removed by each atom
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NPRIMIecp = 0
+      NSHELLecp = 0
       NECP = 0
       DO I=1,NAT
        IZCORE(I)= 0
@@ -2127,8 +2197,8 @@
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IADD= 0
-      PTYPE= ANONE
       DO ICNTR=1,NAT
+       PTYPE= ANONE
        NUCZ = INT(ZAN(ICNTR))
        LPSKIP(ICNTR) = 0
        IEOF= 0
@@ -2138,25 +2208,29 @@
        IF(IECP==1)THEN
         IEOF= 0
         IERR= 0
-        if(LEN_TRIM(BASIS_FILE)>0)then      ! read from file.bas
-         CALL RDCARD(50,'$ECP   1',IEOF)  
-        else
-         CALL RDCARD(5,'$ECP   1',IEOF)
-        endif
-        KSIZE=-8
-        CALL GSTRNG(PPNAME,KSIZE)
-        IF(ADJUSTL(PPNAME)==ADJUSTL(ENDWRD)) THEN
-         WRITE(6,'(A32)')'Stop: An unexpected $END in $ECP'
-         CALL ABRT
-        END IF
-        READ(UNIT=PPNAME,FMT='(A8)')TYPELP(ICNTR)
-        KSIZE=-8
-        CALL GSTRNG(PPTYPE,KSIZE)
-        READ(UNIT=PPTYPE,FMT='(A8)') PTYPE
-        IZCORE(ICNTR)= IFIND('IZCORE  ',IERR)
-        IF(IERR/=0) CALL ABRT
-        LMAX(ICNTR)= IFIND('LMAX    ',IERR)
-        IF(IERR/=0) CALL ABRT
+        REWIND(50)
+        CALL FNDGRP(50,'$ECP    ',JEOF)
+        DO
+          if(LEN_TRIM(BASIS_FILE)>0)then      ! read from file.bas
+           CALL RDCARD(50,'$ECP   1',IEOF)
+          else
+           CALL RDCARD(5,'$ECP   1',IEOF)
+          endif
+          KSIZE=-8
+          CALL GSTRNG(PPNAME,KSIZE)
+          IF (TRIM(ELEMENT_SYMB(NUCZ)) // "-ECP" == TRIM(PPNAME)) THEN
+            READ(UNIT=PPNAME,FMT='(A8)')TYPELP(ICNTR)
+            KSIZE=-8
+            CALL GSTRNG(PPTYPE,KSIZE)
+            READ(UNIT=PPTYPE,FMT='(A8)') PTYPE
+            IZCORE(ICNTR)= IFIND('IZCORE  ',IERR)
+            IF(IERR/=0) CALL ABRT
+            LMAX(ICNTR)= IFIND('LMAX    ',IERR)
+            IF(IERR/=0) CALL ABRT
+            EXIT
+          END IF
+          IF (TRIM(PPNAME) == "$END" ) EXIT
+        END DO
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - -
 !      No ECP Type
@@ -2165,34 +2239,10 @@
         LPSKIP(ICNTR)=1
         IZCORE(ICNTR)=0
         LMAX(ICNTR)=0
-        GO TO 1
-       END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - -
-!       Type
-!- - - - - - - - - - - - - - - - - - - - - - - - -
-!- - - - - - - - - - - - - - - - - - - - - - - - -
-!      Check if PP has occured before
-!- - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(ICNTR/=1)THEN
-        NCNTR = ICNTR-1
-        DO JCNTR=1,NCNTR
-         IF(TYPELP(ICNTR)/=TYPELP(JCNTR)) GO TO 3
-         LMN = 1
-         LMX = LMAX(JCNTR)+1
-         DO  L=LMN,LMX
-          KFRST(ICNTR,L)= KFRST(JCNTR,L)
-          KLAST(ICNTR,L)= KLAST(JCNTR,L)
-         END DO
-         LMAX(ICNTR)= LMAX(JCNTR)
-         IZCORE(ICNTR)= IZCORE(JCNTR)
-         GO TO 2
-    3    CONTINUE
-        END DO
-       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - -
 !      GEN Type
 !- - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(PTYPE==GEN) THEN
+       ELSE IF(PTYPE==GEN) THEN
         LMN = 1
         LMX = LMAX(ICNTR)+1
         DO L=LMN,LMX
@@ -2229,9 +2279,6 @@
          END DO
          IADD = KL
         END DO
-       END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - -
-    2  CONTINUE
 !- - - - - - - - - - - - - - - - - - - - - - - - -
 !      Number of Electrons and Nuclear Charge
 !- - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2239,50 +2286,77 @@
        NA = NA-IZCORE(ICNTR)/2
        NB = NB-IZCORE(ICNTR)/2
        ZAN(ICNTR) = ZAN(ICNTR)-IZCORE(ICNTR)
-    1  CONTINUE
+       END IF
       END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Print the Pseudo Potentials
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NUMECP = 0
       DO ICNTR=1,NAT
-       IF(LPSKIP(ICNTR)==1) GOTO 4
-       NUMECP = NUMECP+1
-       NCNTR  = ICNTR-1
+       IF(LPSKIP(ICNTR)==1) CYCLE
+       NUMECP = NUMECP + 1
+       NCNTR  = ICNTR - 1
+
+       FOUND = .FALSE.
        DO JCNTR=1,NCNTR
-        IF(TYPELP(ICNTR)/=TYPELP(JCNTR)) GO TO 5
-         WRITE(6,10) TYPELP(ICNTR),ICNTR,JCNTR
-        GOTO 4
-    5   CONTINUE
+        IF(TYPELP(ICNTR)==TYPELP(JCNTR)) FOUND = .TRUE.
        END DO
 
-       WRITE(6,20)TYPELP(ICNTR),ICNTR,IZCORE(ICNTR),LMAX(ICNTR)
+       IF(FOUND) THEN
+         WRITE(6,10) TYPELP(ICNTR),ICNTR,JCNTR
+       ELSE
+         WRITE(6,20)TYPELP(ICNTR),ICNTR,IZCORE(ICNTR),LMAX(ICNTR)
+         LMN = 1
+         LMX = LMAX(ICNTR)+1
+         DO L=LMN,LMX
+           LM1=L-2
+           IF(L==LMN) LM1=LMX-1
+           WRITE(6,30) LM1
+           KF = KFRST(ICNTR,L)
+           KL = KLAST(ICNTR,L)
+           DO K=KF,KL
+             WRITE(6,40) KK,CLP(K),NLP(K),ZLP(K)
+           ENDDO
+         END DO
+       END IF        
+               
        LMN = 1
        LMX = LMAX(ICNTR)+1
        DO L=LMN,LMX
         LM1=L-2
         IF(L==LMN) LM1=LMX-1
-         WRITE(6,30) LM1
         KF = KFRST(ICNTR,L)
         KL = KLAST(ICNTR,L)
         KK= 1
         DO K=KF,KL
-          WRITE(6,40) KK,CLP(K),NLP(K),ZLP(K)
-         KK = KK+1
+          ENV(IDX_ENV + KK) = ZLP(K)
+          ENV(IDX_ENV + KL - KF + 1 + KK) = CLP(K)
+          NPRIMIecp = NPRIMIecp + 1
+          KK = KK+1
         ENDDO
+        NSHELLecp = NSHELLecp + 1
+        BAS(1,NSHELL+NSHELLaux+NSHELLecp) = ICNTR - 1
+        IF(L==LMN) THEN
+            BAS(2,NSHELL+NSHELLaux+NSHELLecp) = -1
+        ELSE
+            BAS(2,NSHELL+NSHELLaux+NSHELLecp) = LM1
+        END IF
+        BAS(3,NSHELL+NSHELLaux+NSHELLecp) = KL - KF + 1
+        BAS(4,NSHELL+NSHELLaux+NSHELLecp) = 2
+        BAS(6,NSHELL+NSHELLaux+NSHELLecp) = IDX_ENV
+        BAS(7,NSHELL+NSHELLaux+NSHELLecp) = IDX_ENV + KL - KF + 1
+        IDX_ENV = IDX_ENV + KL - KF + 1 + KL - KF + 1
        END DO
-    4  CONTINUE
       END DO
+      ENV(19) = NSHELL + NSHELLaux
+      ENV(20) = NSHELLecp
 
       IF(NUMECP==0) THEN
        WRITE(6,*)'Stop: This run has no atoms with ECP'
        CALL ABRT
       END IF
 
-      NECP= 0
-      DO I=1,NAT
-       NECP = NECP+IZCORE(I)
-      END DO
+      NECP = SUM(IZCORE(1:NAT))
       WRITE(6,50)NECP,NECP,NE,NA,NB
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Adjusted Nuclear Energy
@@ -2301,11 +2375,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Check the Potential Type
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      LLIM = 0
-      DO IAT=1,NAT
-       LLIM = MAX0(LMAX(IAT),LLIM)
-      END DO
-      NLIM= MAX0(NLIM,LLIM)
+      LLIM = MAXVAL(LMAX(1:NAT))
+      NLIM = MAX(NLIM, LLIM)
       IF(LLIM>=5) THEN
        WRITE(6,*)'Stop: ECP integrals only for S,P,D,F,G'
        CALL ABRT

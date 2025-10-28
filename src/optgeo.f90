@@ -4,23 +4,23 @@
 !                                                                      !
 !======================================================================!
 !                                                                      !
-!   OPTLBFGS: Optimize geometries with LBFGS method (mthlib.f)         !
+!   OPTIMIZE: Routine to carry out geometry optimization (IRUNTYP=3)   !
+!   OPTSUMSL: Optimize geometries using the CG SUMSL routine           !
+!   POINTERSOPT : Define Pointers of the USER array                    !
 !   CALCOPTE: Routine to compute energy needed by OPTSUMSL             !
 !   CALCOPTG: Routine to compute gradients needed by OPTSUMSL          !
 !                                                                      !
 !   OPTCGNAG: Optimize geometries using the CG NAG routine E04DGF      !
-!   OPTSUMSL: Optimize geometries using the CG SUMSL routine           !
-!   POINTERSOPT : Define Pointers of the USER array                    !
-!   OPTIMIZE: Routine to carry out geometry optimization (IRUNTYP=3)   !
-!   ENERGYFUN
+!   ENERGYFUN: Routine to compute energy needed by OPTCGNAG            !
 !                                                                      !
 !======================================================================!
 
 ! OPTIMIZE
       SUBROUTINE OPTIMIZE(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,     &
-         ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,             &
-         ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,SIZE_ENV,ENV,ATM, &
-         NBAS,BAS,IGTYP,GRADS,IRUNTYP,IHSSCAL,IPROJECT,ISIGMA)
+                          ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN, &
+                          KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI, &
+                          DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,GRADS,   &
+                          IRUNTYP,IHSSCAL,IPROJECT,ISIGMA)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL RESTART
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -30,9 +30,8 @@
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/USELIBCINT/ILIBCINT
       COMMON/ELPROP/IEMOM
-      !
+!
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
       INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
@@ -46,48 +45,48 @@
       INTEGER :: SIZE_ENV,NBAS,IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
-      !-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
       EELEC_MIN = 1.0d20
-      !     Generate an initial GCF if RESTART=F setting ICOEF=0
+!     Generate an initial GCF if RESTART=F setting ICOEF=0
       IF (RESTART .eqv. .FALSE.) THEN
       ICOEFORI = ICOEF
       ICOEF = 0
-      !      Update coordinates of shells if use libint library for ERIs
-      CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-             ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,           &
-             INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,          &
-             CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,          &
-             NBAS,BAS,IGTYP,0,0)
+!     Update coordinates of shells if use libint library for ERIs
+      CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,   &
+                    ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,     &
+                    INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,    &
+                    CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,    &
+                    NBAS,BAS,IGTYP,0,0)
       RESTART = .TRUE.
       ICOEF = ICOEFORI
       ENDIF
-      !     Select CG Method     
+!     Select CG Method
       IF(ICGMETHOD==1)THEN
-      CALL OPTSUMSL(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-             ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,          &
-             KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,        &
-             CD,CF,CG,CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,                  &
-             NBAS,BAS,IGTYP,GRADS,DIPS)
+       CALL OPTSUMSL(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
+                     KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP, &
+                     CD,CF,CG,CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,           &
+                     NBAS,BAS,IGTYP,GRADS,DIPS)
       ELSE IF(ICGMETHOD==2)THEN                                         
-      CALL OPTCGNAG(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-             ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
-             KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,    &
-             CP,CD,CF,CG,CH,CI,IRUNTYP,GRADS,DIPS)                    
+       CALL OPTCGNAG(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
+                     KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,    &
+                     CP,CD,CF,CG,CH,CI,IRUNTYP,GRADS,DIPS)
       ELSE IF(ICGMETHOD==3)THEN                                         
-      CALL OPTLBFGS(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-             ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
-             INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
-             CF,CG,CH,CI,IRUNTYP,GRADS,DIPS,NPRINT)             
+!LBFGS CALL OPTLBFGS(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+!LBFGS               ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
+!LBFGS               INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
+!LBFGS               CF,CG,CH,CI,IRUNTYP,GRADS,DIPS,NPRINT)
       ENDIF                                                             
-      !     Compute Hessian from analytic gradients at stationary point       
+!     Compute Hessian from analytic gradients at stationary point
       if(IHSSCAL==1)then                                                
-      CALL HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,      &
-            KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,            &
-            ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,                   &
-            GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,             &
-            NBAS,BAS,IGTYP)
+       CALL HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,     &
+                    KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,    &
+                    ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,           &
+                    GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,     &
+                    NBAS,BAS,IGTYP)
       end if
-      !-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
       RETURN
       END
 
@@ -125,8 +124,7 @@
                          NU12,NU13,NU14,NULAST
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
-      COMMON/USELIBCINT/ILIBCINT 
-!      
+!
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IV
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,D,V     
       EXTERNAL CALCOPTE,CALCOPTG
@@ -339,7 +337,6 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/USELIBCINT/ILIBCINT 
       COMMON/INPNOF_MOLDEN/MOLDEN      
       COMMON/GEOCONV/GEOMENERGY(200)
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
@@ -421,8 +418,6 @@
       SUBROUTINE CALCOPTG(NV,Cxyz,NF,GRAD,IUSER,USER)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/USELIBCINT/ILIBCINT 
-
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
@@ -480,11 +475,11 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,NU7,     &
-                         NU8,NU9,NU10,NU11,NU12,NU13,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
+                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
+                         NU12,NU13,NU14,NULAST
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
-      COMMON/USELIBCINT/ILIBCINT      
 !                         
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IWORK
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,WORK,GRADS
@@ -659,14 +654,13 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,NU7,     &
-                         NU8,NU9,NU10,NU11,NU12,NU13,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
+                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
+                         NU12,NU13,NU14,NULAST
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
-      COMMON/USELIBCINT/ILIBCINT
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
@@ -729,144 +723,4 @@
       RETURN
       END
       
-! OPTLBFGS
-      SUBROUTINE OPTLBFGS(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,    &
-                          NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,   &
-                          KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,      &
-                          C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,        &
-                          GRADIENT,DIPS,NPRINT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/EHFEN/EHF,EN
-      COMMON/ENERGIAS/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
-      COMMON /LB3/MP,LP,GTOL,STPMIN,STPMAX
-      COMMON/USELIBCINT/ILIBCINT                  
-!      
-      PARAMETER (BOHR = 0.52917724924D+00)
-      INTEGER,INTENT(IN)::NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux
-      INTEGER,INTENT(IN)::NSHELL,NPRIMI,IRUNTYP,NPRINT
-      DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
-      INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
-      INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
-      INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
-      INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
-      DOUBLE PRECISION,DIMENSION(NPRIMI):: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
-      DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
-      DOUBLE PRECISION,DIMENSION(3*NAT),INTENT(OUT):: GRADIENT
-      DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
-      DOUBLE PRECISION,DIMENSION(3):: DIPS
-      INTEGER,PARAMETER::MSAVE=7
-      DOUBLE PRECISION,DIMENSION(:),ALLOCATABLE::W
-      DOUBLE PRECISION X(3,NAT),G(3*NAT),DIAG(3*NAT)
-      DOUBLE PRECISION::F,EPS,XTOL,GTOL,STPMIN,STPMAX,EELEC_MIN_LBFGS
-      INTEGER::IFLAG,ICALL,N,M,MP,LP,NWORK
-      INTEGER,DIMENSION(2)::IPRINT
-      LOGICAL::DIAGCO
-!     The driver for LBFGS must always declare LB2 as EXTERNAL
-      EXTERNAL LB2
-!-----------------------------------------------------------------------
-      NWORK=3*NAT*(2*MSAVE +1)+2*MSAVE
-      ALLOCATE(W(NWORK))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Write Initial Coordinates on File CGGRAD (Unit=11)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(11,'(/,72(1H*),/)')
-      WRITE(11,*)'Initial Coordinates (Angs) for Geometry Optimization'
-      WRITE(11,*)
-      DO I=1,NAT
-       WRITE(11,'(I5,3F15.4)')  &
-            I,Cxyz(1,I)*BOHR,Cxyz(2,I)*BOHR,Cxyz(3,I)*BOHR
-      ENDDO
-      WRITE(11,'(/,72(1H*),/)')      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Minimization of the total energy with respect to Cxyz
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,'(/,2X,A21,/1X,23(1H=))')'GEOMETRY OPTIMIZATION'
-      WRITE(6,'(/,1X,A23,7X,A19,/)')'Call in CG Optimization',         &
-                                    'Total Energy (a.u.)'
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calling to LBFGS SUBROUTINE
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     CHECK COMMON /LB3, MP SETS UNIT WHERE PRINTING OPTIMIZATION INFO, 
-!     AND LP WHERE PRINTING INFO ABOUT ERRORS
-      N=3*NAT ! NUMBER OF VARIABLES
-      M=5     ! 0 <= M <= 7
-      IPRINT(1)= 0
-!     IPRINT(1)< 0 : no output is generated,
-!     IPRINT(1)= 0 : output only at first and last iteration,
-!     IPRINT(1)> 0 : output every IPRINT(1) iterations.      
-      IPRINT(2)= 0
-      IF(NPRINT==2) IPRINT(2)= 1
-!     IPRINT(2)= 0 : iteration count, number of function 
-!                     evaluations, function value, norm of the
-!                     gradient, and steplength,
-!     IPRINT(2)= 1 : same as IPRINT(2)=0, plus vector of
-!                     variables and  gradient vector at the
-!                     initial point,
-!     IPRINT(2)= 2 : same as IPRINT(2)=1, plus vector of
-!                     variables,
-!     IPRINT(2)= 3 : same as IPRINT(2)=2, plus gradient vector.      
-!
-!     We do not wish to provide the diagonal matrices Hk0, and 
-!     therefore set DIAGCO to FALSE.
-      DIAGCO= .FALSE.
-      EPS= 1.0D-10
-      XTOL= 1.11D-16
-      ICALL=0
-      IFLAG=0
-      X = Cxyz ! X(N) IS THE INITIAL ESTIMATE OF THE SOLUTION VECTOR
-      DO
-       ICALL=ICALL + 1
-!      Update coordinates of shells if use libint library for ERIs
-!       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-!                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
-!                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
-!                     CG,CH,CI,GRADS,IRUNTYP,DIPS,0,0)
-       WRITE(6,'(8X,I3,16X,F20.10)')ICALL,EELEC+EN
-                     
-!      F CONTAINS THE VALUE OF THE FUNCTION AT THE POINT X
-!      G CONTAINS THE COMPONENTS OF GRADIENT AT X
-       IF(ICALL==1) EELEC_MIN_LBFGS = EELEC
-       IF(ICALL/=1.AND.EELEC<EELEC_MIN_LBFGS) EELEC_MIN_LBFGS = EELEC
-       F = EELEC + EN
-       G = GRADS
-       CALL LBFGS(N,M,X,F,G,DIAGCO,DIAG,IPRINT,EPS,XTOL,W,IFLAG)
-       Cxyz = X
-       IF(IFLAG.LE.0) EXIT
-!      We allow at most 1000 evaluations of F and G
-       IF(ICALL.GT.1000) EXIT
-      ENDDO
-      DEALLOCATE(W)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -             
-!     FINAL CALL TO COMPUTE ENERGY AND GRADS AT EQUIL. GEOMETRY
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-      IF(IFLAG==0.AND.EELEC<=EELEC_MIN_LBFGS) THEN
-       WRITE(6,'(/1X,A24,/)')'Optimal solution found !'
-      ELSEIF(IFLAG.LE.0.OR.EELEC>EELEC_MIN_LBFGS) THEN
-       WRITE( 6,'(A38,/)')' !!! Cannot find optimal solution !!! '
-       WRITE(11,'(A38,/)')' !!! Cannot find optimal solution !!! '
-      ENDIF
-      WRITE(6,*)'New Coordinates after the LBFGS Method (Bohr)'
-      WRITE(6,'(45(1H-),/)')
-      DO I=1,NAT
-       WRITE(6,'(I5,3F20.10)')I,Cxyz(1,I),Cxyz(2,I),Cxyz(3,I)
-      ENDDO
-!     Update coordinates of shells if use libint library for ERIs
-!      CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,   &
-!                    ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,     &
-!                    INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,  &
-!                    CG,CH,CI,GRADS,IRUNTYP,DIPS,0,1)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Write Final Coordinates on File CGGRAD (Unit=100)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(11,*)
-      WRITE(11,*)'New Coordinates after the LBFGS Method (Angs)'
-      WRITE(11,*)
-      DO I=1,NAT
-       WRITE(11,'(I5,3F20.10)')                                         &
-            I,Cxyz(1,I)*BOHR,Cxyz(2,I)*BOHR,Cxyz(3,I)*BOHR
-      ENDDO
-      CALL NUCDIST(N,NAT,Cxyz)
-      GRADIENT = GRADS
-!-----------------------------------------------------------------------
-      RETURN
-      END
+!======================================================================!

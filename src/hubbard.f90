@@ -8,12 +8,13 @@
 ! HUBBARD
       SUBROUTINE HUBBARD(IRUNTYP,ICHARG,MULT,IDONTW)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL RESTART,HFID,CONVGDELAG,CONVG,COEF21
-      COMMON/EFLDC_2/EVEC(3)
+      LOGICAL RESTART,CONVGDELAG,CONVG,COEF21,EFIELDL
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/WRTGCF/IWRTGCF
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
-      COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
+      COMMON/INPNOF_RHF/CONVRHFDM,IRHF,IRHFTYP,NCONVRHF,MAXITRHF
+      COMMON/INPNOF_HFID/KOOPMANS
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5                                                        
@@ -24,8 +25,10 @@
                           N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
                           N47,N48,N49,N50,N51,NUSER
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/SKIPRINT/ISKIP
 #include "mpip.h"      
-      INTEGER,ALLOCATABLE,DIMENSION(:)::IJKL
+      INTEGER(8),ALLOCATABLE,DIMENSION(:)::IJKL
+      INTEGER(8)::I,J,K,L
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::XIJKL,USER,EiHF
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::AHCORE,OVERLAP      
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::COEF,CHF
@@ -191,9 +194,8 @@
       ALLOCATE(IDUMMYA(NSITE),RDUMMYA(3*NSITE))
       IDUMMYA = 0
       RDUMMYA = 0.0d0
-      CALL RUNNOFHEADER(NSITE,ICHARG,MULT,NBF,0,NBF,NELEC,NA,NB,        &
-                        EVEC(1),EVEC(2),EVEC(3),0,0,0,IDUMMYA,0,0,      &
-                        IRUNTYP,RDUMMYA,RDUMMYA)
+      CALL RUNNOFHEADER(NSITE,ICHARG,MULT,NBF,0,NBF,NELEC,NA,NB,EFX,EFY,&
+                        EFZ,0,0,0,IDUMMYA,0,0,IRUNTYP,RDUMMYA,RDUMMYA)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write GCF file for Restart calculations
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -230,10 +232,10 @@
       ALLOCATE(GAMMA(NBF5),FMIUG0(NBF))
       CALL INITr(COEF,OVERLAP,GAMMA,FMIUG0,1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Restricted Hartree-Fock (RHF)                                    
+!     Restricted Hartree-Fock
 !     Use the Iterative Diagonalization Method to generate the HF MOs  
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(HFID)THEN
+      IF(IRHF==3)THEN
        ALLOCATE(CHF(NBF,NBF),EiHF(NBF))
        CHF = COEF  
        CALL HFIDr(AHCORE,IJKL,XIJKL,XIJKL,CHF,EiHF,USER,1)
@@ -312,12 +314,12 @@
         IF(IORBOPT==1)THEN       
          CALL OrbOptFMIUGr(IT,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,RDUMMYA,  &
                            USER(N7),COEF,USER(N1),USER(N2),USER(N3),    &
-                           ELAG,FMIUG0,USER(N11),USER(N12),USER(N13),   &
-                           USER(N14),ILOOP,1)
-        ELSE IF(IORBOPT==2)THEN                           
-         CALL OrbOptRot(IT,OVERLAP,AHCORE,IJKL,XIJKL,RDUMMYA,USER(N7),  &
-                        COEF,USER(N1),USER(N2),USER(N3),ELAG,USER(N11), &
-                        USER(N12),USER(N13),USER(N14),ILOOP,1)
+                           ELAG,FMIUG0,USER(N11),ILOOP,1)
+        ELSE IF(IORBOPT==2)THEN
+         ISKIP=0
+         CALL OrbOptADAM(IT,OVERLAP,AHCORE,IJKL,XIJKL,RDUMMYA,USER(N7), &
+                         COEF,USER(N1),USER(N2),USER(N3),ELAG,USER(N11),&
+                         ILOOP,OCCTIME,1)  ! OCCTIME is not defined
         END IF                       
 !      Core-Fragment Orbital Optimization
        ELSEIF(ICOEF==3)THEN
@@ -363,13 +365,13 @@
       DEALLOCATE(AHCORE,OVERLAP,IJKL,XIJKL,COEF,USER)
       DEALLOCATE(GAMMA,FMIUG0,ELAG,ELAGN,COEFN,RON)
       DEALLOCATE(IDUMMYA,IDUMMYP,IDUMMYS,CDUMMY,RDUMMYA,RDUMMYP,DIPS)
-      if(HFID)DEALLOCATE(CHF,EiHF)
+      if(IRHF==3)DEALLOCATE(CHF,EiHF)
       NOPTCGMPI = 1      
 #ifdef MPI
       DO I=1,NPROCS-1
        K=0
-       CALL MPI_SEND(K,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NOPTCGMPI,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(K,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NOPTCGMPI,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
       ENDDO
 #endif 
       RETURN      

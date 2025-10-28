@@ -18,7 +18,7 @@
 
 ! MBPT (RPA) (NOF-c-X)
       SUBROUTINE MBPT_RPA(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI,      &
-                           ADIPx,ADIPy,ADIPz)
+                          ADIPx,ADIPy,ADIPz)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -33,7 +33,8 @@
       COMMON/INPNOF_Tijab/NOUTTijab,NTHRESHTijab,THRESHTijab
       COMMON/NumLinIndOrb/NQMT
 !
-      INTEGER,DIMENSION(NIJKL) :: IERI
+      INTEGER :: NSOC,NDNS,MSpin
+      INTEGER(8),DIMENSION(NIJKL) :: IERI
       DOUBLE PRECISION,DIMENSION(NIJKL) :: ERI
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5) :: CJ12,CK12
@@ -67,7 +68,8 @@
 !-----------------------------------------------------------------------
 !     Calculation RPA corr energy
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL ERPA_MBPT(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
+      CALL ERPA_MBPT(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,            &
+                     ADIPx,ADIPy,ADIPz,IERI,ERI)
       WRITE(6,1)ECd,ECndl,ECd+ECndl,EHFL+ECd+ECndl+EN+ECndHF
     1 FORMAT(/3X,'           ECd =',F20.10,/,                           &
               3X,'          ECnd =',F20.10,/,                           &
@@ -77,7 +79,8 @@
       END
 
 ! ERPA      
-     SUBROUTINE ERPA_MBPT(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
+     SUBROUTINE ERPA_MBPT(ECd,EHFL,ELAG,COEF,RO,CJ12,CK12,AHCORE,       &
+                          ADIPx,ADIPy,ADIPz,IERI,ERI)
      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
@@ -95,10 +98,12 @@
      PARAMETER (ONE=1.0d0)
      PARAMETER (TWO=2.0d0)
      PARAMETER (FOUR=4.0d0)
+     INTEGER :: NSOC,NDNS,MSpin
+     LOGICAL :: HighSpin
      LOGICAL::diagFOCK 
      INTEGER::i,j,k,l,a,b,info,last_coup
      INTEGER::order,Nab
-     INTEGER,DIMENSION(NIJKL)::IERI
+     INTEGER(8),DIMENSION(NIJKL)::IERI
      DOUBLE PRECISION,DIMENSION(NIJKL)::ERI
      DOUBLE PRECISION::ECd,EPNOF,ESDc,EcRPA,EcMP2,EcGoWo
      DOUBLE PRECISION::mu,EHFL 
@@ -129,7 +134,7 @@
 !
 !          NCO + NSOC     |       NVIR          = NBF
 !----------------------------------------------------------------------
-     IF(ICOEF==0)CALL ELAGCOEF0(ELAG,COEF,RO,CJ12,CK12,AHCORE,ADIPx,ADIPy,ADIPz,IERI,ERI)
+     IF(ICOEF==0)CALL ELAGCOEF0(ELAG,COEF,RO,CJ12,CK12,AHCORE,IERI,ERI)
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Initial allocation and def. of number of pairs (occ,virtual) i <-> a  
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

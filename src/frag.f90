@@ -15,14 +15,12 @@
 !   PCONVE_F: Check for the symmetry of Lagrangian of the fragment 'f' !
 !   FORMFMIUG_F: Form & decrease gen-Fock using a scaling factor of 'f'!
 !   EELECTRr: Trace( Ct*RO*H*C + Ct*G )                                !
-!   EELECTRr_EFIELD: Trace [ Ct*RO*(Ei*ADIPi)*C ] - Ei*DIPN(i)         !
 !                                                                      !
 !======================================================================!
 
 ! FragOrbOpt
       SUBROUTINE FragOrbOpt(ITCALL,ITLIM,AHCORE,IJKL,XIJKL,QD,COEF,RO,  &
-                           CJ12,CK12,ELAG,FMIUG0,DIPN,ADIPx,ADIPy,ADIPz,&
-                           ILOOP,IRUNTYP)
+                            CJ12,CK12,ELAG,FMIUG0,DIPN,ILOOP,IRUNTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL DIIS,PERDIIS,CONVGDELAG,RESTART,SCALING
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -41,14 +39,13 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
@@ -125,8 +122,8 @@
 !     Note: This Energy is equal to EELEC from MOLOCUPrc
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE (WFr(NSQ,NBF5f))
-      CALL ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,ELAG,       &
-                     DIPN,ADIPx,ADIPy,ADIPz,INDf,WFr,0)
+      CALL ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,ELAG,DIPN,  &
+                     INDf,WFr,0)
       CALL PCONVE_F(INDf,ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
       DIF_EELEC=EELEC-EELEC_OLD
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -219,8 +216,8 @@
 !      Compute G, Lagrangian Multipliers (ELAG) and one-energies (E)
 !      Calculate Electronic Energy (EELEC)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       CALL ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,ELAG,      &
-                      DIPN,ADIPx,ADIPy,ADIPz,INDf,WFr,1)
+       CALL ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,ELAG,DIPN, &
+                      INDf,WFr,1)
        DELE = EELEC - EELEC0
 !      Intermediate Output (Nprint=2)
        IF(NPRINT==2)WRITE(6,3)LOOP,EELEC,EELEC+EN,DELE
@@ -281,27 +278,26 @@
       END
 
 ! ENERGYFrc
-      SUBROUTINE ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,      &
-                            ELAG,DIPN,ADIPx,ADIPy,ADIPz,INDf,WFr,IE)
+      SUBROUTINE ENERGYFrc(AHCORE,IJKL,XIJKL,QD,COEF,RO,CJ12,CK12,ELAG, &
+                           DIPN,INDf,WFr,IE)
 !-----------------------------------------------------------------------
 !     Calculate the electronic energy and Lagrange Multipliers
 !-----------------------------------------------------------------------
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL EFIELDL
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_FRAG/NO1f,NBFf,NBF5f
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
       INTEGER,DIMENSION(NBFf)::INDf
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
       DOUBLE PRECISION,DIMENSION(3)::DIPN
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5f)::WFr
@@ -325,8 +321,7 @@
 !     WFr: Constant part of F related to the interactions with fragments
 !-----------------------------------------------------------------------
       ALLOCATE (WF(NSQ,NBF5f))
-      CALL FFJMNFrc(INDf,RO,CJ12,CK12,AHCORE,WJj,WKj,WF,WFr,            &
-                    ADIPx,ADIPy,ADIPz,IE)
+      CALL FFJMNFrc(INDf,RO,CJ12,CK12,AHCORE,WJj,WKj,WF,WFr,IE)
       DEALLOCATE (WJj,WKj)
 !-----------------------------------------------------------------------
 !     Calculate G Matrix
@@ -350,20 +345,14 @@
 !     Calculate Trace(Ct*RO*H*C+Ct*G)
       CALL EELECTRr(EELEC,AHCORE,ELAG,COEF,RO)
 !     Include Nuclear Dipoles if electric field =/ 0
-      IF(EFIELDL)THEN
-       CALL EELECTRr_EFIELD(EELEC_EF,COEF,RO,DIPN,ADIPX,ADIPY,ADIPZ)
-       EELEC=EELEC+EELEC_EF
-      ENDIF
+      IF(EFIELDL)EELEC = EELEC - EFX*DIPN(1)-EFY*DIPN(2)-EFZ*DIPN(3)
 !-----------------------------------------------------------------------
       RETURN
       END
 
 ! FFJMNFrc
-      SUBROUTINE FFJMNFrc(INDf,RO,CJ12,CK12,H,DJ,DK,F,Fr,               &
-                          ADIPx,ADIPy,ADIPz,IE)
+      SUBROUTINE FFJMNFrc(INDf,RO,CJ12,CK12,H,DJ,DK,F,Fr,IE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL EFIELDL
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/INPFILE_FRAG/NO1f,NBFf,NBF5f 
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -371,11 +360,11 @@
       INTEGER,DIMENSION(NBFf)::INDf
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5f)::F,Fr
 !-----------------------------------------------------------------------
-!                            Calculate Fj(m,n)
+!     Calculate Fj(m,n)
 !-----------------------------------------------------------------------
       IF(NO1f>1)THEN
        do i=1,nbf
@@ -408,7 +397,7 @@
        ENDDO
       ENDIF
 !-----------------------------------------------------------------------
-!                          Calculate Frj(m,n)
+!     Calculate Frj(m,n)
 !-----------------------------------------------------------------------
       IF(IE==0)THEN
        IF(NO1f>1)THEN
@@ -438,22 +427,6 @@
                      + PRODWCWijq(ik,j,DJ,CJ12)-PRODWCWijq(ik,j,DK,CK12)
            Fr(ik,jf) = Fr(ik,jf) - F(ik,jf)
           enddo
-         enddo
-        ENDDO
-       ENDIF
-!-----------------------------------------------------------------------
-!      Including Electric Field
-!      Note: FEikj is constant, so can be keeped in Fr
-!-----------------------------------------------------------------------
-       IF(EFIELDL)THEN
-        DO jf=1,NBF5f
-         j = INDf(jf)
-         do i=1,nbf
-         do k=1,nbf
-          ik=i+(k-1)*nbf
-          FEikj = ( EX*ADIPx(i,k)+EY*ADIPy(i,k)+EZ*ADIPz(i,k) ) * RO(j)
-          Fr(ik,jf) = Fr(ik,jf) + FEikj
-         enddo
          enddo
         ENDDO
        ENDIF
@@ -629,33 +602,6 @@
         ENERGIA = ENERGIA + RO(IQ)*C(i,IQ)*FC(i,IQ,H,C)
        enddo
       ENDDO
-!-----------------------------------------------------------------------
-      RETURN
-      END
-
-! EELECTRr_EFIELD
-      SUBROUTINE EELECTRr_EFIELD(EELEC_EF,C,RO,DIPN,ADIPx,ADIPy,ADIPz)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL EFIELDL
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-!
-      DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::C,ADIPx,ADIPy,ADIPz
-!-----------------------------------------------------------------------
-!     Calculate the electronic energy associated to the electric field
-!     EELEC_EF = Trace [ Ct*RO*(Ei*ADIPi)*C ] - Ei*DIPN(i)
-!-----------------------------------------------------------------------
-      EELEC_EF=0.0d0
-      DO IQ=1,NBF5
-       do i=1,nbf
-        EELEC_EF = EELEC_EF + RO(IQ)*C(i,IQ)*( EX*FC(i,IQ,ADIPx,C) +    &
-                            EY*FC(i,IQ,ADIPy,C) + EZ*FC(i,IQ,ADIPz,C) )
-       enddo
-      ENDDO
-      EELEC_EF = EELEC_EF - EX*DIPN(1) - EY*DIPN(2) - EZ*DIPN(3)
 !-----------------------------------------------------------------------
       RETURN
       END

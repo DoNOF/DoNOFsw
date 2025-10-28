@@ -10,28 +10,29 @@
 !                                                                      !
 !   Method:                                                            !
 !                                                                      !
-!   1) OrbOptFMIUGr: Use a Generalized Fock Matrix; JCC 30, 2078, 2009 !
+!   1) OrbOptFMIUGr: Iterative Diagonalization using a Generalized     !
+!                    Fock Matrix (FMIUG). MP, JMU, JCC 30, 2078, 2009  !
 !                                                                      !
-!   2) OrbOptRot: Use a Unitary Tranformation -> Cn = C * exp(YM)      !
-!                                                                      !
-!   3) OrbOptSQP: Use a Sequential Quadratic Program (SQP) Method      !
-!                                                                      !
+!   2) OrbOptADAM: Orbital rotaions [Cn=C*exp(Y)] through a deep       !
+!                  learning-inspired adaptative momentum technique     !
+!                  (ADAM). JFHLY, JMC, MP; PRL 134, 206401, 2025       !
 !                                                                      !
 !======================================================================!
 
 ! OrbOpt
       SUBROUTINE OrbOpt(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux, &
-                        QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,ADIPx,    &
-                        ADIPy,ADIPz,ILOOP,IORBOPT,OCCTIME,IPRINTOPT)
+                        QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,DIPN,ILOOP,    &
+                        IORBOPT,OCCTIME,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
       LOGICAL ERIACTIVATED
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/SKIPRINT/ISKIP
 !      
       INTEGER :: ITCALL,ITLIM,ILOOP,IPRINTOPT,IORBOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux 
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0      
@@ -39,81 +40,46 @@
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN      
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz      
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
 !-----------------------------------------------------------------------
       IF(IORBOPT==1)THEN
        CALL OrbOptFMIUGr(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,        &
                          XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0,      &
-                         DIPN,ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)      
+                         DIPN,ILOOP,IPRINTOPT)
       ELSE IF(IORBOPT==2)THEN
-       CALL OrbOptRot(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF, &
-                      RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,ADIPz,ILOOP,   &
-                      IPRINTOPT)
-      ELSE IF(IORBOPT==3)THEN
-       CALL OrbOptSQP(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
-                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
-      ELSE IF(IORBOPT==4)THEN
-       CALL ADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,              &
-                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      ELSE IF(IORBOPT==5)THEN
-       CALL ADABelief(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,              &
-                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      ELSE IF(IORBOPT==6)THEN
-       CALL YOGI(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,              &
-                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      ELSE IF(IORBOPT==7)THEN
-       CALL DEMON(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,             &
-                      QD,COEF,RO,CJ12,CK12,ELAG,DIPN,                   &
-                      ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+       ISKIP=0
+       CALL OrbOptADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,&
+                       RO,CJ12,CK12,ELAG,DIPN,ILOOP,OCCTIME,IPRINTOPT)
+      ELSE IF(3<=IORBOPT .and. IORBOPT<=6)THEN
+!OO36  CALL OrbOpt36(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,  &
+!OO36                RO,CJ12,CK12,ELAG,DIPN,ILOOP,IORBOPT,OCCTIME,      &
+!OO36                IPRINTOPT)
       END IF
 !-----------------------------------------------------------------------
       RETURN
       END
 
-!----------------------------------------------------------------------!
-!                                                                      !
-!             O R B I T A L       O P T I M I Z A T I O N              !
-!                                                                      !
-!           G E N E R A L I Z E D    F O C K    M A T R I X            !
-!                                                                      !
-!                  ( J. Comp. Chem. 30, 2078, 2009 )                   !
-!                                                                      !
-!             Spin-compensated Systems (Restricted Shells)             !
-!                                                                      !
-!    1) MSpin = 0 ( Restricted Closed: rc )                            !
-!                                                                      !
-!       Singlet States (S=0,Ms=0) and Multiplet States (S>0,Ms=0)      !
-!                                                                      !
-!    2) MSpin > 0 ( Restricted Open: ro )                              !
-!                                                                      !
-!       High-Spin States (Ms=S)                                        !
-!                                                                      !
-!   OrbOptFMIUGr: Minimize w.r.t. MOs using a Generalized Fock Matrix  !
-!   ELAG1r: Calculate the Lagrangian (ELAG)                            !
-!   PCONVE: Check for the symmetry of Lagrangian [ ELAG(ij)-ELAG(ji) ] !
-!   FFJMN1rc,ro: Calculate the generalized Fock matrix Fj(m,n)         !
-!   ELG: Calculate the Lagrange Multipliers                            !
-!   FORMFMIUG: Form & decrease gen-Fock matrix using a scaling factor  !
-!   F01: Fij = Fij*0.1                                                 !
-!   FFMIUG_DIIS: Direct Inversion in the Iterative Subspace Technique  !
-!   TRACEFF: Calculate the trace by i,j of F(m,i,j)*F(idiis,j,i)       !
-!                                                                      !
-!----------------------------------------------------------------------!
-
 ! OrbOptFMIUGr      
       SUBROUTINE OrbOptFMIUGr(ITCALL,ITLIM,OVERLAP,AHCORE,IJKL,XIJKL,   &
                               XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,FMIUG0, &
-                              DIPN,ADIPx,ADIPy,ADIPz,ILOOP,IPRINTOPT)
+                              DIPN,ILOOP,IPRINTOPT)
+!----------------------------------------------------------------------!
+!                                                                      !
+!      This subroutine minimizes w.r.t. MOs using a Generalized Fock   !
+!      Matrix for Spin-compensated Systems (Restricted Shells)         !
+!                                                                      !
+!      1) MSpin = 0 ( Restricted Closed: rc )                          !
+!         Singlet States (S=0,Ms=0) and Multiplet States (S>0,Ms=0)    !
+!                                                                      !
+!      2) MSpin > 0 ( Restricted Open: ro )                            !
+!         High-Spin States (Ms=S)                                      !
+!                                                                      !
+!----------------------------------------------------------------------!
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       LOGICAL CONVGDELAG,EFIELDL,SMCD,RESTART,SCALING
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPSCALING/SCALING,NZEROS,NZEROSm,NZEROSr,ITZITER      
@@ -136,8 +102,9 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
+      INTEGER :: NSOC,NDNS,MSpin
       INTEGER :: ITCALL,ITLIM,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
       DOUBLE PRECISION,DIMENSION(NBF)::FMIUG0
@@ -145,7 +112,6 @@
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 !      
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::EVA,TEMP,CFM
@@ -180,8 +146,7 @@
 !AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
       ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,                &
-                   CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
+       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,G)
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate Electronic Energy (EELEC)       
@@ -192,12 +157,7 @@
        EELEC = EELEC + ELAG(iq,iq)
       END DO
 !     Include Nuclear Dipoles if electric field =/ 0
-      IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-       EELEC = EELEC + EELEC_EF
-      END IF
+      IF(EFIELDL)EELEC = EELEC - EFX*DIPN(1)-EFY*DIPN(2)-EFZ*DIPN(3)
       Etot = EELEC + EN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
 !     Check for the Symmetry of Lagrangian & Energy
@@ -356,8 +316,7 @@
 !AO     CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
        ELSE
-        CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                    CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)  
+        CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,G)
        ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -              
 !      Calculate Electronic Energy (EELEC)       
@@ -370,12 +329,7 @@
         EELEC = EELEC + ELAG(iq,iq)
        END DO
 !      Include Nuclear Dipoles if electric field =/ 0
-       IF(EFIELDL)THEN
-        EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )             &
-                 + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )             &
-                 + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-        EELEC = EELEC + EELEC_EF
-       ENDIF
+       IF(EFIELDL)EELEC = EELEC - EFX*DIPN(1)-EFY*DIPN(2)-EFZ*DIPN(3)
        DELE = EELEC - EELEC0
        Etot = EELEC + EN       
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
@@ -418,9 +372,287 @@
       RETURN
       END
 
+! OrbOptADAM
+      SUBROUTINE OrbOptADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,   &
+                            QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ILOOP,       &
+                            OCCTIME,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL CONVGDELAG,EFIELDL,SMCD,ERIACTIVATED,AUTOLR
+      COMMON/INPADAM/LR,FACT,BETA1,BETA2,AUTOLR
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/EHFEN/EHF,EN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
+      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_MOD/Imod
+      COMMON/INPNOF_HFID/KOOPMANS
+      COMMON/INPNOF_RHF/CONVRHFDM,IRHF,IRHFTYP,NCONVRHF,MAXITRHF
+      COMMON/SKIPRINT/ISKIP
+!
+      INTEGER :: NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
+      INTEGER :: NSOC,NDNS,MSpin
+      LOGICAL :: HighSpin
+      INTEGER :: NIT
+      INTEGER :: ITCALL,ILOOP,IPRINTOPT
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
+      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO
+      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+!
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::Y,GRAD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::M,V,MHAT,VHAT,VHATMAX
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BEST_COEF
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,DEN
+      LOGICAL :: IMPROVED
+      DOUBLE PRECISION LR, FACT, BETA1, BETA2
+      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
+      DOUBLE PRECISION :: RATE
+!-----------------------------------------------------------------------
+!     Initialization for system_clock
+!-----------------------------------------------------------------------
+      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
+      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
+      RATE = REAL(CR)
+      CALL SYSTEM_CLOCK(TIMESTART)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     First Call to OrbOptADAM
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(ITCALL==1)THEN
+       if(IPRINTOPT==1)then
+        if(ISKIP==0)WRITE(6,10)
+        if(ISKIP==1)WRITE(6,1)
+       end if
+       EELEC_OLD = EELEC
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ILOOP = ILOOP
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Density Matrices (DEN)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(G(NBF,NBF5))
+      ALLOCATE(DEN(NBF,NBF))
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
+              MSpin==0 .and. IERITYP==1 )THEN
+!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+      ELSE
+       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,G)
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Calculate Electronic Energy (EELEC)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      EELEC = TRACE(DEN,AHCORE,NBF)
+      DO iq=1,NBF5
+       EELEC = EELEC + ELAG(iq,iq)
+      END DO
+!     Include Nuclear Dipoles if electric field =/ 0
+      IF(EFIELDL)EELEC = EELEC - EFX*DIPN(1)-EFY*DIPN(2)-EFZ*DIPN(3)
+      Etot = EELEC + EN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check for the Symmetry of Lagrangian & Energy
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
+      PCONV=ABS(DIF_EELEC)                            ! PCONV
+      IF( DUMEL<THRESHL .and. PCONV<THRESHE)THEN
+       CALL SYSTEM_CLOCK(TIMEFINISH)
+       ORBTIME = (TIMEFINISH - TIMESTART)/RATE
+       IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,    &
+                                 Etot,DIF_EELEC,DUMEL
+       CONVGDELAG = .TRUE.
+       AUTOLR=.TRUE.
+       LR=0.01D0
+       MAXLOOP=10
+       RETURN
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Initialize variables
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NV = NBF*(NBF-1)/2
+      ALLOCATE(M(NV), V(NV))
+      ALLOCATE(Y(NV), GRAD(NV), MHAT(NV), VHAT(NV), VHATMAX(NV))
+      Y = 0.0D0
+      GRAD = 0.0D0
+      M = 0.0D0
+      V = 0.0D0
+      MHAT = 0.0D0
+      VHAT = 0.0D0
+      VHATMAX = 0.0D0
+      IMPROVED = .FALSE.
+      ALLOCATE(BEST_COEF(NBF,NBF))
+      BEST_E = EELEC
+      BEST_COEF = COEF
+!-----------------------------------------------------------------------
+!                       START SCF-ITERATION CYCLE
+!-----------------------------------------------------------------------
+      DELE = 1.0D20
+      ILOOP = 0
+!     DO WHILE( ILOOP<MAXLOOP .and. DABS(DELE)>THRESHE )
+      DO WHILE( ILOOP<MAXLOOP.and.DUMEL>THRESHL)
+       ILOOP = ILOOP+1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient from Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       GRAD = 0.0D0
+       K = 1
+       DO I=1,NBF-1
+        DO J=I+1,NBF
+         GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
+         K = K + 1
+        END DO
+       END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Rotate Oribtals with adaptative momentum step
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       DO J=1,NV
+         M(J) = BETA1 * M(J) + (1.0D0-BETA1) * GRAD(J)
+         V(J) = BETA2 * V(J) + (1.0D0-BETA2) * GRAD(J)**2
+         MHAT(J) = M(J) / (1.0D0-BETA1**ILOOP)
+         VHAT(J) = V(J) / (1.0D0-BETA2**ILOOP)
+         VHATMAX(J) = MAX(VHATMAX(J), VHAT(J))
+         Y(J) = -LR*MHAT(J)/(SQRT(VHATMAX(J)) + 10D-16)
+       END DO
+       CALL RotOrb(NV,Y,COEF)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+       IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
+             MSpin==0 .and. IERITYP==1 )THEN
+!AO     CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+        CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+       ELSE
+        CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,G)
+       ENDIF
+       CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Calculate Electronic Energy (EELEC)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       EELEC0 = EELEC
+       EELEC = TRACE(DEN,AHCORE,NBF)
+       DO iq=1,NBF5
+        EELEC = EELEC + ELAG(iq,iq)
+       END DO
+!      Include Nuclear Dipoles if electric field =/ 0
+       IF(EFIELDL)EELEC = EELEC - EFX*DIPN(1)-EFY*DIPN(2)-EFZ*DIPN(3)
+       DELE = EELEC - EELEC0
+       Etot = EELEC + EN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Store best energy and its orbitals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(EELEC < BEST_E) THEN
+        IMPROVED = .TRUE.
+        BEST_E = EELEC
+        BEST_COEF = COEF
+       END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Intermediate Output of the internal iteration (Nprint=2)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(NPRINT==2.AND.IPRINTOPT==1)WRITE(6,3)ILOOP,EELEC,Etot,DELE
+!-----------------------------------------------------------------------
+!                       LOOP-END OF SCF-ITERATION
+!-----------------------------------------------------------------------
+      END DO
+      DEALLOCATE(GRAD, M, V, MHAT, VHAT, VHATMAX, Y)
+      IF(AUTOLR) THEN
+       IF(.NOT. IMPROVED) THEN
+        EELEC = BEST_E
+        COEF = BEST_COEF
+       ELSE
+        AUTOLR = .FALSE.
+       END IF
+      END IF
+      DEALLOCATE(BEST_COEF)
+!
+      IF (.NOT. IMPROVED) THEN
+       LR = FACT*LR
+       MAXLOOP = MAXLOOP+20
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Compute Gradient & Lagrangian Multipliers (ELAG)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
+      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
+              MSpin==0 .and. IERITYP==1 )THEN
+!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
+       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
+      ELSE
+       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12,ELAG,G)
+      ENDIF
+      DEALLOCATE(G,DEN)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Check convergence for the Energy
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      Etot = EELEC + EN
+      DIF_EELEC = EELEC - EELEC_OLD
+      EELEC_OLD = EELEC
+      PCONV = ABS(DIF_EELEC)
+      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
+      CALL SYSTEM_CLOCK(TIMEFINISH)
+      ORBTIME = (TIMEFINISH - TIMESTART)/RATE
+      IF(IPRINTOPT==1)THEN
+       WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,Etot,DIF_EELEC,DUMEL
+      END IF
+      IF(PCONV<THRESHE .and. DUMEL<THRESHL) THEN
+       CONVGDELAG=.TRUE.
+       AUTOLR=.TRUE.
+       LR=0.01D0
+       MAXLOOP=10
+      END IF
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(//2X,'HARTREE-FOCK',/1X,'===============',                 &
+        //2X,'Ex It',2X,'Occ Time',2X,'Orb Time',2X,'Orb It',3X,        &
+        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
+        4X,'Max Mul-Lag Diff',/)
+   10 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
+            ,/1X,'================================================',    &
+        //2X,'Ex It',2X,'Occ Time',2X,'Orb Time',2X,'Orb It',3X,        &
+        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
+        4X,'Max Mul-Lag Diff',/)
+    2 FORMAT(I5,3X,ES8.1,2X,ES8.1,3X,I5,1X,F18.10,1X,F19.10,2X,F15.10,  &
+            8X,F11.6)
+    3 FORMAT(2X,I3,'.',3X,F17.8,4X,F15.8,6X,F11.6)
+!-----------------------------------------------------------------------
+      RETURN
+      END
+
+!----------------------------------------------------------------------!
+!                                                                      !
+!     Subroutines for the Orbital Optimization using OrbOptFMIUGr      !
+!                                                                      !
+!   ELAG1r: Calculate the Lagrangian (ELAG)                            !
+!   PCONVE: Check for the symmetry of Lagrangian [ ELAG(ij)-ELAG(ji) ] !
+!   FFJMN1rc,ro: Calculate the generalized Fock matrix Fj(m,n)         !
+!   ELG: Calculate the Lagrange Multipliers                            !
+!   FORMFMIUG: Form & decrease gen-Fock matrix using a scaling factor  !
+!   F01: Fij = Fij*0.1                                                 !
+!   FFMIUG_DIIS: Direct Inversion in the Iterative Subspace Technique  !
+!   TRACEFF: Calculate the trace by i,j of F(m,i,j)*F(idiis,j,i)       !
+!                                                                      !
+!----------------------------------------------------------------------!
+
 ! ELAG1r
-      SUBROUTINE ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,           &
-                        CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
+      SUBROUTINE ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,CJ12,CK12, &
+                        ELAG,G)
 !-----------------------------------------------------------------------
 !     Calculate the Lagrange Multipliers
 !-----------------------------------------------------------------------
@@ -435,13 +667,13 @@
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
 !
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER :: NSOC,NDNS,MSpin
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
       DOUBLE PRECISION,DIMENSION(NBF,NBF5)::G      
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
 !
@@ -451,7 +683,7 @@
 !     Calculate Dj: QD(j,miu,niu), Jj(miu,niu), Kj(miu,niu) (j=1,NBF5) 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE (WJj(NSQ,NBF5),WKj(NSQ,NBF5),AUX2(NSQ))
-
+!
       IF(IERITYP==1 .or. (IERITYP==3 .and. MIXSTATE==2))THEN
        ALLOCATE(AUX1(NBF,NBF))
        DO j=1,NBF5
@@ -478,9 +710,9 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE (WF(NSQ,NBF5))
       if(MSpin==0)then
-       CALL FFJMN1rc(RO,CJ12,CK12,AHCORE,WJj,WKj,WF,ADIPx,ADIPy,ADIPz)
+       CALL FFJMN1rc(RO,CJ12,CK12,AHCORE,WJj,WKj,WF)
       else if(MSpin>0)then
-       CALL FFJMN1ro(RO,CJ12,CK12,AHCORE,WJj,WKj,WF,ADIPx,ADIPy,ADIPz)      
+       CALL FFJMN1ro(RO,CJ12,CK12,AHCORE,WJj,WKj,WF)
       end if      
       DEALLOCATE (WJj,WKj)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -522,24 +754,24 @@
         ENDIF
        ENDDO
       ENDDO
-!      WRITE(6,'(2I4,2F10.5)')MAXI,MAXJ,ELAG(MAXI,MAXJ),ELAG(MAXJ,MAXI)
+!     WRITE(6,'(2I4,2F10.5)')MAXI,MAXJ,ELAG(MAXI,MAXJ),ELAG(MAXJ,MAXI)
 !-----------------------------------------------------------------------
       RETURN
       END
 
 ! FFJMN1rc
-      SUBROUTINE FFJMN1rc(RO,CJ12,CK12,H,DJ,DK,F,ADIPx,ADIPy,ADIPz)
+      SUBROUTINE FFJMN1rc(RO,CJ12,CK12,H,DJ,DK,F)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL EFIELDL,HighSpin
+      LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
 #include "mpip.h"
+      INTEGER :: NSOC,NDNS,MSpin
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK,F
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::FF
       INTEGER LL,UL,EQPART,UNEQPART
@@ -549,26 +781,20 @@
 #ifdef MPI
       DO I=1,NPROCS-1
        NOPT=6
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBF,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NBF,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
       ENDDO
-      CALL MPI_BCAST(NBF5,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NBF5,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(DJ,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(DK,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(CJ12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(CK12,NBF5*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(RO,NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(H,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(NA,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(NB,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(NO1,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(NSOC,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(EFIELDL,1,MPI_LOGICAL,MASTER,MPI_COMM_WORLD,IERR)
-      IF(EFIELDL) THEN
-        CALL MPI_BCAST(ADIPX,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-        CALL MPI_BCAST(ADIPY,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-        CALL MPI_BCAST(ADIPZ,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-      END IF
+      CALL MPI_BCAST(NA,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NB,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NO1,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NSOC,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
       ALLOCATE(FF(NSQ,NBF5))
       F = 0.0D0
       FF=0.0D0
@@ -631,21 +857,6 @@
        enddo
        !$OMP END PARALLEL DO
       ENDIF
-!-----------------------------------------------------------------------
-!     Including Electric Field ( Note: FEikj is constant )
-!-----------------------------------------------------------------------
-      IF(EFIELDL)THEN
-       !$OMP PARALLEL DO PRIVATE(i,k,ik,J,FEikj)
-       do ik=LL,UL
-        i = INT((ik-1)/nbf) + 1
-        k = MOD(ik-1,nbf) + 1
-        DO J=1,NBF5
-         FEikj = RO(J)*(EX*ADIPx(i,k)+EY*ADIPy(i,k)+EZ*ADIPz(i,k))
-         F(ik,J) = F(ik,J) + FEikj
-        ENDDO
-       enddo
-       !$OMP END PARALLEL DO
-      ENDIF
 #ifdef MPI
       CALL MPI_REDUCE(F,FF,NSQ*NBF5,MPI_REAL8,MPI_SUM,MASTER,           &
                       MPI_COMM_WORLD,IERR)
@@ -657,17 +868,15 @@
       END
       
 ! FFJMN1ro
-      SUBROUTINE FFJMN1ro(RO,CJ12,CK12,H,DJ,DK,F,ADIPx,ADIPy,ADIPz)
+      SUBROUTINE FFJMN1ro(RO,CJ12,CK12,H,DJ,DK,F)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL EFIELDL
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
 !
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H,ADIPx,ADIPy,ADIPz
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::H
       DOUBLE PRECISION,DIMENSION(NSQ,NBF5)::DJ,DK,F
 !-----------------------------------------------------------------------
 !     Calculate Fj(m,n)
@@ -718,20 +927,6 @@
          ENDDO
         enddo
        enddo
-      ENDIF
-!-----------------------------------------------------------------------
-!     Including Electric Field ( Note: FEikj is constant )
-!-----------------------------------------------------------------------
-      IF(EFIELDL)THEN
-       DO J=1,NBF5
-        do i=1,nbf
-        do k=1,nbf
-         ik=i+(k-1)*nbf
-         FEikj = RO(J)*(EX*ADIPx(i,k)+EY*ADIPy(i,k)+EZ*ADIPz(i,k))
-         F(ik,J) = F(ik,J) + FEikj
-        enddo
-        enddo
-       ENDDO
       ENDIF
 !-----------------------------------------------------------------------
       RETURN
@@ -916,7 +1111,6 @@
 ! ELAGr (MSpin=0,IERITYP=1)
       SUBROUTINE ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HighSpin
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE      
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -924,7 +1118,9 @@
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_STATIC/Ista
       COMMON/INPNOF_MOD/Imod
-      INTEGER,DIMENSION(NSTORE) :: IJKL
+      INTEGER :: NSOC,NDNS,MSpin
+      LOGICAL :: HighSpin
+      INTEGER(8),DIMENSION(NSTORE) :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE) :: XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: AHCORE,COEF,DEN,ELAG
@@ -1198,11 +1394,12 @@
 ! DENMAT0g
       SUBROUTINE DENMAT0g(l,DMl,COEF,RO)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL HighSpin      
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
+      INTEGER :: NSOC,NDNS,MSpin
+      LOGICAL :: HighSpin
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: DMl,COEF
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO      
 !-----------------------------------------------------------------------
@@ -1229,7 +1426,8 @@
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/USEHUBBARD/IHUB      
 #include "mpip.h"
-      INTEGER,DIMENSION(NSTORE) :: IERI
+      INTEGER(8),DIMENSION(NSTORE) :: IERI
+      INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NSTORE) :: ERI
       DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM1,PM1,FM2,PM2,FM3,PM3
       ALLOCATABLE :: P1(:),P2(:),P3(:),F1(:),F2(:),F3(:)
@@ -1244,8 +1442,8 @@
       ALLOCATE (FF1(NBFT),FF2(NBFT),FF3(NBFT))
       DO I=1,NPROCS-1
        NOPT=5
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBFT,1,MPI_INTEGER8,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+       CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
       ENDDO
 #endif
       CALL SQUARETRIAN(PM1,P1,NBF,NBFT)
@@ -1258,7 +1456,7 @@
       FF1 = 0.0d0
       FF2 = 0.0d0
       FF3 = 0.0d0      
-      CALL MPI_BCAST(NBF,1,MPI_INTEGER8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NBF,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P1,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P2,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P3,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)      
@@ -1350,7 +1548,8 @@
       COMMON/INPNOF_STATIC/Ista      
       COMMON/INPNOF_MOD/Imod
 !
-      INTEGER,DIMENSION(NSTORE)           :: IJKL
+      INTEGER :: NSOC,NDNS,MSpin
+      INTEGER(8),DIMENSION(NSTORE)        :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5)    :: RO      
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: OVERLAP,AHCORE
@@ -1494,7 +1693,7 @@
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR      
       COMMON/INPNOF_MOD/Imod
 !
-      INTEGER,DIMENSION(NSTORE)           :: IJKL
+      INTEGER(8),DIMENSION(NSTORE)        :: IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)  :: XIJKL
       DOUBLE PRECISION,DIMENSION(NBF5)    :: FI
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,DM,DMS
@@ -1551,1283 +1750,19 @@
       END
 
 !----------------------------------------------------------------------!
-
-!----------------------------------------------------------------------!
 !                                                                      !
-!  E X P E R I M E N T A L   O R B I T A L   O P T I M I Z A T I O N   !
-!                         B Y  R O T A T I O N S                       ! 
-!             D E E P   L E A R N I N G   O P T I M I Z E R S          !
+!     Subroutines for the Orbital Optimization using OrbOptADAM        !
+
 !                                                                      !
 !----------------------------------------------------------------------!
-!                                                                      !
-!   IORBOPT = 4       ADAM: Adaptative Momentum                        !
-!   IORBOPT = 5  ADABelief: Adaptive with Belief in gradients          !
-!   IORBOPT = 6       YOGI                                             !
-!   IORBOPT = 7      DEMON: Decaying Momentum                          !
-!                                                                      !
-!----------------------------------------------------------------------!
-
-! ADAM
-      SUBROUTINE ADAM(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
-                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
-                           ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL CONVGDELAG,EFIELDL,SMCD,ERIACTIVATED,AUTOLR
-      COMMON/INPADAM/LR,AUTOLR,FACT,BETA1,BETA2
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
-      COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/INPNOF_COEFOPT/MAXLOOP
-      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/Imod
-!
-      INTEGER :: NIT
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-!      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::Y,GRAD
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::M,V,MHAT,VHAT,VHATMAX
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BEST_COEF
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,DEN
-      LOGICAL :: IMPROVED
-      DOUBLE PRECISION LR, FACT, BETA1, BETA2
-      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
-      DOUBLE PRECISION :: RATE
-!-----------------------------------------------------------------------
-!     Initialization for system_clock
-!-----------------------------------------------------------------------
-      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
-      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
-      RATE = REAL(CR)
-      CALL SYSTEM_CLOCK(TIMESTART)
-!-----------------------------------------------------------------------
-      ILOOP = ILOOP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Density Matrices (DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(G(NBF,NBF5))
-      ALLOCATE(DEN(NBF,NBF))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      EELEC = TRACE(DEN,AHCORE,NBF)
-      DO iq=1,NBF5
-       EELEC = EELEC + ELAG(iq,iq)
-      END DO
-!     Include Nuclear Dipoles if electric field =/ 0
-      IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-       EELEC = EELEC + EELEC_EF
-      END IF
-      Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Check for the Symmetry of Lagrangian & Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-      PCONV=ABS(DIF_EELEC)                            ! PCONV
-      IF( DUMEL<THRESHL .and. PCONV<THRESHE)THEN
-       CALL SYSTEM_CLOCK(TIMEFINISH)
-       ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-       IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,   &
-                                 Etot,DIF_EELEC,DUMEL
-       CONVGDELAG = .TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-       RETURN
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOpt
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Initialize variables
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NBF*(NBF-1)/2
-      ALLOCATE(M(NV), V(NV))
-      ALLOCATE(Y(NV), GRAD(NV), MHAT(NV), VHAT(NV), VHATMAX(NV))
-      Y = 0.0D0
-      GRAD = 0.0D0
-      M = 0.0D0
-      V = 0.0D0
-      MHAT = 0.0D0
-      VHAT = 0.0D0
-      VHATMAX = 0.0D0
-      IMPROVED = .FALSE.
-      ALLOCATE(BEST_COEF(NBF,NBF))
-      BEST_E = EELEC
-      BEST_COEF = COEF
-!-----------------------------------------------------------------------
-!                       START SCF-ITERATION CYCLE
-!-----------------------------------------------------------------------
-      DELE = 1.0D20
-      ILOOP = 0
-      !DO WHILE( ILOOP<MAXLOOP .and. DABS(DELE)>THRESHEC )
-      DO WHILE( ILOOP<MAXLOOP.and.DUMEL>THRESHL)
-        ILOOP = ILOOP+1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient from Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        GRAD = 0.0D0
-        K = 1
-        DO I=1,NBF-1
-         DO J=I+1,NBF
-          GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
-          K = K + 1
-         END DO
-        END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Rotate Oribtals with adaptative momentum step
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        DO J=1,NV
-          M(J) = BETA1 * M(J) + (1.0D0-BETA1) * GRAD(J)
-          V(J) = BETA2 * V(J) + (1.0D0-BETA2) * GRAD(J)**2
-          MHAT(J) = M(J) / (1.0D0-BETA1**ILOOP)
-          VHAT(J) = V(J) / (1.0D0-BETA2**ILOOP)
-          VHATMAX(J) = MAX(VHATMAX(J), VHAT(J))
-          Y(J) = -LR*MHAT(J)/(SQRT(VHATMAX(J)) + 10D-16)
-        END DO
-        CALL RotOrb(NV,Y,COEF)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-        ELSE
-         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                    CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-        ENDIF
-        CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-        EELEC0 = EELEC
-        EELEC = TRACE(DEN,AHCORE,NBF)
-        DO iq=1,NBF5
-         EELEC = EELEC + ELAG(iq,iq)
-        END DO
-        IF(EFIELDL)THEN
-         EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                  + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                  + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-         EELEC = EELEC + EELEC_EF
-        END IF
-        DELE = EELEC - EELEC0
-        Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!     Store best energy and its orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(EELEC < BEST_E) THEN
-          IMPROVED = .TRUE.
-          BEST_E = EELEC
-          BEST_COEF = COEF
-        END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!      Intermediate Output of the internal iteration (Nprint=2)         
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(NPRINT==2.AND.IPRINTOPT==1)WRITE(6,3)ILOOP,EELEC,Etot,DELE
-!-----------------------------------------------------------------------
-!                       LOOP-END OF SCF-ITERATION
-!-----------------------------------------------------------------------
-      END DO
-      DEALLOCATE(GRAD, M, V, MHAT, VHAT, VHATMAX, Y)
-      IF(AUTOLR) THEN
-        IF(.NOT. IMPROVED) THEN
-          EELEC = BEST_E
-          COEF = BEST_COEF
-        ELSE
-          AUTOLR = .FALSE.
-        END IF
-      END IF
-      DEALLOCATE(BEST_COEF)
-
-      IF (.NOT. IMPROVED) THEN
-        LR = FACT*LR
-        MAXLOOP = MAXLOOP+20
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF     
-      DEALLOCATE(G,DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check convergence for the Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Etot = EELEC + EN
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-      PCONV = ABS(DIF_EELEC)
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      CALL SYSTEM_CLOCK(TIMEFINISH)
-      ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,Etot,DIF_EELEC,DUMEL
-      IF(PCONV<THRESHE .and. DUMEL<THRESHL) THEN
-       CONVGDELAG=.TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-      END IF
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
-            ,/1X,'================================================',    &
-        //2X,'Ex It',2X,'Occ Time',2X,'Orb Time',2X,'Orb It',3X,        &
-        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
-        4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,3X,ES8.1,2X,ES8.1,3X,I5,1X,F18.10,1X,F19.10,2X,F15.10,  &
-            8X,F11.6)
-    3 FORMAT(2X,I3,'.',3X,F17.8,4X,F15.8,6X,F11.6)
-!-----------------------------------------------------------------------
-      RETURN
-      END
-      
-! ADABelief
-      SUBROUTINE ADABelief(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
-                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
-                           ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL CONVGDELAG,EFIELDL,SMCD,ERIACTIVATED,AUTOLR
-      COMMON/INPADAM/LR,AUTOLR,FACT,BETA1,BETA2
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
-      COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/INPNOF_COEFOPT/MAXLOOP
-      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/Imod
-!
-      INTEGER :: NIT
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-!      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::Y,GRAD
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::M,V,MHAT,VHAT,VHATMAX
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BEST_COEF
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,DEN
-      LOGICAL :: IMPROVED
-      DOUBLE PRECISION LR, FACT, BETA1, BETA2
-      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
-      DOUBLE PRECISION :: RATE
-!-----------------------------------------------------------------------
-!     Initialization for system_clock
-!-----------------------------------------------------------------------
-      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
-      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
-      RATE = REAL(CR)
-      CALL SYSTEM_CLOCK(TIMESTART)
-!-----------------------------------------------------------------------
-      ILOOP = ILOOP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Density Matrices (DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(G(NBF,NBF5))
-      ALLOCATE(DEN(NBF,NBF))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      EELEC = TRACE(DEN,AHCORE,NBF)
-      DO iq=1,NBF5
-       EELEC = EELEC + ELAG(iq,iq)
-      END DO
-!     Include Nuclear Dipoles if electric field =/ 0
-      IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-       EELEC = EELEC + EELEC_EF
-      END IF
-      Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Check for the Symmetry of Lagrangian & Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-      PCONV=ABS(DIF_EELEC)                            ! PCONV
-      IF( DUMEL<THRESHL .and. PCONV<THRESHE)THEN
-       CALL SYSTEM_CLOCK(TIMEFINISH)
-       ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-       IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,   &
-                                 Etot,DIF_EELEC,DUMEL
-       CONVGDELAG = .TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-       RETURN
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOpt
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Initialize variables
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NBF*(NBF-1)/2
-      ALLOCATE(M(NV), V(NV))
-      ALLOCATE(Y(NV), GRAD(NV), MHAT(NV), VHAT(NV), VHATMAX(NV))
-      Y = 0.0D0
-      GRAD = 0.0D0
-      M = 0.0D0
-      V = 0.0D0
-      MHAT = 0.0D0
-      VHAT = 0.0D0
-      VHATMAX = 0.0D0
-      IMPROVED = .FALSE.
-      ALLOCATE(BEST_COEF(NBF,NBF))
-      BEST_E = EELEC
-      BEST_COEF = COEF
-!-----------------------------------------------------------------------
-!                       START SCF-ITERATION CYCLE
-!-----------------------------------------------------------------------
-      DELE = 1.0D20
-      ILOOP = 0
-      !DO WHILE( ILOOP<MAXLOOP .and. DABS(DELE)>THRESHEC )
-      DO WHILE( ILOOP<MAXLOOP.and.DUMEL>THRESHL)
-        ILOOP = ILOOP+1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient from Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        GRAD = 0.0D0
-        K = 1
-        DO I=1,NBF-1
-         DO J=I+1,NBF
-          GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
-          K = K + 1
-         END DO
-        END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Rotate Oribtals with adaptative momentum step
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        DO J=1,NV
-          M(J) = BETA1 * M(J) + (1.0D0-BETA1) * GRAD(J)
-          V(J) = BETA2 * V(J) + (1.0D0-BETA2) * (GRAD(J) - M(J))**2
-          MHAT(J) = M(J) / (1.0D0-BETA1**ILOOP)
-          VHAT(J) = V(J) / (1.0D0-BETA2**ILOOP)
-          VHATMAX(J) = MAX(VHATMAX(J), VHAT(J))
-          Y(J) = -LR*MHAT(J)/(SQRT(VHATMAX(J)) + 10D-16)
-        END DO
-        CALL RotOrb(NV,Y,COEF)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-        ELSE
-         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                    CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-        ENDIF
-        CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-        EELEC0 = EELEC
-        EELEC = TRACE(DEN,AHCORE,NBF)
-        DO iq=1,NBF5
-         EELEC = EELEC + ELAG(iq,iq)
-        END DO
-        IF(EFIELDL)THEN
-         EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                  + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                  + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-         EELEC = EELEC + EELEC_EF
-        END IF
-        DELE = EELEC - EELEC0
-        Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!     Store best energy and its orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(EELEC < BEST_E) THEN
-          IMPROVED = .TRUE.
-          BEST_E = EELEC
-          BEST_COEF = COEF
-        END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!      Intermediate Output of the internal iteration (Nprint=2)         
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(NPRINT==2.AND.IPRINTOPT==1)WRITE(6,3)ILOOP,EELEC,Etot,DELE
-!-----------------------------------------------------------------------
-!                       LOOP-END OF SCF-ITERATION
-!-----------------------------------------------------------------------
-      END DO
-      DEALLOCATE(GRAD, M, V, MHAT, VHAT, VHATMAX, Y)
-      IF(AUTOLR) THEN
-        IF(.NOT. IMPROVED) THEN
-          EELEC = BEST_E
-          COEF = BEST_COEF
-        ELSE
-          AUTOLR = .FALSE.
-        END IF
-      END IF
-      DEALLOCATE(BEST_COEF)
-
-      IF (.NOT. IMPROVED) THEN
-        LR = FACT*LR
-        MAXLOOP = MAXLOOP+20
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF     
-      DEALLOCATE(G,DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check convergence for the Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Etot = EELEC + EN
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-      PCONV = ABS(DIF_EELEC)
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      CALL SYSTEM_CLOCK(TIMEFINISH)
-      ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,Etot,DIF_EELEC,DUMEL
-      IF(PCONV<THRESHE .and. DUMEL<THRESHL) THEN
-       CONVGDELAG=.TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-      END IF
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
-            ,/1X,'================================================',    &
-        //2X,'Ex It',2X'Occ Time',2X'Orb Time',2X,'Orb It',3X,          &
-        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
-        4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,3X,ES8.1,2X,ES8.1,3X,I5,1X,F18.10,1X,F19.10,2X,F15.10,  &
-            8X,F11.6)
-    3 FORMAT(2X,I3,'.',3X,F17.8,4X,F15.8,6X,F11.6)
-!-----------------------------------------------------------------------
-      RETURN
-      END
-
-! YOGI
-      SUBROUTINE YOGI(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,         &
-                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
-                           ADIPz,ILOOP,OCCTIME,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL CONVGDELAG,EFIELDL,SMCD,ERIACTIVATED,AUTOLR
-      COMMON/INPADAM/LR,AUTOLR,FACT,BETA1,BETA2
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
-      COMMON/INPNOF_PRINT/NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/INPNOF_COEFOPT/MAXLOOP
-      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/INPNOF_MOD/Imod
-!
-      INTEGER :: NIT
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-!      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::Y,GRAD
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::M,V,MHAT,VHAT,VHATMAX
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::BEST_COEF
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::G,DEN
-      LOGICAL :: IMPROVED
-      DOUBLE PRECISION LR, FACT, BETA1, BETA2
-      INTEGER :: CR, CM, TIMESTART, TIMEFINISH
-      DOUBLE PRECISION :: RATE
-!-----------------------------------------------------------------------
-!     Initialization for system_clock
-!-----------------------------------------------------------------------
-      CALL SYSTEM_CLOCK(COUNT_RATE=CR)
-      CALL SYSTEM_CLOCK(COUNT_MAX=CM)
-      RATE = REAL(CR)
-      CALL SYSTEM_CLOCK(TIMESTART)
-!-----------------------------------------------------------------------
-      ILOOP = ILOOP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Density Matrices (DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(G(NBF,NBF5))
-      ALLOCATE(DEN(NBF,NBF))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      EELEC = TRACE(DEN,AHCORE,NBF)
-      DO iq=1,NBF5
-       EELEC = EELEC + ELAG(iq,iq)
-      END DO
-!     Include Nuclear Dipoles if electric field =/ 0
-      IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-       EELEC = EELEC + EELEC_EF
-      END IF
-      Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Check for the Symmetry of Lagrangian & Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-      PCONV=ABS(DIF_EELEC)                            ! PCONV
-      IF( DUMEL<THRESHL .and. PCONV<THRESHE)THEN
-       CALL SYSTEM_CLOCK(TIMEFINISH)
-       ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-       IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,   &
-                                 Etot,DIF_EELEC,DUMEL
-       CONVGDELAG = .TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-       RETURN
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOpt
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Initialize variables
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NBF*(NBF-1)/2
-      ALLOCATE(M(NV), V(NV))
-      ALLOCATE(Y(NV), GRAD(NV), MHAT(NV), VHAT(NV), VHATMAX(NV))
-      Y = 0.0D0
-      GRAD = 0.0D0
-      M = 0.0D0
-      V = 0.0D0
-      MHAT = 0.0D0
-      VHAT = 0.0D0
-      VHATMAX = 0.0D0
-      IMPROVED = .FALSE.
-      ALLOCATE(BEST_COEF(NBF,NBF))
-      BEST_E = EELEC
-      BEST_COEF = COEF
-!-----------------------------------------------------------------------
-!                       START SCF-ITERATION CYCLE
-!-----------------------------------------------------------------------
-      DELE = 1.0D20
-      ILOOP = 0
-      !DO WHILE( ILOOP<MAXLOOP .and. DABS(DELE)>THRESHEC )
-      DO WHILE( ILOOP<MAXLOOP.and.DUMEL>THRESHL)
-        ILOOP = ILOOP+1
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient from Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        GRAD = 0.0D0
-        K = 1
-        DO I=1,NBF-1
-         DO J=I+1,NBF
-          GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
-          K = K + 1
-         END DO
-        END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Rotate Oribtals with adaptative momentum step
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        DO J=1,NV
-          M(J) = BETA1 * M(J) + (1.0D0-BETA1) * GRAD(J)
-          V(J) = V(J) - (1.0D0-BETA2) * SIGN(GRAD(J)**2, V(J) - GRAD(J)**2)
-          MHAT(J) = M(J) / (1.0D0-BETA1**ILOOP)
-          VHAT(J) = V(J) / (1.0D0-BETA2**ILOOP)
-          VHATMAX(J) = MAX(VHATMAX(J), VHAT(J))
-          Y(J) = -LR*MHAT(J)/(SQRT(VHATMAX(J)) + 10D-16)
-        END DO
-        CALL RotOrb(NV,Y,COEF)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-        IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO      CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-         CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-        ELSE
-         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                    CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-        ENDIF
-        CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)        ! DUMEL
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-        EELEC0 = EELEC
-        EELEC = TRACE(DEN,AHCORE,NBF)
-        DO iq=1,NBF5
-         EELEC = EELEC + ELAG(iq,iq)
-        END DO
-        IF(EFIELDL)THEN
-         EELEC_EF = EX * ( TRACE(DEN,ADIPx,NBF) - DIPN(1) )               &
-                  + EY * ( TRACE(DEN,ADIPy,NBF) - DIPN(2) )               &
-                  + EZ * ( TRACE(DEN,ADIPz,NBF) - DIPN(3) )
-         EELEC = EELEC + EELEC_EF
-        END IF
-        DELE = EELEC - EELEC0
-        Etot = EELEC + EN
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!     Store best energy and its orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(EELEC < BEST_E) THEN
-          IMPROVED = .TRUE.
-          BEST_E = EELEC
-          BEST_COEF = COEF
-        END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
-!      Intermediate Output of the internal iteration (Nprint=2)         
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        IF(NPRINT==2.AND.IPRINTOPT==1)WRITE(6,3)ILOOP,EELEC,Etot,DELE
-!-----------------------------------------------------------------------
-!                       LOOP-END OF SCF-ITERATION
-!-----------------------------------------------------------------------
-      END DO
-      DEALLOCATE(GRAD, M, V, MHAT, VHAT, VHATMAX, Y)
-      IF(AUTOLR) THEN
-        IF(.NOT. IMPROVED) THEN
-          EELEC = BEST_E
-          COEF = BEST_COEF
-        ELSE
-          AUTOLR = .FALSE.
-        END IF
-      END IF
-      DEALLOCATE(BEST_COEF)
-
-      IF (.NOT. IMPROVED) THEN
-        LR = FACT*LR
-        MAXLOOP = MAXLOOP+20
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL DENMATr(DEN,COEF,RO,NBF,1,NBF5) ! Density Matrix
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.       &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(OVERLAP,AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG)
-       CALL ELAGr(AHCORE,IJKL,XIJKL,COEF,RO,DEN,ELAG,G,IPNOF)
-      ELSE
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,QD,COEF,RO,               &
-                  CJ12,CK12,ELAG,ADIPx,ADIPy,ADIPz,G)
-      ENDIF     
-      DEALLOCATE(G,DEN)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check convergence for the Energy
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Etot = EELEC + EN
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-      PCONV = ABS(DIF_EELEC)
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      CALL SYSTEM_CLOCK(TIMEFINISH)
-      ORBTIME = (TIMEFINISH - TIMESTART)/RATE
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,OCCTIME,ORBTIME,ILOOP,EELEC,Etot,DIF_EELEC,DUMEL
-      IF(PCONV<THRESHE .and. DUMEL<THRESHL) THEN
-       CONVGDELAG=.TRUE.
-       AUTOLR=.TRUE.
-       LR=0.01D0
-       MAXLOOP=10
-      END IF
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
-            ,/1X,'================================================',    &
-        //2X,'Ex It',2X'Occ Time',2X'Orb Time',2X,'Orb It',3X,          &
-        'Electronic Energy',5X,'Total Energy',3X,'Energy Convergency',  &
-        4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,3X,ES8.1,2X,ES8.1,3X,I5,1X,F18.10,1X,F19.10,2X,F15.10,  &
-            8X,F11.6)
-    3 FORMAT(2X,I3,'.',3X,F17.8,4X,F15.8,6X,F11.6)
-!-----------------------------------------------------------------------
-      RETURN
-      END
-
-
-! DEMON
-      SUBROUTINE DEMON(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,        &
-                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
-                           ADIPz,ILOOP,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
-                         M14,MUSE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-      COMMON/INPNOF_COEFOPT/MAXLOOP
-!
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz
-!      
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y,GRAD
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: M,V,VHAT,VHATMAX
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BEST_COEF
-      LOGICAL :: IMPROVED
-      DOUBLE PRECISION :: LR, BETA1, BETA2, RATE, BINIT
-!-----------------------------------------------------------------------
-      ILOOP = ILOOP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     IUSER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(IUSER(NSTORE))
-      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     USER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
-      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
-      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
-      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
-      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
-      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
-      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
-      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
-      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
-      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
-      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
-      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
-      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
-      if(IERITYP==1)then
-       MUSE = M13 - M1 + NSQ
-      else if(IERITYP==2 .or. IERITYP==3)then
-       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
-       MUSE = M14 - M1 + NSTOREaux
-      end if
-      ALLOCATE (USER(MUSE))
-!
-      CALL XtoX0(   COEF,USER(M1),NSQ)
-      CALL XtoX0( AHCORE,USER(M2),NSQ)
-      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
-      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
-      CALL XtoX0(     RO,USER(M5),NBF5)
-      CALL XtoX0(   CJ12,USER(M6),NSQ5)
-      CALL XtoX0(   CK12,USER(M7),NSQ5)
-      CALL XtoX0(   ELAG,USER(M8),NSQ)
-      CALL XtoX0(   DIPN,USER(M9),3)
-      CALL XtoX0(  ADIPx,USER(M10),NSQ)
-      CALL XtoX0(  ADIPy,USER(M11),NSQ)
-      CALL XtoX0(  ADIPz,USER(M12),NSQ)
-      CALL XtoX0(OVERLAP,USER(M13),NSQ)
-      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Initialize variables for Y
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NBF*(NBF-1)/2
-      ALLOCATE(M(NV), V(NV))
-      ALLOCATE(Y(NV), GRAD(NV), VHAT(NV), VHATMAX(NV))
-      Y = 0.0D0
-      GRAD = 0.0D0
-      M = 0.0D0
-      V = 0.0D0
-      VHAT = 0.0D0
-      VHATMAX = 0.0D0
-
-      LR = 0.02 !0.001
-      BETA1 = 0.7 !0.9
-      BETA2 = 0.9
-
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOptRot
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-      BEST_E = EELEC
-
-      IMPROVED = .FALSE.
-      ALLOCATE(BEST_COEF(NBF,NBF))
-      BEST_COEF = COEF
-
-      BINIT = BETA1
-
-      NIT = 0
-      DO I=1, MAXLOOP
-        NIT = NIT + 1
-        CALL CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
-        IF(NORM2(GRAD) < 10E-3 .AND. IMPROVED) EXIT
-
-        RATE = 1.0D0*(I-1)/(MAXLOOP-1)
-        BETA1 = BINIT*(1.0D0 - RATE)/((1.0D0-BINIT)+BINIT*(1.0D0 - RATE))
-        DO J=1,NV
-          M(J) = BETA1 * M(J) + GRAD(J)
-          V(J) = BETA2 * V(J) + (1.0D0-BETA2) * GRAD(J)**2
-          Y(J) = -LR*M(J)/(SQRT(V(J) + 10D-8))
-        END DO
-
-        CALL RotOrb(NV,Y,COEF)
-        CALL XtoX0(   COEF,USER(M1),NSQ)
-        Y = 0.0D0
-        CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
-        !WRITE(*,*) I, EELEC, EELEC - BEST_E
-        IF(EELEC < BEST_E) THEN
-          IMPROVED = .TRUE.
-          BEST_E = EELEC
-          BEST_COEF = COEF
-        END IF
-
-      END DO
-      COEF = BEST_COEF
-      EELEC = BEST_E
-      DEALLOCATE(BEST_COEF)
-      DEALLOCATE(GRAD, M, V, VHAT, VHATMAX)
-
-      IF (.NOT. IMPROVED) THEN
-          LR = LR/2
-          MAXLOOP = MIN(300,MAXLOOP+30)
-      END IF
-
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Update Orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL RotOrb(NV,Y,COEF)
-      CALL XtoX0(COEF,USER(M1),NSQ)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC) for new Orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Y = 0.0D0
-      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Update QD and ELAG
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL XtoX0(USER(M4),QD,NBF*NSQ)
-      CALL XtoX0(USER(M8),ELAG,NSQ)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check convergence for the Energy
-!     Check for the Symmetry of Lagrangian (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Etot = EELEC + EN
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-      PCONV = ABS(DIF_EELEC)
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,NIT,EELEC,Etot,DIF_EELEC,DUMEL
-      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
-            ,/1X,'================================================',    &
-        //2X,'Ex It',2X,'Orb It',4X,'Electronic Energy',5X,           &
-        'Total Energy',3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,3X,I5,1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)
-!-----------------------------------------------------------------------
-      DEALLOCATE (IUSER,USER,Y)
-      RETURN
-      END
-
-!----------------------------------------------------------------------!
-!                                                                      !
-!    O R B I T A L   O P T I M I Z A T I O N   B Y  R O T A T I O N S  !
-!                                                                      !
-!   OrbOptRot:  Minimize w.r.t. antisymmetric matrix Y                 !
-!   CGORBSUMSL: Prepare for calling the subroutine SUMSL               !
-!   CALCORBE:   Compute energy for a given Y                           !
-!   CALCORBG:   Compute gradient (dE/dY)                               !
-!   RotOrb:     Rotate the NOs as Cn = C*U, U = exp(Y), Yij = -Yji     !
-!                                                                      !
-!----------------------------------------------------------------------!
-
-! OrbOptRot
-      SUBROUTINE OrbOptRot(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,    &
-                           QD,COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,  &
-                           ADIPz,ILOOP,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
-      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
-                         M14,MUSE 
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN      
-      COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-!
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux       
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN      
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz      
-!      
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: USER,Y
-!-----------------------------------------------------------------------
-      ILOOP = ILOOP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     IUSER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(IUSER(NSTORE))  
-      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     USER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      M1  = 1                    ! USER(M1) = COEF(NBF,NBF)
-      M2  = M1  +  NSQ           ! USER(M2) = AHCORE(NBF,NBF)
-      M3  = M2  +  NSQ           ! USER(M3) = XIJKL(NSTORE) 
-      M4  = M3  +  NSTORE        ! USER(M4) = QD(NBF,NBF,NBF)
-      M5  = M4  +  NBF*NSQ       ! USER(M5) = RO(NBF5) 
-      M6  = M5  +  NBF5          ! USER(M6) = CJ12(NBF5,NBF5) 
-      M7  = M6  +  NSQ5          ! USER(M7) = CK12(NBF5,NBF5)  
-      M8  = M7  +  NSQ5          ! USER(M8) = ELAG(NBF,NBF)  
-      M9  = M8  +  NSQ           ! USER(M9) = DIPN(3) 
-      M10 = M9  +  3             ! USER(M10)= ADIPx(NBF,NBF)
-      M11 = M10 +  NSQ           ! USER(M11)= ADIPy(NBF,NBF)
-      M12 = M11 +  NSQ           ! USER(M12)= ADIPz(NBF,NBF)
-      M13 = M12 +  NSQ           ! USER(M13)= OVERLAP(NBF,NBF)      
-      if(IERITYP==1)then      
-       MUSE = M13 - M1 + NSQ
-      else if(IERITYP==2 .or. IERITYP==3)then      
-       M14 = M13 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
-       MUSE = M14 - M1 + NSTOREaux
-      end if
-      ALLOCATE (USER(MUSE))  
-!
-      CALL XtoX0(   COEF,USER(M1),NSQ)
-      CALL XtoX0( AHCORE,USER(M2),NSQ)
-      CALL XtoX0(  XIJKL,USER(M3),NSTORE)
-      CALL XtoX0(     QD,USER(M4),NBF*NSQ)
-      CALL XtoX0(     RO,USER(M5),NBF5)
-      CALL XtoX0(   CJ12,USER(M6),NSQ5)                                    
-      CALL XtoX0(   CK12,USER(M7),NSQ5)
-      CALL XtoX0(   ELAG,USER(M8),NSQ)                                          
-      CALL XtoX0(   DIPN,USER(M9),3)
-      CALL XtoX0(  ADIPx,USER(M10),NSQ)      
-      CALL XtoX0(  ADIPy,USER(M11),NSQ)            
-      CALL XtoX0(  ADIPz,USER(M12),NSQ)
-      CALL XtoX0(OVERLAP,USER(M13),NSQ)
-      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M14),NSTOREaux)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Initialize variables for Y
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NBF*(NBF-1)/2
-      ALLOCATE(Y(NV))
-      Y = 0.0D0
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOptRot
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Energy Minimization
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL CGORBSUMSL(NV,IUSER,USER,Y,EELEC)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Update Orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL RotOrb(NV,Y,COEF)
-      CALL XtoX0(COEF,USER(M1),NSQ)      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (EELEC) for new Orbitals
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL CALCORBE(NV,Y,NF,EELEC,IUSER,USER)      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Update QD and ELAG
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL XtoX0(USER(M4),QD,NBF*NSQ)            
-      CALL XtoX0(USER(M8),ELAG,NSQ)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check convergence for the Energy
-!     Check for the Symmetry of Lagrangian (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      Etot = EELEC + EN
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC
-      PCONV = ABS(DIF_EELEC)
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,Etot,DIF_EELEC,DUMEL
-      IF(PCONV<THRESHE .and. DUMEL<THRESHL)CONVGDELAG=.TRUE.
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT OPTIMIZATION'      &
-            ,/1X,'================================================',    &
-        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
-          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)    
-!-----------------------------------------------------------------------
-      DEALLOCATE (IUSER,USER,Y)
-      RETURN
-      END
-
-! CGORBSUMSL
-      SUBROUTINE CGORBSUMSL(NV,IUSER,USER,Y,ENERGY)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE                  
-      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
-                         M14,MUSE       
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
-!
-      INTEGER,DIMENSION(NSTORE) :: IUSER
-      DOUBLE PRECISION,DIMENSION(NV) :: Y
-      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
-!      
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IV
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: D,V      
-      EXTERNAL CALCORBE,CALCORBG
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      LIV = 60
-      LV = 71+NV*(NV+15)/2
-      ALLOCATE(IV(LIV),D(NV),V(LV)) 
-      IV = 0
-      D(1:NV) = 1.0d-1       
-      CALL SUMSL(NV,D,Y,CALCORBE,CALCORBG,IV,LIV,LV,V,IUSER,USER)      
-      ENERGY = EELEC
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DEALLOCATE(IV,D,V)
-      RETURN
-      END
-
-! CALCORBE      
-      SUBROUTINE CALCORBE(NV,Y,NF,ENERGYEL,IUSER,USER)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL EFIELDL,SMCD,HighSpin      
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE            
-      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
-                         M14,MUSE 
-      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN      
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
-      COMMON/INPNOF_MOD/Imod
-!      
-      INTEGER,DIMENSION(NSTORE) :: IUSER
-      DOUBLE PRECISION,DIMENSION(NV) :: Y      
-      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
-!      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COEF,DEN,G
-!-----------------------------------------------------------------------
-!     Avoiding warnings
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NF = NF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Copy USER(M1) to COEF (Orbitals without rotation)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(COEF(NBF,NBF))
-      CALL XtoX0(USER(M1),COEF,NSQ)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Rotate Orbitals by COEF*EXP(YM) -> COEF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL RotOrb(NV,Y,COEF)      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Compute Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
-      CALL DENMATr(DEN,COEF,USER(M5),NBF,1,NBF5) ! Density Matrix 
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
-              MSpin==0 .and. IERITYP==1 )THEN
-!AO    CALL ELAGaor(USER(M13),USER(M2),IUSER,USER(M3),COEF,             &
-!AO                 USER(M5),DEN,USER(M8))
-       CALL ELAGr(USER(M2),IUSER,USER(M3),COEF,USER(M5),DEN,            &
-                  USER(M8),G,IPNOF)
-      ELSE
-       CALL ELAG1r(USER(M2),IUSER,USER(M3),USER(M14),USER(M4),          &
-                   COEF,USER(M5),USER(M6),USER(M7),USER(M8),            &
-                   USER(M10),USER(M11),USER(M12),G)
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (ENERGYEL)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      ENERGYEL = TRACE(DEN,USER(M2),NBF)
-      DO iq=1,NBF5
-       iqiq = M8-1 + iq+(iq-1)*nbf  ! ELAG(iq,iq)
-       ENERGYEL = ENERGYEL + USER(iqiq)  
-      END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -    
-!     Include Nuclear Dipoles if electric field =/ 0
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(EFIELDL)THEN
-       ENERGYEL_EF = EX * ( TRACE(DEN,USER(M10),NBF) - USER(M9) )       &
-                   + EY * ( TRACE(DEN,USER(M11),NBF) - USER(M9+1) )     &
-                   + EZ * ( TRACE(DEN,USER(M12),NBF) - USER(M9+2) )
-       ENERGYEL = ENERGYEL + ENERGYEL_EF
-      END IF
-!-----------------------------------------------------------------------
-      EELEC = ENERGYEL
-      DEALLOCATE(COEF,DEN,G)
-      RETURN
-      END
-
-! CALCORBG      
-      SUBROUTINE CALCORBG(NV,Y,NF,GRAD,IUSER,USER)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/PUNTEROSROT/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,    &
-                         M14,MUSE 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ      
-!      
-      INTEGER,DIMENSION(NSTORE) :: IUSER
-      DOUBLE PRECISION,DIMENSION(NV) :: Y,GRAD      
-      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
-!
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: ELAG
-!-----------------------------------------------------------------------
-!     Avoiding warnings
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NF = NF
-      IUSER(1) = IUSER(1)
-      Y(1) = Y(1)      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ELAG(NBF,NBF))
-      CALL XtoX0(USER(M8),ELAG,NSQ)      
-!      
-      GRAD = 0.0D0
-      K = 1
-      DO I=1,NBF-1
-       DO J=I+1,NBF
-        GRAD(K) = 2.0d0 * ( ELAG(I,J) - ELAG(J,I) )
-        K = K + 1
-       END DO
-      END DO
-!-----------------------------------------------------------------------      
-      DEALLOCATE(ELAG)
-      RETURN
-      END
 
 ! RotOrb
       SUBROUTINE RotOrb(NV,Y,COEF)
 !-----------------------------------------------------------------------
-!     This subroutine generate an unitary matrix U = exp(YM), with YM 
+!     This subroutine generate an unitary matrix U = exp(YM), with YM
 !     an antisymmetric matrix [YM(I,J)=-YM(J,I)]. The variable Y store
 !     the upper triangular part of YM. The parameters of Y can be varied
-!     in a minimization procedure to optimize the natural orbitals via 
+!     in a minimization procedure to optimize the natural orbitals via
 !     the rotation COEFn = COEF * U.
 !-----------------------------------------------------------------------
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
@@ -2838,13 +1773,17 @@
       INTEGER,ALLOCATABLE,DIMENSION(:) :: IPIV
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: RWORK
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: U
-      COMPLEX,ALLOCATABLE,DIMENSION(:) :: W,WORK      
+      COMPLEX,ALLOCATABLE,DIMENSION(:) :: W,WORK
       COMPLEX,ALLOCATABLE,DIMENSION(:,:) :: YM,VL,VR,VRinv
+
+      DOUBLE COMPLEX,ALLOCATABLE,DIMENSION(:,:) :: MAT,MAT2
+      DOUBLE COMPLEX :: ALPHA,BETA
+      INTEGER :: INFO
 !-----------------------------------------------------------------------
 !     Use Y to fill YM
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(YM(NBF,NBF))
-      YM = 0.0D0
+      YM = (0.0D0, 0.0D0)
       N = 1
       DO I=1,NBF-1
        DO J=I+1,NBF
@@ -2859,6 +1798,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(W(NBF),VL(1,NBF),VR(NBF,NBF),VRinv(NBF,NBF))
       ALLOCATE(WORK(2*NBF),RWORK(2*NBF),IPIV(NBF),U(NBF,NBF))
+      ALLOCATE(MAT(NBF,NBF),MAT2(NBF,NBF))
       CALL ZGEEV("N","V",NBF,YM,NBF,W,VL,1,VR,NBF,WORK,2*NBF,RWORK,INFO)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Invert eigenvectors VR
@@ -2867,344 +1807,33 @@
       CALL ZGETRF(NBF,NBF,VRinv,NBF,IPIV,INFO)
       CALL ZGETRI(NBF,VRinv,NBF,IPIV,WORK,NBF,INFO)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Build the unitary transformation U = exp(YM)
+!     Take exponential of eigenvalues and do MAT = M*exp(W)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       W = EXP(W)
       DO I=1,NBF
        DO J=1,NBF
-        VR(I,J) = VR(I,J)*W(J)
+        MAT(I,J) = VR(I,J)*W(J)
        END DO
       END DO
-      U = REAL(MATMUL(VR,VRinv))
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Build the unitary transformation U = exp(Y) = M*exp(W)*M^-1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      MAT2 = (0.0D0, 0.0D0)
+!      ALPHA = (1.0D0, 0.0D0)
+!      BETA = (0.0D0, 0.0D0)
+!      CALL ZGEMM('N', 'C', NBF, NBF, NBF, ALPHA, MAT, NBF, VR, NBF,     &
+!              BETA, MAT2, NBF)
+
+      MAT2 = MATMUL(MAT,VRinv)
+
+      U = REAL(MAT2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Rotate the orbials COEFn = COEF * U
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       COEF = MATMUL(COEF,U)
 !-----------------------------------------------------------------------
-      DEALLOCATE(YM,W,VL,VR,VRinv,WORK,RWORK,IPIV,U)
+      DEALLOCATE(YM,W,VL,VR,VRinv,WORK,RWORK,IPIV,U,MAT,MAT2)
       RETURN
       END
 
 !----------------------------------------------------------------------!
-!                                                                      !
-!     O R B I T A L     O P T I M I Z A T I O N     B Y    S Q P       !
-!                                                                      !
-!   OrbOptSQP: Minimize w.r.t. MOs using a Sequential Quadratic Method !
-!   CoefEnergy: Calculate Electronic Energy                            !
-!   CoefConstr: Calculate Constraints w.r.t. COEF (CtSC=1)             !
-!                                                                      !
-!----------------------------------------------------------------------!
-      
-! OrbOptSQP
-      SUBROUTINE OrbOptSQP(ITCALL,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,QD, &
-                           COEF,RO,CJ12,CK12,ELAG,DIPN,ADIPx,ADIPy,     &
-                           ADIPz,ILOOP,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)                        
-      LOGICAL CONVGDELAG,SMCD,ERIACTIVATED
-      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD      
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM      
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/PUNTEROSSQP/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,MUSE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
-      COMMON/EHFEN/EHF,EN
-      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN 
-      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN      
-!
-      INTEGER :: ITCALL,ILOOP,IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
-      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux       
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::OVERLAP,AHCORE,COEF,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
-      DOUBLE PRECISION,DIMENSION(NBF5)::RO
-      DOUBLE PRECISION,DIMENSION(NBF5,NBF5)::CJ12,CK12
-      DOUBLE PRECISION,DIMENSION(3)::DIPN      
-      DOUBLE PRECISION,DIMENSION(NBF,NBF)::ADIPx,ADIPy,ADIPz      
-!      
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IUSER,IWORK,ISTATE
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)   :: USER,GRAD,WORK
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)   :: BL,BU,CONST,CLAMDA      
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: R,AAA,CJAC(:,:)
-!
-!      EXTERNAL CoefConstr,CoefEnergy,E04UCF,E04UEF !nag
-!-----------------------------------------------------------------------
-!     IUSER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(IUSER(NSTORE))  
-      CALL IXtoIX0(IJKL,IUSER,NSTORE)  ! IUSER = IJKL(NSTORE)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     USER
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      M1  = 1                    ! USER(M1) = AHCORE(NBF,NBF)
-      M2  = M1  + NSQ            ! USER(M2) = XIJKL(NSTORE)
-      M3  = M2  + NSTORE         ! USER(M3) = QD(NBF,NBF,NBF) 
-      M4  = M3  + NBF*NSQ        ! USER(M4) = RO(NBF5)
-      M5  = M4  + NBF5           ! USER(M5) = CJ12(NBF5,NBF5) 
-      M6  = M5  + NSQ5           ! USER(M6) = CK12(NBF5,NBF5) 
-      M7  = M6  + NSQ5           ! USER(M7) = ELAG(NBF,NBF)    
-      M8  = M7  + NSQ            ! USER(M8) = DIPN(3) 
-      M9  = M8  + 3              ! USER(M9) = ADIPx(NBF,NBF)
-      M10 = M9  + NSQ            ! USER(M10)= ADIPy(NBF,NBF)
-      M11 = M10 + NSQ            ! USER(M11)= ADIPz(NBF,NBF)
-      M12 = M11 + NSQ            ! USER(M12)= OVERLAP(NBF,NBF)
-      if(IERITYP==1)then      
-       MUSE = M12 - M1 + NSQ
-      else if(IERITYP==2 .or. IERITYP==3)then      
-       M13 = M12 + NSQ           ! USER(M13)= XIJKaux(NSTOREaux) 
-       MUSE = M13 - M1 + NSTOREaux
-      end if
-      ALLOCATE (USER(MUSE))  
-!      
-      CALL XtoX0( AHCORE,USER(M1),NSQ)
-      CALL XtoX0(  XIJKL,USER(M2),NSTORE)
-      CALL XtoX0(     QD,USER(M3),NBF*NSQ)
-      CALL XtoX0(     RO,USER(M4),NBF5)
-      CALL XtoX0(   CJ12,USER(M5),NSQ5)                                    
-      CALL XtoX0(   CK12,USER(M6),NSQ5)
-      CALL XtoX0(   ELAG,USER(M7),NSQ)                                          
-      CALL XtoX0(   DIPN,USER(M8),3)
-      CALL XtoX0(  ADIPx,USER(M9),NSQ)      
-      CALL XtoX0(  ADIPy,USER(M10),NSQ)            
-      CALL XtoX0(  ADIPz,USER(M11),NSQ)
-      CALL XtoX0(OVERLAP,USER(M12),NSQ)
-      if(IERITYP>1)CALL XtoX0(XIJKaux,USER(M13),NSTOREaux)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First Call to OrbOptSQP
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(ITCALL==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,1)
-       EELEC_OLD = EELEC
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Initial Electronic Energy (EELEC)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE (GRAD(NSQ))      
-      CALL CoefEnergy(0,NSQ,COEF,EELEC,GRAD,1,IUSER,USER)
-!-.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.- -.-
-!                       Energy Minimization
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NV = NSQ
-      NRES = NBFT
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Work Dimensions
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      LIWORK = 3*NV + 2*NRES
-      LWORK  = 2*NV*NV + 2*NV*NRES + 20*NV + 21*NRES
-      IFAIL  = -1
-!
-      ALLOCATE (IWORK(3*NV+2*NRES),ISTATE(NV+NRES))
-      ALLOCATE (R(NV,NV),AAA(1,1))            
-      ALLOCATE (BL(NV+NRES),BU(NV+NRES),CONST(NRES))
-      ALLOCATE (CJAC(NRES,NV),CLAMDA(NV+NRES))
-      ALLOCATE (WORK(2*NV*NV+2*NV*NRES+20*NV+21*NRES))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Lower and Upper bounds for COEF
-!- - - - - - - - - - - - - - - - - - -
-      K = 0
-      DO IQ=1,NBF
-       do i=1,nbf
-        K = K+1       
-        BL(K) = COEF(i,IQ) - 1.0d0
-        BU(K) = COEF(i,IQ) + 1.0d0
-       enddo        
-      ENDDO
-!- - - - - - - - - - - - - - - - - - -
-!     Constraints as equalities
-!- - - - - - - - - - - - - - - - - - -
-      DO I=NV+1,NV+NRES
-       BL(I) = 0.0d0
-       BU(I) = 0.0d0
-      ENDDO
-      DO I=1,NBF
-       II = I*(I+1)/2
-       BL(NV+II) = 1.0d0
-       BU(NV+II) = 1.0d0
-      ENDDO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Send output of E04DGF to CGM file
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL X04ABF(1,2) !nag     
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Function Precision
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(THRESHEC >= 1.0d-8)THEN
-!       CALL E04UEF('Function Precision = 1.0d-8') !nag
-      ELSEIF(THRESHEC == 1.0d-9)THEN
-!       CALL E04UEF('Function Precision = 1.0d-9') !nag     
-      ELSEIF(THRESHEC <= 1.0d-10)THEN
-!       CALL E04UEF('Function Precision = 1.0d-10') !nag     
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Major Print Level (0 = No output)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL E04UEF('Major Print Level = 0') !nag
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!                  =-1 no verifica nada   , 0 Cheap Test (default)
-!     Verify Level = 1 Objective Gradients, 2 Constraint Gradients
-!                  = 3 Verify all Gradients
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-!      CALL E04UEF('Verify Level = -1') !nag
-!-----------------------------------------------------------------------
-!     MINIMIZATION PROCESS
-!-----------------------------------------------------------------------
-!      CALL E04UCF(NV,0,NRES,1,NRES,NV,AAA,BL,BU,CoefConstr,CoefEnergy,  & !nag
-!                  ILOOP,ISTATE,CONST,CJAC,CLAMDA,EELEC,GRAD,R,COEF,     &
-!                  IWORK,LIWORK,WORK,LWORK,IUSER,USER,IFAIL)
-      DIF_EELEC = EELEC - EELEC_OLD
-      EELEC_OLD = EELEC       
-      PCONV = ABS(DIF_EELEC)      
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Check for the Symmetry of Lagrangian (ELAG(IQJQ)-ELAG(JQIQ))
-!     for ITCALL>1 (do not stop in the first call)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL XtoX0(USER(M7),ELAG,NSQ)                                                
-      CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
-      IF(IPRINTOPT==1)WRITE(6,2)ITCALL,EELEC,EELEC+EN,DIF_EELEC,DUMEL
-      IF(DUMEL<THRESHL .and. PCONV<THRESHE)CONVGDELAG=.TRUE.
-!-----------------------------------------------------------------------
-!     FORMAT STATEMENTS
-!-----------------------------------------------------------------------
-    1 FORMAT(//2X,'RESULTS OF OCCUPATION-COEFFICIENT SQP PROCEDURE'     &
-            ,/1X,'=================================================',   &
-        //2X,'Iter',5X,'Electronic Energy',6X,'Total Energy',           &
-          3X,'Energy Convergency',4X,'Max Mul-Lag Diff',/)
-    2 FORMAT(I5,'.',1X,F20.10,1X,F19.10,2X,F15.10,8X,F11.6)          
-!-----------------------------------------------------------------------
-      DEALLOCATE (IUSER,IWORK,ISTATE)
-      DEALLOCATE (GRAD,R,USER,AAA,BL,BU,CONST,CJAC,CLAMDA,WORK)
-      RETURN
-      END
-
-! CoefEnergy
-      SUBROUTINE CoefEnergy(MODE,NV,COEF,ENERGYEL,GG,NSTATE,IUSER,USER)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL EFIELDL,SMCD,HighSpin      
-      COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL      
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD            
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE      
-      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin 
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5      
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/PUNTEROSSQP/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,MUSE      
-      COMMON/INPNOF_MOD/Imod
-      INTEGER,DIMENSION(NSTORE) :: IUSER
-      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
-      DOUBLE PRECISION,DIMENSION(NV) :: GG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DEN,G
-!-----------------------------------------------------------------------
-      NSTATE = NSTATE
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Compute Gradient & Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(DEN(NBF,NBF),G(NBF,NBF5))
-      CALL DENMATr(DEN,COEF,USER(M4),NBF,1,NBF5) ! Density Matrix 
-      IF( (IPNOF==5.or.IPNOF==7.or.(IPNOF==8.and.Imod==0)) .and.        &
-              MSpin==0 .and. IERITYP==1 )THEN
-       CALL ELAGr(USER(M1),IUSER,USER(M2),COEF,USER(M4),DEN,USER(M7),   &
-                  G,IPNOF)
-      ELSE
-       CALL ELAG1r(USER(M1),IUSER,USER(M2),USER(M13),USER(M3),COEF,     &
-                   USER(M4),USER(M5),USER(M6),USER(M7),USER(M9),        &
-                   USER(M10),USER(M11),G)
-      ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate Electronic Energy (ENERGYEL)       
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-      ENERGYEL = TRACE(DEN,USER(M1),NBF)
-      DO iq=1,NBF5
-       iqiq = M7-1 + iq+(iq-1)*nbf  ! ELAG(iq,iq)
-       ENERGYEL = ENERGYEL + USER(iqiq)  
-      END DO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -    
-!     Include Nuclear Dipoles if electric field =/ 0
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(EFIELDL)THEN
-       ENERGYEL_EF = EX * ( TRACE(DEN, USER(M9),NBF) - USER(M8) )       &
-                   + EY * ( TRACE(DEN,USER(M10),NBF) - USER(M8+1) )     &
-                   + EZ * ( TRACE(DEN,USER(M11),NBF) - USER(M8+2) )
-       ENERGYEL = ENERGYEL + ENERGYEL_EF
-      END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate GRADIENTS with respect to the Coefficients (COEF)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(MODE==1.or.MODE==2)THEN
-       GG = 0.0d0
-       DO IQ=1,NBF5
-        do i=1,nbf
-         iIQ = i+(IQ-1)*nbf
-!        Use of real coefficients         
-         GG(iIQ)= 4.0 * G(i,IQ)
-        enddo
-       ENDDO
-      ENDIF
-!-----------------------------------------------------------------------
-      DEALLOCATE(DEN,G)
-      RETURN
-      END
-      
-! CoefConstr
-      SUBROUTINE CoefConstr(MODE,NRES,NV,LDCJ,NEEDC,COEF,CONST,CJAC,    &
-                            NSTATE,IUSER,USER)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE      
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ 
-      COMMON/PUNTEROSSQP/M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13,MUSE      
-      INTEGER,DIMENSION(NRES) :: NEEDC      
-      INTEGER,DIMENSION(NSTORE) :: IUSER
-      DOUBLE PRECISION,DIMENSION(MUSE) :: USER
-      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF      
-      DOUBLE PRECISION,DIMENSION(NRES) :: CONST
-      DOUBLE PRECISION,DIMENSION(LDCJ,NV) :: CJAC
-!-----------------------------------------------------------------------
-      IUSER(1)=IUSER(1)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     First call to CONFUN.  Set all Jacobian elements to zero.
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(NSTATE==1)CJAC=0.0d0
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(MODE==0.or.MODE==2)THEN
-       K = 0      
-       DO IQ=1,NBF
-        DO JQ=1,IQ
-         K = K+1
-         CONST(K) = 0.0d0
-         do i=1,nbf
-          CONST(K) = CONST(K) + COEF(i,IQ)*FC(i,JQ,USER(M12),COEF)
-         enddo
-        ENDDO
-       ENDDO
-      ENDIF
-!-----------------------------------------------------------------------
-      IF(MODE==1.or.MODE==2)THEN
-       DO I=1,NRES
-        IF(NEEDC(I)>0)THEN
-         DO J=1,NV
-          CJAC(I,J)=0.0 
-         ENDDO
-        ENDIF
-       ENDDO
-! - - - - - - - - - - - - - - - -
-       K = 0
-       DO IQ=1,NBF
-        DO JQ=1,IQ
-         K = K+1
-         if(NEEDC(K)>0)then
-          do i=1,nbf
-           iIQ = i+(IQ-1)*nbf
-           iJQ = i+(JQ-1)*nbf
-           CJAC(K,iIQ) = CJAC(K,iIQ) + FC(i,JQ,USER(M12),COEF)
-           IF(iJQ>=1)CJAC(K,iJQ) = CJAC(K,iJQ) + FC(i,IQ,USER(M12),COEF)
-          enddo
-         endif
-        ENDDO
-       ENDDO
-      ENDIF
-!-----------------------------------------------------------------------
-      RETURN
-      END
-      
-

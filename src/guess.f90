@@ -4,8 +4,8 @@
 !                                                                      !
 !======================================================================!
 !                                                                      !
-!    GuessHJKRHF: Calculate the RHF as guess  
-!    GuessCore  : HCore as guess
+!    GuessHJKRHF: Calculate the RHF as guess                           !
+!    GuessCore  : HCore as guess                                       !
 !                                                                      !
 !======================================================================!
 
@@ -18,20 +18,19 @@
                              IPRINTOPT,ZAN,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
                              IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                                
-!      
-      LOGICAL RHF                                                        
-      COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF      
+!
+      COMMON/USELIBCINT/ILIBCINT
+      COMMON/INPNOF_RHF/CONVRHFDM,IRHF,IRHFTYP,NCONVRHF,MAXITRHF
       COMMON/INFOA/NATOMS,ICH,MUL,NUM,NQMT,NE,NA,NB 
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      LOGICAL HFID
-      COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
-      COMMON/INTOPT/ISCHWZ,IECP,NECP
+      COMMON/INPNOF_HFID/KOOPMANS
+      COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
 !      
       INTEGER :: NPRIMI,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm
       INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT
-      INTEGER,DIMENSION(NINTEGtm) :: IXInteg      
+      INTEGER(8),DIMENSION(NINTEGtm) :: IXInteg      
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
@@ -44,27 +43,27 @@
       DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: TKIN,DipoInt,Q
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCCa,OCCb,DENa,DENb
-
-      INTEGER :: SIZE_ENV,NBAS           !LIBCINT
-      DOUBLE PRECISION :: ENV(SIZE_ENV)  !LIBCINT
-      INTEGER :: ATM(6,NAT), BAS(8,NBAS) !LIBCINT
-      INTEGER :: IGTYP                   !LIBCINT
+!     LIBCINT
+      INTEGER :: SIZE_ENV,NBAS
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
+      INTEGER :: IGTYP
 !-----------------------------------------------------------------------
 !     IRHFTYP=1: Restricted Closed HF
 !     IRHFTYP=2: Restricted Open HF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(RHF)THEN
+      IF(IRHF==1)THEN
        IF(NA==NB)THEN
         IRHFTYP=1
        ELSE IF(NA>NB)THEN
         IRHFTYP=2
        END IF
        if(IERITYP==2)then
-        WRITE(6,*)'Sorry: RHF is not possible yet with ERITYP=RI'
-        WRITE(6,*)'       Changing to HFID'
-        HFID = .TRUE.
+        WRITE(6,*)
+        WRITE(6,*)'Sorry: IRHF=1 is not possible yet with ERITYP=RI'
+        WRITE(6,*)'       Changing to IRHF=2'
+        IRHF=2
         IRHFTYP=0
-        !CALL ABRT
        end if
       ELSE
        IRHFTYP=0      
@@ -91,20 +90,34 @@
 !     Note: NINTEGt<NINTEGtm due to the CUTOFF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(IERITYP==1 .or. IERITYP==3)then   ! FULL or MIX
-       CALL JandK(XInteg,IXInteg,NINTEGtm,NINTEGt,NREC,XINTS,NSH2,      &
-                  IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,      &
-                  KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,         &
-                  Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       if(ILIBCINT==0)then
+!HONDO  CALL JandK(XInteg,IXInteg,NINTEGtm,NINTEGt,NREC,XINTS,NSH2,     &
+!HONDO             IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,     &
+!HONDO             KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,        &
+!HONDO             Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,ISCHWZ)
+       else if(ILIBCINT==1)then
+        CALL JandKl(XInteg,IXInteg,NINTEGtm,NINTEGt,NREC,XINTS,NSH2,    &
+                    IDONTW,IPRINTOPT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,    &
+                    KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,       &
+                    Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       end if
       end if
       if(IERITYP==2 .or. IERITYP==3)then   ! RI or MIX
-       CALL JandKaux(XIntegaux,NINTEGAUXtm,IDONTW,IPRINTOPT,NBF,        &
-                     EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,       &
-                     KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,          &
-                     SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       if(ILIBCINT==0)then
+!HONDO  CALL JandKaux(XIntegaux,NINTEGAUXtm,IDONTW,IPRINTOPT,NBF,       &
+!HONDO                EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,      &
+!HONDO                KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,         &
+!HONDO                SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       else if(ILIBCINT==1)then
+        CALL JandKauxl(XIntegaux,NINTEGAUXtm,IDONTW,IPRINTOPT,NBF,      &
+                       EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,     &
+                       KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,        &
+                       SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       end if
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate the Restricted HF Energy of Molecule
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(IRHFTYP==1)THEN
        CALL RHFCL(OCCa,DENa,EIG,VEC,Q,H,S,NBF,NSQ,NBFT,XInteg,          &
                   IXInteg,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT,       &
@@ -130,9 +143,6 @@
       SUBROUTINE GuessCore(OCCa,OCCb,DENa,DENb,EIG,VEC,                 &
                            Q,H,S,NBF,NSQ,NBFT,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      LOGICAL HFID
-      COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS       
-!
       INTEGER :: NBF,NSQ,NBFT,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NBF) :: OCCa,OCCb,EIG
       DOUBLE PRECISION,DIMENSION(NSQ) :: VEC,Q
@@ -147,16 +157,14 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Orthonormalize initial MOs if necessary
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(HFID)then
-       ALLOCATE(OVERLAP(NBF,NBF))
-       CALL CPYTSQ(S,OVERLAP,NBF)       
-       CALL CHECKORTHO(VEC,OVERLAP,IVIOORTHO,IPRINTOPT)
-       if(IVIOORTHO/=0)then
-        IF(IPRINTOPT==1)WRITE(6,'(A27)')' Orthogonalize the orbitals'
-        CALL ORTHONORMAL(NBF,NBF,NBFT,OVERLAP,VEC,1,IPRINTOPT)
-       endif
-       DEALLOCATE(OVERLAP)
+      ALLOCATE(OVERLAP(NBF,NBF))
+      CALL CPYTSQ(S,OVERLAP,NBF)       
+      CALL CHECKORTHO(VEC,OVERLAP,IVIOORTHO,IPRINTOPT)
+      if(IVIOORTHO/=0)then
+       IF(IPRINTOPT==1)WRITE(6,'(/,A29)')' Orthogonalizing the orbitals'
+       CALL ORTHONORMAL(NBF,NBF,NBFT,OVERLAP,VEC,1,IPRINTOPT)
       endif
+      DEALLOCATE(OVERLAP)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Initial Density Matrix
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -340,7 +348,7 @@
 !     Small Eigenvalues -> Eliminate eigenvectors
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       EWARN  = 1.0D-05
-      QMTTOL = 1.0D-06                !  Linear Dependence Threshhold
+      QMTTOL = 1.0D-16      !  Linear Dependence Threshhold
       IRPZER=0
       DO ISALC=1,NBF
        IF(EE(ISALC)<QMTTOL)IRPZER=IRPZER+1
@@ -410,9 +418,11 @@
                        IXInteg,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT,  &
                        ZAN,Cxyz)   
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                                
-      LOGICAL RHF,HFDAMP,HFEXTRAP,HFDIIS                                     
+      LOGICAL HFDAMP,HFEXTRAP,HFDIIS
       COMMON/INPNOF_HFCONVTECH/HFDAMP,HFEXTRAP,HFDIIS 
-      COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF
+      COMMON/INPNOF_RHF/CONVRHFDM,IRHF,IRHFTYP,NCONVRHF,MAXITRHF
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
+      COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/DIISSO/ETHRSH,MAXDII,IRAF
       COMMON/ACONV/RRSHFT,EXTTOL,DMPTOL                
@@ -420,7 +430,7 @@
 !
       LOGICAL PRVEC,CVGED,CVDENS,CVENGY,CVDIIS,NOTOPN     
       INTEGER :: NBF,NSQ,NBFT,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT
-      INTEGER,DIMENSION(NINTEGtm) :: IXInteg
+      INTEGER(8),DIMENSION(NINTEGtm) :: IXInteg
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NBF) :: OCC,EIG
@@ -452,7 +462,7 @@
       DIFF   = 0.0d0                                                       
 !      
       CVENGY = .FALSE.
-      ETOL   = 1.0D-08      
+      ETOL   = THRESHE
       ENGTOL = 1.0D-10
       EHF    = 0.0d0                                                        
       Etot   = 0.0d0
@@ -523,7 +533,7 @@
         Etot  = EHF + EN
         DELE0 = DELE                                                      
         DELE  = Etot - Etot0
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       DIIS Interpolation (ERR=F*D*S-S*D*F)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         IF(HFDIIS)THEN
@@ -539,7 +549,7 @@
           RRSHFT=0.0d0                                                 
          END IF                                                         
         END IF                                                            
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Damping and Extrapolation of the Fock matrix
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         IF(ITER==2)DEAVG = ABS(DELE)                                   
@@ -624,7 +634,11 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !     Print Final Results
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,110)Etot,ITER  
+      if(NTHRESHE<=10)then
+       WRITE(6,110)Etot,ITER
+      else
+       WRITE(6,111)Etot,ITER
+      end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
       ALLOCATE(AWRK(NQMT))
       CALL SYMMOS(AWRK,VEC,NBF,NQMT,NBF)      
@@ -662,6 +676,8 @@
   100 FORMAT(/10X,16(1H-)/10X,16HENERGY CONVERGED/10X,16(1H-))           
   110 FORMAT(/1X,'FINAL RHF ENERGY IS',F20.10,' AFTER',I4,              &
                  ' ITERATIONS')
+  111 FORMAT(/1X,'FINAL RHF ENERGY IS',F25.15,' AFTER',I4,              &
+                 ' ITERATIONS')
   120 FORMAT(/10X,12HEigenvectors/10X,12(1H-))                   
 !-----------------------------------------------------------------------           
       END
@@ -672,10 +688,11 @@
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       COMMON/INTFIL/NINTMX                 
       DOUBLE PRECISION,DIMENSION(NBFT) :: Den,Skeleton
-      INTEGER,DIMENSION(NINTEGt) :: IXInteg
+      INTEGER(8),DIMENSION(NINTEGt) :: IXInteg
       DOUBLE PRECISION,DIMENSION(NINTEGt) :: XInteg    
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IBUF
+      INTEGER(8),ALLOCATABLE,DIMENSION(:) :: IBUF
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUF
+      INTEGER(8) :: LABEL, I, J, K, L
 !-----------------------------------------------------------------------
 !             Form the Skeleton of the Fock matrix for RHF
 !-----------------------------------------------------------------------
@@ -914,16 +931,16 @@
                        XInteg,IXInteg,NINTEGtm,NINTEGt,NREC,            &
                        IDONTW,IPRINTOPT,ZAN,Cxyz)                                 
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)                                 
-      LOGICAL RHF,HFDAMP,HFEXTRAP,HFDIIS                                     
+      LOGICAL HFDAMP,HFEXTRAP,HFDIIS
       COMMON/INPNOF_HFCONVTECH/HFDAMP,HFEXTRAP,HFDIIS 
-      COMMON/INPNOF_RHF/IRHFTYP,NCONVRHF,CONVRHFDM,MAXITRHF,RHF      
+      COMMON/INPNOF_RHF/CONVRHFDM,IRHF,IRHFTYP,NCONVRHF,MAXITRHF
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/DIISSO/ETHRSH,MAXDII,IRAF
       COMMON/ACONV/RRSHFT,EXTTOL,DMPTOL                
       COMMON/CONV  /ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET
 !
       LOGICAL PRVEC,CVGED,CVDENS,CVENGY,CVDIIS,NOTOPN          
-      INTEGER,DIMENSION(NINTEGtm) :: IXInteg
+      INTEGER(8),DIMENSION(NINTEGtm) :: IXInteg
       INTEGER :: NBF,NSQ,NBFT,NINTEGtm,NINTEGt,NREC,IDONTW,IPRINTOPT
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -1208,10 +1225,11 @@
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)                                     
       COMMON/INTFIL/NINTMX               
       DOUBLE PRECISION,DIMENSION(NBFT) :: DAlpha,FA,DBeta,FB
-      INTEGER,DIMENSION(NINTEGt) :: IXInteg
+      INTEGER(8),DIMENSION(NINTEGt) :: IXInteg
       DOUBLE PRECISION,DIMENSION(NINTEGt) :: XInteg    
-      INTEGER,ALLOCATABLE,DIMENSION(:) :: IBUF
+      INTEGER(8),ALLOCATABLE,DIMENSION(:) :: IBUF
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUF
+      INTEGER(8) :: LABEL, I, J, K, L
 !-----------------------------------------------------------------------
 !     Form the Skeletons of the Fock matrices FA & FB for ROHF
 !-----------------------------------------------------------------------
@@ -2030,11 +2048,11 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     ITER > 2: Damping
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  360 CUTOFF = 0.5d0-DAMP0                                                
+  360 CUTDAMP = 0.5d0-DAMP0
       DO I = 1,NBFT                                                   
        FA0(I) = (FA0(I)+DAMP*FA1(I))/(1.0d0+DAMP)                             
       END DO
-      IF ( .not. HFEXTRAP .or. CUTOFF < 0.0d0) GO TO 400                
+      IF ( .not. HFEXTRAP .or. CUTDAMP < 0.0d0) GO TO 400
       DAMPRE = .TRUE.                                                   
       EXTPRE = .TRUE.                                                   
       GO TO 460                                                         
@@ -2158,7 +2176,7 @@
 !----------------------------------------------------------------------!
 !                                                                      !
 !   HFIDr Iterative Diagonalization method for the RHF using           !
-!         the Iterative Diagonalization method (HFID=T) proposed       !
+!         the Iterative Diagonalization method (IRHF=3) proposed       !
 !         in the J. Comp. Chem. 131, 021102, 2009.                     !
 !                                                                      !
 !----------------------------------------------------------------------!
@@ -2166,13 +2184,16 @@
 ! HFIDr
       SUBROUTINE HFIDr(AHCORE,IJKL,XIJKL,XIJKaux,CHF,EiHF,USER,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL HFID,HighSpin,HFDAMP,HFEXTRAP,HFDIIS
-      COMMON/INPNOF_HFID/HFID,NTHRESHEID,THRESHEID,MAXITID,KOOPMANS
+      LOGICAL HighSpin,HFDAMP,HFEXTRAP,HFDIIS
+      COMMON/INPNOF_HFID/KOOPMANS
+      COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
+      COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
+      COMMON/INPNOF_THRESH/THRESHL,THRESHE,THRESHEC,THRESHEN
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
       COMMON/INPNOF_HFCONVTECH/HFDAMP,HFEXTRAP,HFDIIS
       LOGICAL EFIELDL,RESTART,CONVGDELAG,SMCD,ERIACTIVATED
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
@@ -2194,7 +2215,7 @@
       COMMON/USEHUBBARD/IHUB
 !
       INTEGER :: IPRINTOPT
-      INTEGER,DIMENSION(NSTORE)::IJKL
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
       DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,CHF
@@ -2208,10 +2229,6 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::ELAG,G,FMIUG,W
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CHFNEW,BFM
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:)::FK
-!
-      DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
-      DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
-      DOUBLE PRECISION,PARAMETER::OFAC=7.117668D-01 ! X10**34 ESU-CM**3
 !-----------------------------------------------------------------------
 !     Initial Values
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2241,30 +2258,23 @@
 !     Calculate Initial HF Electronic Energy
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(ELAG(NBF,NBF),G(NBF,NBF5))
-      if(NSOC==0 .and. IERITYP==1 )then            ! singlets
-       CALL ELAGHF(AHCORE,IJKL,XIJKL,CHF,RO10,DEN,ELAG,G)
-      else                                         ! multiplets
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       DO j=1,NBF5
-        DO i=1,NBF5
-         CJ12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
-         CK12HF(j,i) = RO10(j)*RO10(i)
+      DO j=1,NBF5
+       DO i=1,NBF5
+        CJ12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
+        CK12HF(j,i) = RO10(j)*RO10(i)
+       ENDDO
+      ENDDO
+      if(MSpin==0.and.NSOC>1)then
+       DO j=NB+1,NA
+        DO i=NB+1,NA
+         CK12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
         ENDDO
        ENDDO
-       if(MSpin==0.and.NSOC>1)then
-        DO j=NB+1,NA
-         DO i=NB+1,NA
-          CK12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
-         ENDDO
-        ENDDO
-       end if
-       CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,USER(N7),CHF,RO10,         &
-            CJ12HF,CK12HF,ELAG,USER(N12),USER(N13),USER(N14),G)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       end if
+      CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,USER(N7),CHF,RO10,CJ12HF,   &
+                  CK12HF,ELAG,G)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Calculate HF Electronic Energy (EELEC=EHF)
-!     DIPN=USER(N11), ADIPx=USER(N12),ADIPy=USER(N13),ADIPz=USER(N14)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       EELEC = TRACE(DEN,AHCORE,NBF)
       DO iq=1,NBF5
@@ -2272,10 +2282,7 @@
       END DO
 !     Include Nuclear Dipoles if electric field =/ 0
       IF(EFIELDL)THEN
-       EELEC_EF = EX * ( TRACE(DEN,USER(N12),NBF) - USER(N11)  )        &
-                + EY * ( TRACE(DEN,USER(N13),NBF) - USER(N11+1))        &
-                + EZ * ( TRACE(DEN,USER(N14),NBF) - USER(N11+2))
-       EELEC = EELEC + EELEC_EF
+       EELEC = EELEC - EFX*USER(N11) - EFY*USER(N11+1) - EFZ*USER(N11+2)
       END IF
       EHF = EELEC
       DELEHF = EHF
@@ -2283,8 +2290,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Itermediate Output of the external iteration
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(NPRINT==1.and.IPRINTOPT==1)THEN
-       WRITE(6,10)1,EHF,EHF+EN,0.0,DUMEL
+      IF(IPRINTOPT==1)THEN
+       WRITE(6,5)1,EHF,EHF+EN,0.0,DUMEL
       ENDIF
 !-----------------------------------------------------------------------
 !                       START SCF-ITERATION CYCLE
@@ -2300,79 +2307,43 @@
        ALLOCATE(FAO(NBFT),FAO0(NBFT),FAO1(NBFT),FAO2(NBFT))
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO LOOPEXT=1,MAXITID
+      DO LOOPEXT=1,MAXIT
        IF(LOOPEXT==1)THEN
         MAXLP = 1
        ELSE
         MAXLP = MAXLOOP
        ENDIF
        EHF_OLD = EHF
-!- - - - - - - - - - - - - - - - - - - - - - -
-!      Check for energy convergent solution
-!- - - - - - - - - - - - - - - - - - - - - - -
-       IF( ABS(DELEHF) < THRESHEID )THEN
-!- - - - - - - - - - - - - - - - - - - - -
-!       Output
-!- - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Check for energy convergent solution and Output
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF( ABS(DELEHF) < THRESHE .and. DUMEL < THRESHL )THEN
         INPUTFMIUG = INPUTFMIUG_ORI
         NO1 = NO1_ORI
         IF(IPRINTOPT==0)RETURN
-!- - - - - - - - - - - - - - - - - - - - -
 !       One-particle HF energies
-!- - - - - - - - - - - - - - - - - - - - -
         IF(IHUB==0)THEN
          DO i=1,NBF
           EiHF(i) = ELAG(i,i)
          ENDDO
          CALL PRINTEiHF(EiHF,NA,NBF)
         ENDIF
-        IF(KOOPMANS==1.and.MSpin==0)THEN
+        IF(KOOPMANS==1 .and. MSpin==0)THEN
          CALL DIAGELAGHF(ELAG,CHF,RO10,EiHF,CHFNEW,TEMP)
         ENDIF
-        WRITE(6,2)EHF
-        WRITE(6,3)EHF+EN
-        IF(EFIELDL)WRITE(6,4)EX,EY,EZ
-!- - - - - - - - - - - - - - - - - - - - -
+        if(NTHRESHE<=10)then
+         WRITE(6,2)EHF
+         WRITE(6,3)EHF+EN
+        else
+         WRITE(6,21)EHF
+         WRITE(6,31)EHF+EN
+        end if
+        IF(EFIELDL)WRITE(6,4)EFX,EFY,EFZ
 !       HF Electrostatic Moments
-!- - - - - - - - - - - - - - - - - - - - -
-        IF(IEMOM>=1)THEN  ! Dipole
-         CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),USER(N15),&
-                      USER(N16),USER(N17),USER(N7),RO10,DMXe,DMYe,DMZe, &
-                      DTx,DTy,DTz,DT)
-         WRITE(6,5)DT*DFAC,DT,DTx,DTy,DTz
-        ENDIF
-        IF(IEMOM>=2)THEN  ! Quadrupole
-         CALL QUADMOMr(USER(N18),USER(N19),USER(N20),USER(N21),         &
-                       USER(N22),USER(N23),USER(N24),USER(N25),         &
-                       USER(N26),USER(N27),USER(N28),USER(N29),         &
-                       USER(N30),USER(N7),RO10,                         &
-                       QMXXe,QMYYe,QMZZe,QMXYe,QMXZe,QMYZe,             &
-                       QTxx,QTyy,QTzz,QTxy,QTxz,QTyz)
-         WRITE(6,6)QTxx*QFAC,QTyy*QFAC,QTzz*QFAC,                       &
-                   QTxy*QFAC,QTxz*QFAC,QTyz*QFAC,                       &
-                   QTxx,QTyy,QTzz,QTxy,QTxz,QTyz
-
-        ENDIF
-        IF(IEMOM==3)THEN  ! Octupole
-         CALL OCTMOMr(USER(N31),USER(N32),USER(N33),USER(N34),          &
-                      USER(N35),USER(N36),USER(N37),USER(N38),          &
-                      USER(N39),USER(N40),USER(N41),USER(N42),          &
-                      USER(N43),USER(N44),USER(N45),USER(N46),          &
-                      USER(N47),USER(N48),USER(N49),USER(N50),          &
-                      USER(N51),USER(N7),RO10,                          &
-                      OMXXXe,OMYYYe,OMZZZe,OMXXYe,OMXXZe,               &
-                      OMXYYe,OMYYZe,OMXZZe,OMYZZe,OMXYZe,               &
-                      OTXXX,OTYYY,OTZZZ,OTXXY,OTXXZ,                    &
-                      OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ)
-         WRITE(6,7)OTXXX*OFAC,OTYYY*OFAC,OTZZZ*OFAC,                    &
-                   OTXXY*OFAC,OTXXZ*OFAC,OTXYY*OFAC,                    &
-                   OTYYZ*OFAC,OTXZZ*OFAC,OTYZZ*OFAC,                    &
-                   OTXYZ*OFAC,OTXXX,OTYYY,OTZZZ,OTXXY,                  &
-                   OTXXZ,OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ
-        ENDIF
+        IF(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10)
         RETURN
        ENDIF
-!- - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ILOOP = 0
        DELE = 1.0d20
        IDIIS = 0
@@ -2388,7 +2359,7 @@
        ICALP  = 0
        ICBET  = 0
 !-----------------------------------------------------------------------
-       DO WHILE( ILOOP<MAXLP .and. DABS(DELE)>THRESHEID )
+       DO WHILE( ILOOP<MAXLP .and. DABS(DELE)>THRESHE )
         ILOOP=ILOOP+1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Fock Matrix (FMIUG)
@@ -2447,37 +2418,30 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Lagrangian Multipliers (ELAG) and one-energies (E)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        if(NSOC==0 .and. IERITYP==1 )then                    ! singlets
-         CALL ELAGHF(AHCORE,IJKL,XIJKL,CHF,RO10,DEN,ELAG,G)
-        else                                               ! multiplets
-         CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,USER(N7),CHF,RO10,       &
-              CJ12HF,CK12HF,ELAG,USER(N12),USER(N13),USER(N14),G)
-        endif
+        CALL ELAG1r(AHCORE,IJKL,XIJKL,XIJKaux,USER(N7),CHF,RO10,CJ12HF, &
+                    CK12HF,ELAG,G)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Calculate HF Electronic Energy (EELEC=EHF)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         EHF0 = EHF
         DELE0 = DELE
-!
+!       Eelec
         EELEC = TRACE(DEN,AHCORE,NBF)
         DO iq=1,NBF5
          EELEC = EELEC + ELAG(iq,iq)
         END DO
 !       Include Nuclear Dipoles if electric field =/ 0
         IF(EFIELDL)THEN
-         EELEC_EF = EX * ( TRACE(DEN,USER(N12),NBF) - USER(N11)  )        &
-                  + EY * ( TRACE(DEN,USER(N13),NBF) - USER(N11+1))        &
-                  + EZ * ( TRACE(DEN,USER(N14),NBF) - USER(N11+2))
-         EELEC = EELEC + EELEC_EF
+         EELEC = EELEC - EFX*USER(N11)-EFY*USER(N11+1)-EFZ*USER(N11+2)
         END IF
         EHF = EELEC
-!
+!       Differences
         DELE = EHF - EHF0
         DELEHF = EHF - EHF_OLD
         CALL PCONVE(ELAG,DUMEL,MAXI,MAXJ,SUMDIF)
 !       Intermediate Output at each internal interation (Nprint=2)
         IF(NPRINT==2.and.IPRINTOPT==1)THEN
-         WRITE(6,10)ILOOP,EHF,EHF+EN,DELE,DUMEL
+         WRITE(6,5)ILOOP,EHF,EHF+EN,DELE,DUMEL
         ENDIF
 !-----------------------------------------------------------------------
 !                       LOOP-END OF SCF-ITERATION
@@ -2487,7 +2451,7 @@
 !      Intermediate Output at each external iteration
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(NPRINT<2.and.IPRINTOPT==1.and.LOOPEXT>1)THEN
-        WRITE(6,10)LOOPEXT,EHF,EHF+EN,DELEHF,DUMEL
+        WRITE(6,5)LOOPEXT,EHF,EHF+EN,DELEHF,DUMEL
        ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ENDDO
@@ -2495,29 +2459,14 @@
 !     FORMAT STATEMENTS
 !-----------------------------------------------------------------------
     1 FORMAT(//,1X,' HARTREE-FOCK ',/, 1X,'==============',//,          &
-                2X,'ITER',5X,'ELECTRONIC ENERGY',6X,'TOTAL ENERGY',     &
-                3X,'ENERGY CONVERGENCY',4X,'MAX MUL-LAG DIFF',/)
+                2X,'ITER',5X,'ELECTRONIC ENERGY',5X,'TOTAL ENERGY',     &
+                4X,'ENERGY CONVERGENCY',4X,'MAX MUL-LAG DIFF',/)
     2 FORMAT(/,4X,'ELECTRONIC HF ENERGY =',F20.10)
+   21 FORMAT(/,4X,'ELECTRONIC HF ENERGY =',F25.15)
     3 FORMAT(/,8X,' HF TOTAL ENERGY =',F20.10)
+   31 FORMAT(/,8X,' HF TOTAL ENERGY =',F25.15)
     4 FORMAT(/,6X,'ELECTRIC FIELD (',D8.1,',',D8.1,',',D8.1,')')
-    5 FORMAT(/,2X,'------------------',                                 &
-              /2X,' HF Dipole Moment',                                  &
-              /2X,'------------------',                                 &
-            //,3X,F9.4,' Debye',' [',F9.4,                              &
-               2X,'(',F9.4,',',F9.4,',',F9.4,')',' ]')
-    6 FORMAT(/,2X,'----------------------',                             &
-              /2X,' HF Quadrupole Moment',                              &
-              /2X,'----------------------',                             &
-             //6X,'QXX',6X,'QYY',6X,'QZZ',6X,'QXY',6X,'QXZ',6X,'QYZ',   &
-             //2X,6F9.4,2X,'(Buckingham)',//1X,'[',6F9.4,1X,']')
-    7 FORMAT(/,2X,'--------------------',                               &
-              /2X,' HF Octupole Moment',                                &
-              /2X,'--------------------',                               &
-             //6X,'OXXX',5X,'OYYY',5X,'OZZZ',5X,'OXXY',5X,'OXXZ',       &
-               5X,'OXYY',5X,'OYYZ',5X,'OXZZ',5X,'OYZZ',5X,'OXYZ',       &
-             //2X,10F9.4,2X,'(X10**34 ESU-CM**3)',                      &
-             //1X,'[',10F9.4,1X,']')
-   10 FORMAT(2X,I3,'.',3X,F17.6,4X,F15.6,6X,F13.8,8X,F11.6)
+    5 FORMAT(2X,I3,'.',3X,F17.10,2X,F17.10,6X,F13.8,8X,F11.6)
 !-----------------------------------------------------------------------
       DEALLOCATE(RO10,CJ12HF,CK12HF)
       DEALLOCATE(FMIUG,W,EVA,TEMP,CHFNEW,DEN,ELAG,G,FMIUG0)
@@ -2693,41 +2642,211 @@
       RETURN
       END
 
-! ELAGHF (NSOC=0,IERITYP=1)
-      SUBROUTINE ELAGHF(AHCORE,IJKL,XIJKL,CHF,RO,DEN,ELAG,G)
-!-----------------------------------------------------------------------
-!     Calculate the Lagrange Multipliers
-!-----------------------------------------------------------------------
+! DQOHF
+      SUBROUTINE DQOHF(IEMOM,USER,RO10)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      INTEGER,DIMENSION(NSTORE) :: IJKL
-      DOUBLE PRECISION,DIMENSION(NSTORE) :: XIJKL
-      DOUBLE PRECISION,DIMENSION(NBF5) :: RO
-      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: AHCORE,CHF,DEN,ELAG
-      DOUBLE PRECISION,DIMENSION(NBF,NBF5):: G
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: SKE,FAO
+      COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
+      COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
+                          N14,N15,N16,N17,N18,N19,N20,N21,N22,N23,N24,  &
+                          N25,N26,N27,N28,N29,N30,N31,N32,N33,N34,N35,  &
+                          N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
+                          N47,N48,N49,N50,N51,NUSER
+      DOUBLE PRECISION,DIMENSION(NBF5)::RO10
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
+      DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
+      DOUBLE PRECISION,PARAMETER::OFAC=7.117668D-01 ! X10**34 ESU-CM**3
 !-----------------------------------------------------------------------
-      ALLOCATE(SKE(NBF,NBF),FAO(NBF,NBF))
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Skeleton & Fock Matrix in atomic basis
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL FORM2JK(SKE,DEN,IJKL,XIJKL)
-      FAO = AHCORE + SKE
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Calculate G Matrix
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO IQ=1,NBF5
-       do i=1,nbf
-        G(i,IQ) = RO(IQ) * FC(i,IQ,FAO,CHF)
-       enddo
-      ENDDO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Lagrangian Multipliers (ELAG)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL ELG(ELAG,CHF,G)
+      IF(IEMOM>=1)THEN  ! Dipole
+       CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),USER(N15),  &
+                    USER(N16),USER(N17),USER(N7),RO10,DMXe,DMYe,DMZe,   &
+                    DTx,DTy,DTz,DT)
+       IF(NTHRESHE<=10)THEN
+        WRITE(6,1)DT*DFAC,DT,DTx,DTy,DTz
+       ELSE
+        WRITE(6,11)DT*DFAC,DT,DTx,DTy,DTz
+       ENDIF
+      ENDIF
+      IF(IEMOM>=2)THEN  ! Quadrupole
+       CALL QUADMOMr(USER(N18),USER(N19),USER(N20),USER(N21),           &
+                     USER(N22),USER(N23),USER(N24),USER(N25),           &
+                     USER(N26),USER(N27),USER(N28),USER(N29),           &
+                     USER(N30),USER(N7),RO10,                           &
+                     QMXXe,QMYYe,QMZZe,QMXYe,QMXZe,QMYZe,               &
+                     QTxx,QTyy,QTzz,QTxy,QTxz,QTyz)
+       WRITE(6,2)QTxx*QFAC,QTyy*QFAC,QTzz*QFAC,                         &
+                 QTxy*QFAC,QTxz*QFAC,QTyz*QFAC,                         &
+                 QTxx,QTyy,QTzz,QTxy,QTxz,QTyz
+
+      ENDIF
+      IF(IEMOM==3)THEN  ! Octupole
+       CALL OCTMOMr(USER(N31),USER(N32),USER(N33),USER(N34),            &
+                    USER(N35),USER(N36),USER(N37),USER(N38),            &
+                    USER(N39),USER(N40),USER(N41),USER(N42),            &
+                    USER(N43),USER(N44),USER(N45),USER(N46),            &
+                    USER(N47),USER(N48),USER(N49),USER(N50),            &
+                    USER(N51),USER(N7),RO10,                            &
+                    OMXXXe,OMYYYe,OMZZZe,OMXXYe,OMXXZe,                 &
+                    OMXYYe,OMYYZe,OMXZZe,OMYZZe,OMXYZe,                 &
+                    OTXXX,OTYYY,OTZZZ,OTXXY,OTXXZ,                      &
+                    OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ)
+       WRITE(6,3)OTXXX*OFAC,OTYYY*OFAC,OTZZZ*OFAC,                      &
+                 OTXXY*OFAC,OTXXZ*OFAC,OTXYY*OFAC,                      &
+                 OTYYZ*OFAC,OTXZZ*OFAC,OTYZZ*OFAC,                      &
+                 OTXYZ*OFAC,OTXXX,OTYYY,OTZZZ,OTXXY,                    &
+                 OTXXZ,OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ
+      ENDIF
 !-----------------------------------------------------------------------
-      DEALLOCATE(SKE,FAO)
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    1 FORMAT(/,2X,'------------------',                                 &
+              /2X,' HF Dipole Moment',                                  &
+              /2X,'------------------',                                 &
+            //,3X,F9.4,' Debye',' [',F9.4,                              &
+               2X,'(',F9.4,',',F9.4,',',F9.4,')',' ]')
+   11 FORMAT(/,2X,'------------------',                                 &
+              /2X,' HF Dipole Moment',                                  &
+              /2X,'------------------',                                 &
+            //,3X,F15.10,' Debye',' [',F20.15,                          &
+               2X,'(',F20.15,',',F20.15,',',F20.15,')',' ]')
+    2 FORMAT(/,2X,'----------------------',                             &
+              /2X,' HF Quadrupole Moment',                              &
+              /2X,'----------------------',                             &
+             //6X,'QXX',6X,'QYY',6X,'QZZ',6X,'QXY',6X,'QXZ',6X,'QYZ',   &
+             //2X,6F9.4,2X,'(Buckingham)',//1X,'[',6F9.4,1X,']')
+    3 FORMAT(/,2X,'--------------------',                               &
+              /2X,' HF Octupole Moment',                                &
+              /2X,'--------------------',                               &
+             //6X,'OXXX',5X,'OYYY',5X,'OZZZ',5X,'OXXY',5X,'OXXZ',       &
+               5X,'OXYY',5X,'OYYZ',5X,'OXZZ',5X,'OYZZ',5X,'OXYZ',       &
+             //2X,10F9.4,2X,'(X10**34 ESU-CM**3)',                      &
+             //1X,'[',10F9.4,1X,']')
+!-----------------------------------------------------------------------
       RETURN
       END
+
+!----------------------------------------------------------------------!
+!                                                                      !
+!   Restricted Hartree-Fock Calculation by means of Orbital rotaions   !
+!  through ADAM (IRHF=2) or Iterative Diagonalization (IRHF=3) Methods !
+!                                                                      !
+!----------------------------------------------------------------------!
+
+! HFIDADAMr
+      SUBROUTINE HFIDADAMr(AHCORE,IJKL,XIJKL,XIJKaux,CHF,EiHF,USER,     &
+                           ELAG,OVERLAP,DIPN,IRHF,MAXIT,IPRINTOPT)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL ERIACTIVATED,HighSpin,CONVGDELAG,EFIELDL
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
+      COMMON/ELPROP/IEMOM
+      COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
+                          N14,N15,N16,N17,N18,N19,N20,N21,N22,N23,N24,  &
+                          N25,N26,N27,N28,N29,N30,N31,N32,N33,N34,N35,  &
+                          N36,N37,N38,N39,N40,N41,N42,N43,N44,N45,N46,  &
+                          N47,N48,N49,N50,N51,NUSER
+      COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG
+      COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
+      COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
+      COMMON/EHFEN/EHF,EN
+      COMMON/SKIPRINT/ISKIP
+      COMMON/INPNOF_COEFOPT/MAXLOOP
+!
+      INTEGER :: ITCALL,ITLIM,ILOOP,IPRINTOPT,IORBOPT
+      INTEGER(8),DIMENSION(NSTORE)::IJKL
+      DOUBLE PRECISION,DIMENSION(NSTORE)::XIJKL
+      DOUBLE PRECISION,DIMENSION(NSTOREaux)::XIJKaux
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::AHCORE,CHF,ELAG,OVERLAP
+      DOUBLE PRECISION,DIMENSION(NUSER)::USER
+      DOUBLE PRECISION,DIMENSION(NBF)::EiHF
+      DOUBLE PRECISION,DIMENSION(3)::DIPN
+!
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:)::RO10
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::CJ12HF,CK12HF
+!-----------------------------------------------------------------------
+!     Initial Values
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALLOCATE(RO10(NBF5),CJ12HF(NBF5,NBF5),CK12HF(NBF5,NBF5))
+      IT = 0
+      ITLIM = 1
+      ILOOP = 0
+      OCCTIME = 0.0d0
+      CONVGDELAG = .FALSE.
+!- - - - - - - - - - - - - - - - - - - - - - -
+      RO10 = 0.0d0
+      DO i=1,NB
+       RO10(i) = 1.0d0
+      ENDDO
+      IF(NSOC>0)THEN
+       DO i=NB+1,NA
+        RO10(i) = 0.5d0
+       ENDDO
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - -
+      DO j=1,NBF5
+       DO i=1,NBF5
+        CJ12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
+        CK12HF(j,i) = RO10(j)*RO10(i)
+       ENDDO
+      ENDDO
+      if(MSpin==0.and.NSOC>1)then
+       DO j=NB+1,NA
+        DO i=NB+1,NA
+         CK12HF(j,i) = 2.0d0*RO10(j)*RO10(i)
+        ENDDO
+       ENDDO
+      end if
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Restricted Hartree-Fock Method (IRHF=2,3)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IRHF==2)THEN
+       ISKIP=1
+       MAXLOOP_ORI = MAXLOOP
+       MAXLOOP = 50
+       DO WHILE(IT<=MAXIT)
+        IT=IT+1
+        CALL OrbOptADAM(IT,OVERLAP,AHCORE,IJKL,XIJKL,XIJKaux,           &
+                        USER(N7),CHF,RO10,CJ12HF,CK12HF,ELAG,DIPN,      &
+                        ILOOP,OCCTIME,IPRINTOPT)
+        EHF = EELEC
+!       DUMEL<THRESHL & PCONV<THRESHE
+        IF(CONVGDELAG)THEN
+         if(NTHRESHE<=10)then
+          WRITE(6,2)EHF
+          WRITE(6,3)EHF+EN
+         else
+          WRITE(6,4)EHF
+          WRITE(6,5)EHF+EN
+         end if
+         if(EFIELDL)WRITE(6,6)EFX,EFY,EFZ
+!        HF Electrostatic Moments
+         if(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10)
+        RETURN
+         ISKIP=0
+         MAXLOOP = MAXLOOP_ORI
+         RETURN
+        END IF
+       END DO
+      ELSE IF(IRHF==3)THEN
+       ISKIP=0
+       CALL HFIDr(AHCORE,IJKL,XIJKL,XIJKaux,CHF,EiHF,USER,IPRINTOPT)
+      END IF
+!-----------------------------------------------------------------------
+!     FORMAT STATEMENTS
+!-----------------------------------------------------------------------
+    2 FORMAT(/,4X,'ELECTRONIC HF ENERGY =',F20.10)
+    3 FORMAT(/,8X,' HF TOTAL ENERGY =',F20.10)
+    4 FORMAT(/,4X,'ELECTRONIC HF ENERGY =',F25.15)
+    5 FORMAT(/,8X,' HF TOTAL ENERGY =',F25.15)
+    6 FORMAT(/,6X,'ELECTRIC FIELD (',D8.1,',',D8.1,',',D8.1,')')
+!-----------------------------------------------------------------------
+      DEALLOCATE(RO10,CJ12HF,CK12HF)
+      RETURN
+      END
+
+!=======================================================================

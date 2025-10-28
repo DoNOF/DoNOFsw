@@ -46,13 +46,12 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
  COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
  COMMON/EHFEN/EHF,EN
  COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
  COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),               &
              KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
-
- INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
- DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
- INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+!LIBCINT
+ INTEGER :: SIZE_ENV,NBAS,IGTYP
+ DOUBLE PRECISION :: ENV(SIZE_ENV)
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 ! internal variables  
 !-----------------------------------------------------------------------
@@ -305,9 +304,9 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
  DOUBLE PRECISION,DIMENSION(3,NAT):: GRADS
  DOUBLE PRECISION,DIMENSION(3) :: DIPS
 !-----------------------------------------------------------------------
- INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
- DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
- INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+ INTEGER :: SIZE_ENV,NBAS,IGTYP
+ DOUBLE PRECISION :: ENV(SIZE_ENV)
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 ! internal variables  
 !-----------------------------------------------------------------------
@@ -545,9 +544,9 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
  DOUBLE PRECISION, dimension (ngcf) :: Epot, EELEC_temp, EN_temp
  real(kind=8), parameter :: fstoau = 41.341373336561364d0  
 !-----------------------------------------------------------------------
- INTEGER :: SIZE_ENV,NBAS,IGTYP      !LIBCINT
- DOUBLE PRECISION :: ENV(SIZE_ENV)   !LIBCINT
- INTEGER :: ATM(6,NAT), BAS(8,NBAS)  !LIBCINT
+ INTEGER :: SIZE_ENV,NBAS,IGTYP
+ DOUBLE PRECISION :: ENV(SIZE_ENV)
+ INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 ! init var
 !-----------------------------------------------------------------------

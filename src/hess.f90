@@ -10,6 +10,7 @@
 !                                                                      !
 !   HESSCAL: Calculate Hessian from analytic gradients (IRUNTYP=4)     !
 !   HSSNUMd: Main routine, use the 6-grid numerical formula            !
+!   GRADSPURIFY: Consider gradients only above the threshold = 10-6    !
 !   SETFCMd: Form Hessian from the gradients                           !
 !   SYMFCMd: Symmetrize the Hessian                                    !
 !                                                                      !
@@ -51,8 +52,6 @@
       INTEGER :: SIZE_ENV,NBAS,IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
-      
-      COMMON/USELIBCINT/ILIBCINT
 !-----------------------------------------------------------------------
       IF (IRUNTYP==4) THEN
 !      Update coordinates of shells if use libint library for ERIs
@@ -107,7 +106,6 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/ELPROP/IEMOM      
-      COMMON/USELIBCINT/ILIBCINT 
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !     ARGUMENTS
@@ -180,8 +178,7 @@
 !     Print Gradients
       WRITE(11,5)
       DO I = 1,NATOMS
-        WRITE(11,'(I4,3F15.4)')                                         &
-         I,EG(1+(I-1)*3),EG(2+(I-1)*3),EG(3+(I-1)*3)
+      WRITE(11,'(I4,3F15.4)')I,EG(1+(I-1)*3),EG(2+(I-1)*3),EG(3+(I-1)*3)
       ENDDO
       WRITE(11,*)      
       CALL SETDDMd(DDM,DIP,DEL,DEQ,0,NVIB,NC1,NVIB)
@@ -291,7 +288,7 @@
 !-----------------------------------------------------------------------
     1 FORMAT(/4X,'- START NUMERICAL HESSIAN CALCULATION -')
     2 FORMAT(/4X,'- END OF NUMERICAL HESSIAN CALCULATION -')
-    3 FORMAT(/1X,'1E-06 is used for Gradient Cutoff')
+    3 FORMAT(/1X,'1E-06 is used for Gradient Threshold')
     4 FORMAT(/1X,'Energy:',F16.6,' (',ES7.0,' )')
     5 FORMAT(/1X,'Energy Gradient',/)
     6 FORMAT(1X,'Energy at displaced Geometry',/)
@@ -305,6 +302,33 @@
             //25X,'X',13X,'Y',13X,'Z',/)
    30 FORMAT(A4,2X,2I4,3F14.4)
    40 FORMAT(/1X,'Warning: Gradients related to a frozen Atom are 0')   
+      END
+
+! GRADSPURIFY
+      SUBROUTINE GRADSPURIFY(GRADS,NV)
+      IMPLICIT NONE
+      INTEGER,INTENT(IN)::NV
+      DOUBLE PRECISION,DIMENSION(NV),INTENT(INOUT)::GRADS
+      DOUBLE PRECISION::GOLD
+      INTEGER::I,J
+      DOUBLE PRECISION,PARAMETER::THR=0.000001D+00,THR2=0.0000001D+00
+      DOUBLE PRECISION,PARAMETER::ZERO=0.0D+00
+!-----------------------------------------------------------------------
+      DO I=1,NV
+        IF(DABS(GRADS(I))<=THR) THEN
+          GRADS(I) = ZERO
+          CYCLE
+        ENDIF
+        DO J=1,I-1
+          IF(DABS(DABS(GRADS(I))-DABS(GRADS(J)))<THR2) THEN
+            GOLD = GRADS(J)
+            GRADS(J) = DABS(GRADS(I))
+            IF(GOLD<ZERO) GRADS(J) = - DABS(GRADS(I))
+          ENDIF
+        ENDDO
+      ENDDO
+!-----------------------------------------------------------------------
+      RETURN
       END
 
 ! SETFCMd      
@@ -435,11 +459,10 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL EFIELDL,FROZEN
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INP_EFIELDL/EX,EY,EZ,EFIELDL
+      COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_INICON/INICOND
       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200)
-      !JFHLewYee: Changed NATOMS allowed dimension from 100 to 1000
       COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
                   KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
