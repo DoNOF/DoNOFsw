@@ -41,13 +41,11 @@
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: XInteg
       DOUBLE PRECISION,DIMENSION(NINTEGAUXtm) :: XIntegaux
       DOUBLE PRECISION,DIMENSION(NSH2) :: XINTS
+      INTEGER :: SIZE_ENV,ATM(6,NAT),NBAS,BAS(8,NBAS),IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
+!
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: TKIN,DipoInt,Q
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: OCCa,OCCb,DENa,DENb
-!     LIBCINT
-      INTEGER :: SIZE_ENV,NBAS
-      DOUBLE PRECISION :: ENV(SIZE_ENV)
-      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
-      INTEGER :: IGTYP
 !-----------------------------------------------------------------------
 !     IRHFTYP=1: Restricted Closed HF
 !     IRHFTYP=2: Restricted Open HF
@@ -59,9 +57,11 @@
         IRHFTYP=2
        END IF
        if(IERITYP==2)then
-        WRITE(6,*)
-        WRITE(6,*)'Sorry: IRHF=1 is not possible yet with ERITYP=RI'
-        WRITE(6,*)'       Changing to IRHF=2'
+        if(IPRINTOPT==1)then
+         WRITE(6,*)
+         WRITE(6,*)'Sorry: IRHF=1 is not possible yet with ERITYP=RI'
+         WRITE(6,*)'       Changing to IRHF=2'
+        end if
         IRHF=2
         IRHFTYP=0
        end if
@@ -132,8 +132,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Energy Analysis
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(IRHFTYP>0)CALL EnergyComp(EN,Etot,KATOM,KLOC,DENa,DENb,H,TKIN, &
-                                   S,NSHELL,NAT,NBF,NBFT,NE,IRHFTYP)
+      if(IRHFTYP>0)then
+       CALL EnergyComp(EN,Etot,KATOM,KLOC,DENa,DENb,H,TKIN,S,NSHELL,    &
+                       NAT,NBF,NBFT,NE,IRHFTYP,IPRINTOPT)
+      end if
 !-----------------------------------------------------------------------
       DEALLOCATE(TKIN,DipoInt,OCCa,OCCb,DENa,DENb,Q)
       RETURN
@@ -476,29 +478,31 @@
       ERDIIS = 0.0d0      
       MAXDII = 10      
 !      
-      DAMP   = 0.0d0                                                       
+      DAMP   = 0.0d0
+      IF(HFDAMP)DAMP=1.0d0
       DAMP0  = 0.0d0                                                      
       ITERV  = 0                                                                
       RRSHFT = 0.0d0
       EXTTOL = 1.0D-03                                                  
       DMPTOL = 1.0D-04                                                  
       ICALP  = 0
-      ICBET  = 0                                                               
+      ICBET  = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !     Header
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,10)'RHF SCF Calculation'
-      WRITE(6,20)HFEXTRAP,HFDAMP,HFDIIS 
-      WRITE(6,30)ACURCY,ETOL
-      WRITE(6,35)ENGTOL,DTOL
-      IF(HFDIIS)WRITE(6,36)DIITOL,DTOL                                                         
-      IF(HFDAMP)DAMP=1.0d0
-      IF(HFDIIS)THEN
-       WRITE(6,40)
-      ELSE
-       WRITE(6,50)
-      END IF                                                            
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
+      IF(IPRINTOPT==1)THEN
+       WRITE(6,10)'RHF SCF Calculation'
+       WRITE(6,20)HFEXTRAP,HFDAMP,HFDIIS
+       WRITE(6,30)ACURCY,ETOL
+       WRITE(6,35)ENGTOL,DTOL
+       IF(HFDIIS)WRITE(6,36)DIITOL,DTOL
+       IF(HFDIIS)THEN
+        WRITE(6,40)
+       ELSE
+        WRITE(6,50)
+       END IF
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(FAO(NBFT),QFQ(NBFT),Fsq(NBF,NBF),WRK(NBF))
       IF(HFDIIS)THEN
        ALLOCATE(Ssq(NBF,NBF),ERR(NBF,NBF))
@@ -514,8 +518,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !                            RHF Iterations
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                                             
-      DO ITER=1,MAXITRHF 
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      DO ITER=1,MAXITRHF
 !      Skeleton 2e- Fock matrix                           
        CALL HSTAR(NBF,DEN,FAO,NBFT,XInteg,IXInteg,NINTEGt,NREC,IDONTW)
 !      Add H to form Fock Matrix
@@ -587,11 +591,13 @@
         CALL DDIFF(QFQ,DEN,NBFT,DIFF)                                
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
 !       Printing iteration                                               
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
-        IF(HFDIIS)THEN
-         WRITE(6,60)ITER,Etot,DELE,DIFF,ERDIIS                              
-        ELSE
-         WRITE(6,70)ITER,Etot,DELE,DIFF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        IF(IPRINTOPT==1)THEN
+         IF(HFDIIS)THEN
+          WRITE(6,60)ITER,Etot,DELE,DIFF,ERDIIS
+         ELSE
+          WRITE(6,70)ITER,Etot,DELE,DIFF
+         END IF
         END IF
         ICALP = ICALP+1                                                   
         ICBET = ICBET+1                                                   
@@ -609,23 +615,23 @@
 !-- -- -- -- -- -- -- -- --
        IF(CVGED)THEN                                                    
         IF(CVDENS)THEN                                                
-         WRITE(6,80)                                   
-         GO TO 1                                                   
+         IF(IPRINTOPT==1)WRITE(6,80)
+         GO TO 1
         END IF                                                         
         IF(CVDIIS) THEN                                                
-         WRITE(6,90)                                   
+         IF(IPRINTOPT==1)WRITE(6,90)
          GO TO 1                                                   
         END IF                                                         
         IF(CVENGY) THEN                                                
-         WRITE(6,100)                                   
+         IF(IPRINTOPT==1)WRITE(6,100)
          GO TO 1                                                   
         END IF                                                         
        END IF                                                            
       END DO
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     SCF is unconverged
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      WRITE(6,'(/1X,A24)')'Stop: SCF is unconverged'
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+      IF(IPRINTOPT==1)WRITE(6,'(/1X,A24)')'Stop: SCF is unconverged'
       STOP                                                         
 !-- -- -- -- -- -- -- -- -- --
 !     Succesful Convergence
@@ -634,18 +640,20 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !     Print Final Results
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(NTHRESHE<=10)then
-       WRITE(6,110)Etot,ITER
-      else
-       WRITE(6,111)Etot,ITER
-      end if
+      IF(IPRINTOPT==1)THEN
+       if(NTHRESHE<=10)then
+        WRITE(6,110)Etot,ITER
+       else
+        WRITE(6,111)Etot,ITER
+       end if
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
       ALLOCATE(AWRK(NQMT))
       CALL SYMMOS(AWRK,VEC,NBF,NQMT,NBF)      
       IF(PRVEC.and.IPRINTOPT==1)THEN
        WRITE(6,120)
        CALL PRINTEVECS(VEC,EIG,AWRK,NQMT,NBF)
-      END IF      
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       
       IF(.not.NOTOPN)CLOSE(UNIT=20,STATUS='DELETE')
       NOTOPN = .TRUE.     
@@ -840,7 +848,7 @@
 
 ! EnergyComp
       SUBROUTINE EnergyComp(EN,Etot,KATOM,KLOC,DENa,DENb,H,TKIN,S,      &
-                            NSHELL,NAT,NBF,NBFT,NE,ITYP)
+                            NSHELL,NAT,NBF,NBFT,NE,ITYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION(A-H,O-Z)
       COMMON/VirialRatio/Virial                             ! RHF
       INTEGER,DIMENSION(NSHELL) :: KATOM,KLOC      
@@ -869,9 +877,11 @@
       Vtot = Vne + Vnn + Vee
       Virial = -Vtot/Ecin
 
-      WRITE(6,10) PSINRM
-      WRITE(6,20) Eone,Vee,Vnn,Etot
-      WRITE(6,30) Vee,Vne,Vnn,Vtot,Ecin,Virial
+      if(IPRINTOPT==1)then
+       WRITE(6,10) PSINRM
+       WRITE(6,20) Eone,Vee,Vnn,Etot
+       WRITE(6,30) Vee,Vne,Vnn,Vtot,Ecin,Virial
+      end if
 
       DEALLOCATE(LIMLOW,LIMSUP)
       RETURN
@@ -990,7 +1000,8 @@
       ERDIIS = 0.0d0      
       MAXDII = 10      
 !      
-      DAMP   = 0.0d0                                                       
+      DAMP   = 0.0d0
+      IF(HFDAMP)DAMP=1.0d0
       DAMP0  = 0.0d0                                                      
       ITERV  = 0                                                                
       RRSHFT = 0.0d0
@@ -1001,18 +1012,18 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !     Header
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,10)'ROHF SCF Calculation'
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,20)HFEXTRAP,HFDAMP,HFDIIS 
-      WRITE(6,30)ACURCY,ETOL
-      WRITE(6,35)ENGTOL,DTOL
-      IF(HFDIIS)WRITE(6,36)DIITOL,DTOL                                                         
-      IF(HFDAMP)DAMP=1.0d0
-      IF(HFDIIS)THEN
-       WRITE(6,40)
-      ELSE
-       WRITE(6,50)
-      END IF                                                            
+      IF(IPRINTOPT==1)THEN
+       WRITE(6,10)'ROHF SCF Calculation'
+       WRITE(6,20)HFEXTRAP,HFDAMP,HFDIIS
+       WRITE(6,30)ACURCY,ETOL
+       WRITE(6,35)ENGTOL,DTOL
+       IF(HFDIIS)WRITE(6,36)DIITOL,DTOL
+       IF(HFDIIS)THEN
+        WRITE(6,40)
+       ELSE
+        WRITE(6,50)
+       END IF
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
       ALLOCATE(FA(NBFT),FB(NBFT),FMO(NBFT),QFQ(NBFT))
       ALLOCATE(Fsq(NBF,NBF),WRK(NBF),WRK1(NSQ))
@@ -1121,11 +1132,13 @@
         DIFF  = DIFFA + DIFFB
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
 !       Printing iteration                                               
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                              
-        IF(HFDIIS)THEN
-         WRITE(6,60)ITER,Etot,DELE,DIFF,ERDIIS                              
-        ELSE
-         WRITE(6,70)ITER,Etot,DELE,DIFF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        IF(IPRINTOPT==1)THEN
+         IF(HFDIIS)THEN
+          WRITE(6,60)ITER,Etot,DELE,DIFF,ERDIIS
+         ELSE
+          WRITE(6,70)ITER,Etot,DELE,DIFF
+         END IF
         END IF
         ICALP = ICALP+1                                                   
         ICBET = ICBET+1
@@ -1143,23 +1156,23 @@
 !-- -- -- -- -- -- -- -- --
        IF(CVGED)THEN                                                    
         IF(CVDENS)THEN                                                
-         WRITE(6,80)                                   
+         IF(IPRINTOPT==1)WRITE(6,80)
          GO TO 1                                                   
         END IF                                                         
         IF(CVDIIS) THEN                                                
-         WRITE(6,90)                                   
+         IF(IPRINTOPT==1)WRITE(6,90)
          GO TO 1                                                   
         END IF                                                         
         IF(CVENGY) THEN                                                
-         WRITE(6,100)                                   
+         IF(IPRINTOPT==1)WRITE(6,100)
          GO TO 1                                                   
         END IF                                                         
        END IF                                                            
       END DO
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     SCF is unconverged
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-      WRITE(6,'(/1X,A24)')'Stop: SCF is unconverged'
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+      IF(IPRINTOPT==1)WRITE(6,'(/1X,A24)')'Stop: SCF is unconverged'
       STOP                                                         
 !-- -- -- -- -- -- -- -- -- --
 !     Succesful Convergence
@@ -1168,14 +1181,14 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                 
 !     Print Final Results
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,110)Etot,ITER  
+      IF(IPRINTOPT==1)WRITE(6,110)Etot,ITER
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
 !     Spin values
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       SPINZ = 0.0d0                                                         
       S2 = 0.0d0
       CALL SPIN(SPINZ,S2,DENa,DENb,S,WRK1,WRK,NA,NB,NBF,NBFT)                                         
-      WRITE(6,120)SPINZ,S2                                   
+      IF(IPRINTOPT==1)WRITE(6,120)SPINZ,S2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       ALLOCATE(AWRK(NQMT))
       CALL SYMMOS(AWRK,VEC,NBF,NQMT,NBF)
@@ -2290,9 +2303,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Itermediate Output of the external iteration
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(IPRINTOPT==1)THEN
-       WRITE(6,5)1,EHF,EHF+EN,0.0,DUMEL
-      ENDIF
+      IF(IPRINTOPT==1)WRITE(6,5)1,EHF,EHF+EN,0.0,DUMEL
 !-----------------------------------------------------------------------
 !                       START SCF-ITERATION CYCLE
 !-----------------------------------------------------------------------
@@ -2331,16 +2342,18 @@
         IF(KOOPMANS==1 .and. MSpin==0)THEN
          CALL DIAGELAGHF(ELAG,CHF,RO10,EiHF,CHFNEW,TEMP)
         ENDIF
-        if(NTHRESHE<=10)then
-         WRITE(6,2)EHF
-         WRITE(6,3)EHF+EN
-        else
-         WRITE(6,21)EHF
-         WRITE(6,31)EHF+EN
-        end if
-        IF(EFIELDL)WRITE(6,4)EFX,EFY,EFZ
+        IF(IPRINTOPT==1)THEN
+         if(NTHRESHE<=10)then
+          WRITE(6,2)EHF
+          WRITE(6,3)EHF+EN
+         else
+          WRITE(6,21)EHF
+          WRITE(6,31)EHF+EN
+         end if
+         if(EFIELDL)WRITE(6,4)EFX,EFY,EFZ
+        ENDIF
 !       HF Electrostatic Moments
-        IF(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10)
+        IF(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10,IPRINTOPT)
         RETURN
        ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2643,7 +2656,7 @@
       END
 
 ! DQOHF
-      SUBROUTINE DQOHF(IEMOM,USER,RO10)
+      SUBROUTINE DQOHF(IEMOM,USER,RO10,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
@@ -2662,10 +2675,12 @@
        CALL DIPMOMr(USER(N11),USER(N12),USER(N13),USER(N14),USER(N15),  &
                     USER(N16),USER(N17),USER(N7),RO10,DMXe,DMYe,DMZe,   &
                     DTx,DTy,DTz,DT)
-       IF(NTHRESHE<=10)THEN
-        WRITE(6,1)DT*DFAC,DT,DTx,DTy,DTz
-       ELSE
-        WRITE(6,11)DT*DFAC,DT,DTx,DTy,DTz
+       IF(IPRINTOPT==1)THEN
+        IF(NTHRESHE<=10)THEN
+         WRITE(6,1)DT*DFAC,DT,DTx,DTy,DTz
+        ELSE
+         WRITE(6,11)DT*DFAC,DT,DTx,DTy,DTz
+        ENDIF
        ENDIF
       ENDIF
       IF(IEMOM>=2)THEN  ! Quadrupole
@@ -2675,10 +2690,11 @@
                      USER(N30),USER(N7),RO10,                           &
                      QMXXe,QMYYe,QMZZe,QMXYe,QMXZe,QMYZe,               &
                      QTxx,QTyy,QTzz,QTxy,QTxz,QTyz)
-       WRITE(6,2)QTxx*QFAC,QTyy*QFAC,QTzz*QFAC,                         &
-                 QTxy*QFAC,QTxz*QFAC,QTyz*QFAC,                         &
-                 QTxx,QTyy,QTzz,QTxy,QTxz,QTyz
-
+       IF(IPRINTOPT==1)THEN
+        WRITE(6,2)QTxx*QFAC,QTyy*QFAC,QTzz*QFAC,                        &
+                  QTxy*QFAC,QTxz*QFAC,QTyz*QFAC,                        &
+                  QTxx,QTyy,QTzz,QTxy,QTxz,QTyz
+       ENDIF
       ENDIF
       IF(IEMOM==3)THEN  ! Octupole
        CALL OCTMOMr(USER(N31),USER(N32),USER(N33),USER(N34),            &
@@ -2691,11 +2707,13 @@
                     OMXYYe,OMYYZe,OMXZZe,OMYZZe,OMXYZe,                 &
                     OTXXX,OTYYY,OTZZZ,OTXXY,OTXXZ,                      &
                     OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ)
-       WRITE(6,3)OTXXX*OFAC,OTYYY*OFAC,OTZZZ*OFAC,                      &
-                 OTXXY*OFAC,OTXXZ*OFAC,OTXYY*OFAC,                      &
-                 OTYYZ*OFAC,OTXZZ*OFAC,OTYZZ*OFAC,                      &
-                 OTXYZ*OFAC,OTXXX,OTYYY,OTZZZ,OTXXY,                    &
-                 OTXXZ,OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ
+       IF(IPRINTOPT==1)THEN
+        WRITE(6,3)OTXXX*OFAC,OTYYY*OFAC,OTZZZ*OFAC,                     &
+                  OTXXY*OFAC,OTXXZ*OFAC,OTXYY*OFAC,                     &
+                  OTYYZ*OFAC,OTXZZ*OFAC,OTYZZ*OFAC,                     &
+                  OTXYZ*OFAC,OTXXX,OTYYY,OTZZZ,OTXXY,                   &
+                  OTXXZ,OTXYY,OTYYZ,OTXZZ,OTYZZ,OTXYZ
+       ENDIF
       ENDIF
 !-----------------------------------------------------------------------
 !     FORMAT STATEMENTS
@@ -2816,16 +2834,18 @@
         EHF = EELEC
 !       DUMEL<THRESHL & PCONV<THRESHE
         IF(CONVGDELAG)THEN
-         if(NTHRESHE<=10)then
-          WRITE(6,2)EHF
-          WRITE(6,3)EHF+EN
-         else
-          WRITE(6,4)EHF
-          WRITE(6,5)EHF+EN
-         end if
-         if(EFIELDL)WRITE(6,6)EFX,EFY,EFZ
+         IF(IPRINTOPT==1)THEN
+          if(NTHRESHE<=10)then
+           WRITE(6,2)EHF
+           WRITE(6,3)EHF+EN
+          else
+           WRITE(6,4)EHF
+           WRITE(6,5)EHF+EN
+          end if
+          if(EFIELDL)WRITE(6,6)EFX,EFY,EFZ
+         ENDIF
 !        HF Electrostatic Moments
-         if(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10)
+         if(1<=IEMOM.and.IEMOM<=3)CALL DQOHF(IEMOM,USER,RO10,IPRINTOPT)
         RETURN
          ISKIP=0
          MAXLOOP = MAXLOOP_ORI

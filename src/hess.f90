@@ -55,6 +55,11 @@
 !-----------------------------------------------------------------------
       IF (IRUNTYP==4) THEN
 !      Update coordinates of shells if use libint library for ERIs
+       DO I=1,NAT
+        ENV(20+3*(I-1)+1) = Cxyz(1,I)
+        ENV(20+3*(I-1)+2) = Cxyz(2,I)
+        ENV(20+3*(I-1)+3) = Cxyz(3,I)
+       ENDDO
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
@@ -64,9 +69,6 @@
        WRITE(11,1)
        DO I=1,NAT
         WRITE(11,2)I,Cxyz(1,I),Cxyz(2,I),Cxyz(3,I)
-        ENV(20+3*(I-1)+1) = Cxyz(1,I)
-        ENV(20+3*(I-1)+2) = Cxyz(2,I)
-        ENV(20+3*(I-1)+3) = Cxyz(3,I)
        ENDDO
 !      Internuclear distances       
        CALL NUCDIST(3*NAT,NAT,Cxyz)
@@ -215,7 +217,7 @@
          III = III + 1        
          NV = NVA+ICOORD
          CDISP(NV) = CDISP(NV)+D(IVIB)
-         DO I=1,NV
+         DO I=1,NC1
            ENV(20+I) = CDISP(I)
          END DO
 !        ENERGY AND GRADIENT AT DISPLACED GEOM 

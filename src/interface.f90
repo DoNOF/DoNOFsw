@@ -310,7 +310,7 @@
        end if
       END DO
       DO i=1,NSHELL
-        IF(IGTYP .LE. 2 .AND. ISHELLTYP(i) > 1) THEN
+        IF(IGTYP .EQ. 2 .AND. ISHELLTYP(i) > 1) THEN
           WRITE(19,17) -ISHELLTYP(i)
         ELSE
           WRITE(19,17) ISHELLTYP(i)

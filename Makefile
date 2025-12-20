@@ -17,9 +17,7 @@ MPIF90  = mpiifort -DMPI $(SFLAGS)
 SFLAGSg = -fdefault-real-8 -fdefault-double-8 -cpp -ffpe-summary=none -O2
 CXXg    = gcc
 F90g    = gfortran     $(SFLAGSg)
-MPIF90g = mpif90 -DMPI $(SFLAGSg)
-#for new versions of gnumpi:
-MPIF90ng = mpif90 -DMPI -fallow-argument-mismatch $(SFLAGSg)
+MPIF90g = mpif90 -DMPI -fallow-argument-mismatch $(SFLAGSg)
 #
 F90_FILES = $(SOU)/*.f90
 ###############################################################################################
@@ -70,12 +68,6 @@ mpig:
 	
 	mv $(SOU)/DoNOFmpig.x $(EXC)/DoNOFmpig.x
 
-mping:
-	cd $(PROG)/src && $(CXXg) -c nr_ecp.c
-	
-	cd $(PROG)/src && $(MPIF90ng) -o DoNOFmpig.x nr_ecp.o $(F90_FILES) $(LIBS)
-	
-	mv $(SOU)/DoNOFmpig.x $(EXC)/DoNOFmpig.x
 ompg:
 	cd $(PROG)/src && $(CXXg) -c nr_ecp.c
 	

@@ -100,7 +100,11 @@
 !      NINTEG: Total Number of 2e- integrals (NINTEG = NINTMX)
 !      IDONTW: Do not write 2e- integrals on the disk (Unit=1)
 !       IEMOM: Electrostatic moments calculation
-! EFX,EFY,EFZ: The x,y,z components of the Electric Field
+!        NLOP: Non-linear optical property calculation (-1,0,1,2,3)
+!          NP: Number of steps used in the dyadic scaling of the field
+!        STEP: Initial step size for the electric field in NLOP
+!    ISOALPHA: Isotropic average and the anisotropy (Raman convention)
+! EFX,EFY,EFZ: The x,y,z components of the electric eield
 !        IECP: Effective Core Potentials
 !     IHSSCAL: Compute Hessian and vibrational analysis if IRUNTYP=3
 !    IPROJECT: Project Hessian to eliminate rot/vib contaminants
@@ -110,9 +114,10 @@
 !   NSHELLmax: Maximum Number of Shells
 !   NPRIMImax: Maximum Number of Gaussian Functions
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL NAMELIST_INPRUN(IRUNTYP,ICH,MUL,NINTEG,IDONTW,IEMOM,EFX,EFY, &
-                           EFZ,ILIBCINT,IECP,IHSSCAL,IPROJECT,ISIGMA,   &
-                           IGTYP,NATmax,NSHELLmax,NPRIMImax,IHUBBARD)
+      CALL NAMELIST_INPRUN(IRUNTYP,ICH,MUL,NINTEG,IDONTW,IEMOM,NLOP,NP, &
+                           STEP,ISOALPHA,EFX,EFY,EFZ,ILIBCINT,IECP,     &
+                           IHSSCAL,IPROJECT,ISIGMA,IGTYP,NATmax,        &
+                           NSHELLmax,NPRIMImax,IHUBBARD)
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
       if(IHUBBARD==1)then         !     Hubbard Calculation
@@ -245,7 +250,21 @@
 !                  5) DYN     : run Born-Oppenheimer molecular dynamics
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE(GRADS(3*NAT))
-       IF(IRUNTYP==1.or.IRUNTYP==2)THEN
+       IF(IRUNTYP==1)THEN
+        if(NLOP/=0)then  ! compute non-linear optical properties
+         CALL DIPNLOP(NP,STEP,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,       &
+                      NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
+                      KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
+                      C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
+                      DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,ISOALPHA)
+        else
+         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,&
+                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,  &
+                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,  &
+                       CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM, &
+                       NBAS,BAS,IGTYP,1,1)
+        end if
+       ELSE IF(IRUNTYP==2)THEN
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,   &
@@ -268,9 +287,10 @@
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,  &
                      CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,&
-                     NBAS,BAS,IGTYP)                     
+                     NBAS,BAS,IGTYP)
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       DEALLOCATE(ENV,ATM,BAS)
        DEALLOCATE(ZAN,ZMASS,Cxyz,GRADS,IAN,IMIN,IMAX)
        DEALLOCATE(KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH)
        DEALLOCATE(ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI)
@@ -318,7 +338,7 @@
       /4X,'!                  VERSION: October 2025                  !',&
       /4X,'!                                                         !',&
       /4X,'===========================================================')
-    3 FORMAT(/,'  Elapsed real time :',F10.2,'  (Seconds)')
+    3 FORMAT(/,'  Elapsed real time :',F15.2,'  (Seconds)')
     4 FORMAT(/' The execution finished at ',I2,'h ',I2,'min on the ',   &
                 I2,'/',I2,'/',I4)                                                                                                                       
     5 FORMAT(/1X,'Warning: For geometry optimization the number of',    &
@@ -341,8 +361,9 @@
 
 ! RUNNOFHEADER
       SUBROUTINE RUNNOFHEADER(NATOMSn,ICHn,MULn,NBFn,NBFauxn,NQMTn,NEn, &
-                              NAn,NBn,EX,EY,EZ,NSHELLn,NSHELLauxn,   &
-                              NPRIMIn,IAN,IEMOMn,IECPn,IRUNTYP,Cxyz,ZNUC)
+                              NAn,NBn,EX,EY,EZ,NSHELLn,NSHELLauxn,      &
+                              NPRIMIn,IAN,IEMOMn,IECPn,IRUNTYP,Cxyz,    &
+                              ZNUC)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL EFIELDL,RESTART,ERIACTIVATED
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -1191,12 +1212,10 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER :: NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI
       INTEGER :: IRUNTYP,NOPTCG,IPRINTOPT
-      LOGICAL RESTART
+      LOGICAL RESTART,SMCD
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/USELIBCINT/ILIBCINT
-      LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/INTFIL/NINTMX
 #include "mpip.h"
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -1208,6 +1227,8 @@
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3*NAT) :: GRADS
       DOUBLE PRECISION,DIMENSION(3) :: DIPS
+      INTEGER :: SIZE_ENV,ATM(6,NAT),NBAS,BAS(8,NBAS),IGTYP
+      DOUBLE PRECISION :: ENV(SIZE_ENV)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       INTEGER(8),ALLOCATABLE,DIMENSION(:) :: IBUF
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: H,S,EiHF,CHF,BUF
@@ -1216,10 +1237,6 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AHCORE,OVERLAP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: XINTS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: BUFaux
-!     LIBCINT
-      INTEGER :: SIZE_ENV,NBAS
-      DOUBLE PRECISION :: ENV(SIZE_ENV)
-      INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
 !     Allocate necessary arrays for 1e- and 2e- integrals + Guess
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

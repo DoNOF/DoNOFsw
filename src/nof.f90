@@ -1247,18 +1247,15 @@
         do i=1,ndoc
          GAMMA(i)= DACOS(DSQRT(2.0d0*0.999d0-1.0d0))
          do iw=1,ncwo-1
-          !ig = ndoc+(i-1)*(ncwo-1)+iw !old-sort
-          ig = ndoc*(iw+1)-i+1         !new-sort
+          ig = ndoc*(iw+1)-i+1
           GAMMA(ig) = dasin(dsqrt(1.0d0/dfloat(ncwo-iw+1)))
          enddo
         enddo
        ELSE IF(ISOFTMAX==1)THEN
         do i=1,ndoc
-         GAMMA(i)= DLOG(0.999d0)
          do iw=1,ncwo
-          !ig = ndoc+(i-1)*ncwo+iw !old-sort
-          ig = ndoc*(iw+1)-i+1     !new-sort
-          GAMMA(ig) = DLOG(0.001d0/dfloat(ncwo))
+          ig = ndoc*iw-i+1
+          GAMMA(ig) = DLOG(0.001D0/dfloat(ncwo)) - DLOG(0.999D0)
          enddo
         enddo
        END IF
@@ -1322,23 +1319,16 @@
         in = NO1+i                                     ! in=no1+1,nb
         GAMMA(i) = dacos(dsqrt(2.0d0*RO(in)-1.0d0))
         IF(NCWO/=1)THEN
-         !ici = (ncwo-1)*(i-1)+1        !old-sort
-         !icf = (ncwo-1)*i              !old-sort
-         !HRin = 1.0d0 - RO(in)         !old-sort
-         !HR(ici:icf) = HRin            !old-sort
-         ici = ndoc-i+1                 !new-sort
-         icf = (ncwo-2)*ndoc + ndoc-i+1 !new-sort
-         HRin = 1.0d0 - RO(in)          !new-sort
-         do ic=ici,icf,ndoc             !new-sort
-           HR(ic)  = HRin               !new-sort
-         end do                         !new-sort
+         ici = ndoc-i+1                 
+         icf = (ncwo-2)*ndoc + ndoc-i+1 
+         HRin = 1.0d0 - RO(in)          
+         do ic=ici,icf,ndoc             
+           HR(ic)  = HRin               
+         end do                         
          do iw=1,ncwo-1
-          !ic = (ncwo-1)*(i-1)+iw       !old-sort       ! ic=1,ndoc*(ncwo-1)
-          !ig = ndoc+ic                 !old-sort       ! ig=ndoc+1,ndoc*ncwo
-          !in = na+ncwo*(ndoc-i)+iw     !old-sort       ! in=na+1,na+ncwo*ndoc-1        
-          ic = (iw-1)*ndoc + ndoc-i+1   !new-sort
-          ig = ndoc+ic                  !new-sort
-          in = no1+(na-nb)+ig           !new-sort
+          ic = (iw-1)*ndoc + ndoc-i+1   
+          ig = ndoc+ic                  
+          in = no1+(na-nb)+ig           
           if(HR(ic)>0.0d0)then
            ARGUM=sqrt(RO(in)/HR(ic))
            if(ARGUM>1.0d0)ARGUM=1.0d0
@@ -1348,8 +1338,7 @@
           endif
           if(iw<ncwo-1)then
            do ix=1,ncwo-1-iw
-            !ic1 = ic+ix                 !old-sort  !ic < ic1 < i*(ncwo-1)
-            ic1 = ic+ix*ndoc             !new-sort
+            ic1 = ic+ix*ndoc            
             HR(ic1) = HR(ic1) - RO(in)
            enddo
           endif
@@ -1359,13 +1348,10 @@
       ELSE IF(ISOFTMAX==1)THEN       
        do i=1,NDOC
         in = NO1+i                                     ! in=no1+1,nb
-        GAMMA(i) = dlog(RO(in))
         do iw=1,ncwo
-         !ig = ndoc+ncwo*(i-1)+iw   !old-sort     ! ig=ndoc+1,ndoc*ncwo                
-         !in = na+ncwo*(ndoc-i)+iw  !old-sort     ! in=na+1,na+ncwo*ndoc (nbf5)
-         ig = ndoc*(iw+1)-i+1       !new-sort
-         in = no1+(na-nb)+ig        !new-sort
-         GAMMA(ig) = dlog(RO(in) + 1.0D-8)
+         ig = ndoc*iw-i+1
+         jn = no1+ndoc+(na-nb)+ig
+         GAMMA(ig) = dlog(MAX(RO(jn),1.0D-16)) - dlog(RO(in))
         enddo
        enddo      
       END IF
@@ -2026,10 +2012,8 @@
 !       in = na+1,na+ncwo*ndoc         
 !- - - - - - - - - - - - - - - - - - - - - - - -
         do iw=1,ncwo
-         !in = na+ncwo*(ndoc-k)+iw                 !old-sort
-         !inmini = na+ncwo*(ndoc-kmini)+iw         !old-sort         
-         in = no1+(na-nb)+ndoc*(iw+1)-k+1          !new-sort
-         inmini = no1+(na-nb)+ndoc*(iw+1)-kmini+1  !new-sort
+         in = no1+(na-nb)+ndoc*(iw+1)-k+1          
+         inmini = no1+(na-nb)+ndoc*(iw+1)-kmini+1  
 !        Occupancies         
          DUM1 = RO(in)
          RO(in) = RO(inmini)
@@ -2149,85 +2133,83 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       do k=1,ndoc
        im = NO1+k  ! im=no1+1,nb
-       MINI = im
+       MAXI = im
        DUM = RO(im)
        kw = 0
        do iw=1,ncwo
-        !in = na+ncwo*(ndoc-k)+iw         !old-sort
-        in = no1+(na-nb)+ndoc*(iw+1)-k+1  !new-sort
+        in = no1+(na-nb)+ndoc*(iw+1)-k+1
         IF(RO(in)>DUM)THEN
          DUM = RO(in)
-         MINI = in  ! MINI -> MAXI
+         MAXI = in
          kw = iw
         ENDIF
        end do
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-       IF(MINI/=im)THEN
+       IF(MAXI/=im)THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Gamma
-        !ig = ndoc+ncwo*(k-1)+kw  !old-sort
-        ig = ndoc*(kw+1)-k+1      !new-sort
-        DUM0 = GAMMA(k)
-        GAMMA(k) = GAMMA(ig)
-        GAMMA(ig) = DUM0
+        ig = ndoc*kw-k+1
+        DUM0 = GAMMA(ig)
+        GAMMA(ig) = 0
+        GAMMA = GAMMA - DUM0
 !       Occupancies
         DUM1 = RO(im)
-        RO(im) = RO(MINI)
-        RO(MINI) = DUM1
+        RO(im) = RO(MAXI)
+        RO(MAXI) = DUM1
 !       Energies
         DUM2 = E(im)
-        E(im) = E(MINI)
-        E(MINI) = DUM2
+        E(im) = E(MAXI)
+        E(MAXI) = DUM2
 !       Diagonal F-elements
         DUM3 = FMIUG0(im)
-        FMIUG0(im) = FMIUG0(MINI)
-        FMIUG0(MINI) = DUM3
+        FMIUG0(im) = FMIUG0(MAXI)
+        FMIUG0(MAXI) = DUM3
 !       MO Coefficients 
         do j=1,NBF
          DUM4 = COEF(j,im)
-         COEF(j,im) = COEF(j,MINI)
-         COEF(j,MINI) = DUM4
+         COEF(j,im) = COEF(j,MAXI)
+         COEF(j,MAXI) = DUM4
         end do
 !       QD
         do j=1,NBF
          do i=1,NBF
           DUM5 = QD(im,i,j)
-          QD(im,i,j)=QD(MINI,i,j)
-          QD(MINI,i,j)=DUM5
+          QD(im,i,j)=QD(MAXI,i,j)
+          QD(MAXI,i,j)=DUM5
          end do
         end do
 !       CJ12,CK12 columns
         do j=1,NBF5
          DUM6 = CJ12(j,im)
          DUM7 = CK12(j,im)
-         CJ12(j,im) = CJ12(j,MINI)
-         CK12(j,im) = CK12(j,MINI)
-         CJ12(j,MINI) = DUM6
-         CK12(j,MINI) = DUM7
+         CJ12(j,im) = CJ12(j,MAXI)
+         CK12(j,im) = CK12(j,MAXI)
+         CJ12(j,MAXI) = DUM6
+         CK12(j,MAXI) = DUM7
         end do
 !       CJ12,CK12 rows
         do j=1,NBF5
          DUM8 = CJ12(im,j)
          DUM9 = CK12(im,j)
-         CJ12(im,j) = CJ12(MINI,j)
-         CK12(im,j) = CK12(MINI,j)
-         CJ12(MINI,j) = DUM8
-         CK12(MINI,j) = DUM9
+         CJ12(im,j) = CJ12(MAXI,j)
+         CK12(im,j) = CK12(MAXI,j)
+         CJ12(MAXI,j) = DUM8
+         CK12(MAXI,j) = DUM9
         end do
 !       HCORE
         DUM10 = HCORE(im)
-        HCORE(im) = HCORE(MINI)
-        HCORE(MINI) = DUM10
+        HCORE(im) = HCORE(MAXI)
+        HCORE(MAXI) = DUM10
 !       DIP (No IEMOM>1: QUAD,OCT)
         DUM11 = DIPx(im)
         DUM12 = DIPy(im)
         DUM13 = DIPz(im)
-        DIPx(im) = DIPx(MINI)
-        DIPy(im) = DIPy(MINI)
-        DIPz(im) = DIPz(MINI)
-        DIPx(MINI) = DUM11
-        DIPy(MINI) = DUM12
-        DIPz(MINI) = DUM13
+        DIPx(im) = DIPx(MAXI)
+        DIPy(im) = DIPy(MAXI)
+        DIPz(im) = DIPz(MAXI)
+        DIPx(MAXI) = DUM11
+        DIPy(MAXI) = DUM12
+        DIPz(MAXI) = DUM13
 !       QJ,QK
         do j=1,NBF5
          if(j<=im)then
@@ -2235,10 +2217,10 @@
          else
           jim = im+j*(j-1)/2
          endif
-         if(j<=mini)then
-          jmini = j+mini*(mini-1)/2
+         if(j<=MAXI)then
+          jmini = j+MAXI*(MAXI-1)/2
          else
-          jmini = mini+j*(j-1)/2
+          jmini = MAXI+j*(j-1)/2
          endif
          DUM14 = QJ(jim)
          DUM15 = QK(jim)
@@ -2250,14 +2232,14 @@
 !       Lagrangian Multiplier columns
         do j=1,NBF
          DUM16 = ELAG(j,im)
-         ELAG(j,im) = ELAG(j,MINI)
-         ELAG(j,MINI) = DUM16
+         ELAG(j,im) = ELAG(j,MAXI)
+         ELAG(j,MAXI) = DUM16
         end do
 !       Lagrangian Multiplier rows
         do j=1,NBF
          DUM17 = ELAG(im,j)
-         ELAG(im,j) = ELAG(MINI,j)
-         ELAG(MINI,j) = DUM17
+         ELAG(im,j) = ELAG(MAXI,j)
+         ELAG(MAXI,j) = DUM17
         end do
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        END IF
@@ -2920,24 +2902,17 @@
         in = NO1+i                                ! in=no1+1,nb
         DR(in,i) = DRO(in)
         DB(in,i) = DBETA(in)
-        !ici = (ncwo-1)*(i-1)+1         !old-sort
-        !icf = (ncwo-1)*i               !old-sort
-        ici = ndoc-i+1                  !new-sort
-        icf = (ncwo-2)*ndoc + ndoc-i+1  !new-sort
-        ! HR(ici:icf)  = 1.0d0 - RO(in) !old-sort
-        !DHR(ici:icf,i)= - DRO(in)      !old-sort
-        do ic=ici,icf,ndoc              !new-sort
-          HR(ic)  = 1.0d0 - RO(in)      !new-sort
-         DHR(ic,i)= - DRO(in)           !new-sort
-        end do                          !new-sort
+        ici = ndoc-i+1                  
+        icf = (ncwo-2)*ndoc + ndoc-i+1  
+        do ic=ici,icf,ndoc              
+          HR(ic)  = 1.0d0 - RO(in)      
+         DHR(ic,i)= - DRO(in)           
+        end do                          
 !- - - -- - - - - - - - - - (i,iw) <-> ic,ig,im  - - - - - - - - - - - -
         do iw=1,ncwo-1
-         !ic = (ncwo-1)*(i-1)+iw             ! ic=1,ndoc*(ncwo-1)      !old-sort
-         !ig = ndoc+ic                       ! ig=ndoc+1,ndoc*ncwo     !old-sort
-         !im = na+ncwo*(ndoc-i)+iw           ! im=na+1,na+ncwo*ndoc-1  !old-sort
-         ic = (iw-1)*ndoc + ndoc-i+1                                   !new-sort
-         ig = ndoc+ic                                                  !new-sort
-         im = no1+(na-nb)+ig                                           !new-sort
+         ic = (iw-1)*ndoc + ndoc-i+1
+         ig = ndoc+ic               
+         im = no1+(na-nb)+ig        
        
          ROn = DSIN(GAMMA(ig))*DSIN(GAMMA(ig))
          DRO(im) = DSIN(2.0d0*GAMMA(ig))
@@ -2956,8 +2931,7 @@
          else 
           DB(im,i) = 0.0d0
          endif
-         !do ic1=ici,ic-1                          !old-sort
-         do ic1=ici,icf-ndoc,ndoc                  !new-sort
+         do ic1=ici,icf-ndoc,ndoc 
           ig1 = ndoc+ic1                           !   i < ig1 < ig
           DR(im,ig1) =        DHR(ic,ig1)*ROn
           if(RAIZic>0.0d0)then
@@ -2972,12 +2946,10 @@
 !- - - - HR(ic+1) - - - - - - - - - - - - - - - -
          if(iw<ncwo-1)then
           do ix=1,ncwo-1-iw
-           !ic1 = ic+ix                      !old-sort
-           ic1 = ic+ix*ndoc                  !new-sort
+           ic1 = ic+ix*ndoc 
             HR(ic1)  =  HR(ic1) - RO(im)
            DHR(ic1,i)= DHR(ic1,i) - DR(im,i)
-           !do icn=ici,ic-1                  !old-sort
-           do icn=ici,icf-ndoc,ndoc          !new-sort
+           do icn=ici,icf-ndoc,ndoc 
             ign = ndoc+icn
             DHR(ic1,ign)= DHR(ic1,ign) - DR(im,ign)
            enddo
@@ -2990,8 +2962,7 @@
 
 !- - - - ic = icf - last RO  - - - - - - - - - - - - - -
         ig = ndoc+icf               ! ig=ndoc+i*(ncwo-1)
-        !im = na+ncwo*(ndoc-i)+ncwo !old-sort
-        im = no1+(na-nb)+ig+ndoc    !new-sort
+        im = no1+(na-nb)+ig+ndoc 
         Hn = DCOS(GAMMA(ig))*DCOS(GAMMA(ig))
         DRO(im) = -DSIN(2.0d0*GAMMA(ig))
         BETAn = DSQRT(Hn)
@@ -3011,8 +2982,7 @@
          DB(im,i) = 0.0d0
         endif
  
-        !do ic1=ici,icf-1           !old-sort ! ici < ic1 < icf-1
-        do ic1=ici,icf-ndoc,ndoc    !new-sort
+        do ic1=ici,icf-ndoc,ndoc 
          ig1 = ndoc+ic1             !   i < ig1 < ig
          DR(im,ig1) =        DHR(icf,ig1)*Hn
          if(RAIZicf>0.0d0)then
@@ -3098,13 +3068,11 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO i=1,NDOC
        in = NO1+i                          ! in=no1+1,nb
-       RO(in)   = DEXP(GAMMA(i))
+       RO(in)   = 1.0D0!DEXP(GAMMA(i))
        SUMRO(i) = RO(in)
        do iw=1,ncwo
-        !ig = ndoc+ncwo*(i-1)+iw            !old-sort ! ig=ndoc+1,ndoc*(ncwo+1)
-        !in = na+ncwo*(ndoc-i)+iw           !old-sort in=na+1,nbf5
-        ig = ndoc*(iw+1)-i+1                !new-sort
-        in = no1+(na-nb)+ig                 !new-sort        
+        ig = ndoc*iw-i+1                   
+        in = no1+ndoc+(na-nb)+ig       
         RO(in)   = DEXP(GAMMA(ig))
         SUMRO(i) = SUMRO(i) + RO(in)
        enddo
@@ -3135,10 +3103,8 @@
        in = NO1+i                          ! in=no1+1,nb
        RO(in) = RO(in)/SUMRO(i) 
        do iw=1,ncwo
-        !ig = ndoc+ncwo*(i-1)+iw   !old-sort         ! ig=ndoc+1,ndoc*(ncwo+1)
-        !im = na+ncwo*(ndoc-i)+iw  !old-sort         ! im=na+1,nbf5
-        ig = ndoc*(iw+1)-i+1       !new-sort
-        im = no1+(na-nb)+ig        !new-sort
+        ig = ndoc*iw-i+1                
+        im = no1+ndoc+(na-nb)+ig        
         RO(im) = RO(im)/SUMRO(i)
        enddo 
       ENDDO
@@ -3147,28 +3113,20 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO i=1,NDOC
        in = NO1+i                          
-       DR(in,i) = RO(in)*(1.0d0-RO(in))
        do iw=1,ncwo
-        !ig = ndoc+ncwo*(i-1)+iw  !old-sort           
-        !im = na+ncwo*(ndoc-i)+iw !old-sort
-        ig = ndoc*(iw+1)-i+1      !new-sort
-        im = no1+(na-nb)+ig       !new-sort
+        ig = ndoc*iw-i+1      
+        im = no1+ndoc+(na-nb)+ig      
         DR(in,ig) = - RO(in)*RO(im)                        
 !        
-        DR(im,ig) = RO(im)*(1.0d0-RO(im))                         
-        DR(im,i)  = - RO(im)*RO(in)        
         do iw1=1,iw-1
-         !ig1 = ndoc+ncwo*(i-1)+iw1  !old-sort
-         !im1 = na+ncwo*(ndoc-i)+iw1 !old-sort
-         ig1 = ndoc*(iw1+1)-i+1      !new-sort
-         im1 = no1+(na-nb)+ig1       !new-sort
+         ig1 = ndoc*iw1-i+1      
+         im1 = no1+ndoc+(na-nb)+ig1       
          DR(im,ig1)= - RO(im)*RO(im1)         
         enddo
+        DR(im,ig) = RO(im)*(1.0d0-RO(im))                         
         do iw1=iw+1,ncwo
-         !ig1 = ndoc+ncwo*(i-1)+iw1  !old-sort
-         !im1 = na+ncwo*(ndoc-i)+iw1 !old-sort
-         ig1 = ndoc*(iw1+1)-i+1      !new-sort
-         im1 = no1+(na-nb)+ig1       !new-sort
+         ig1 = ndoc*iw1-i+1      
+         im1 = no1+ndoc+(na-nb)+ig1       
          DR(im,ig1)= - RO(im)*RO(im1)         
         enddo
        enddo 
@@ -3182,8 +3140,7 @@
         BETA(in) = DSQRT(RO(in))
         DB(in,j) = 0.5d0*DR(in,j)/BETA(in)
         do iw=1,ncwo
-         !in = na+ncwo*(ndoc-i)+iw         !old-sort  ! in=na+1,nbf5
-         in = no1+(na-nb)+ndoc*(iw+1)-i+1  !new-sort
+         in = no1+(na-nb)+ndoc*(iw+1)-i+1  
          BETA(in) = DSQRT(RO(in))
          DB(in,j)= 0.5d0*DR(in,j)/BETA(in)
         enddo 
@@ -3433,15 +3390,13 @@
                 + PRODCWQWj(in,USER(N2),USER(N9))                       &
                 - PRODCWQWj(in,USER(N3),USER(N10))                       
          do iw=1,ncwo-1                                                  
-          !in = na+ncwo*(ndoc-i)+iw              !old-sort                                   
-          in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
+          in = no1+(na-nb)+ndoc*(iw+1)-i+1       
           ENERGY = ENERGY + USER(N1-1+in)                               &
                  * ( 2.0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )       &
                  + PRODCWQWj(in,USER(N2),USER(N9))                      &
                  - PRODCWQWj(in,USER(N3),USER(N10))                      
          enddo                                                           
-         !in = na+ncwo*(ndoc-i)+ncwo              !old-sort                        
-         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       !new-sort
+         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       
          ENERGY = ENERGY + USER(N1-1+in)                                &
                 * ( 2.0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )        &
                 + PRODCWQWj(in,USER(N2),USER(N9))                       &
@@ -3516,8 +3471,7 @@
                 + 2.0d0*PRODROQWj1(in,USER(N1),USER(N9))               &
                 - PRODROQWj1(in,USER(N1),USER(N10))                     
          do iw=1,ncwo-1                                                 
-          !in = na+ncwo*(ndoc-i)+iw              !old-sort                       
-          in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
+          in = no1+(na-nb)+ndoc*(iw+1)-i+1       
           ENERGY = ENERGY + USER(N1-1+in)                              &
                  * ( 2.0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )      &
                  + PRODCWQWj2(in,USER(N2),USER(N9))                    &
@@ -3525,8 +3479,7 @@
                  + 2.0d0*PRODROQWj2(in,USER(N1),USER(N9))              &
                  - PRODROQWj2(in,USER(N1),USER(N10))                    
          enddo                                                          
-         !in = na+ncwo*(ndoc-i)+ncwo              !old-sort                                    
-         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       !new-sort
+         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       
          ENERGY = ENERGY + USER(N1-1+in)                               &
                 * ( 2.0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )       &
                 + PRODCWQWj2(in,USER(N2),USER(N9))                     &
@@ -3619,15 +3572,13 @@
                    + 2.0d0 * ( PRODCWQWjk(nv,in,ig,USER(N5),USER(N9))   &
                              - PRODCWQWjk(nv,in,ig,USER(N6),USER(N10)) ) 
           do iw=1,NCWO-1                                                 
-           !in = na+ncwo*(ndoc-i)+iw              !old-sort                        
-           in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
+           in = no1+(na-nb)+ndoc*(iw+1)-i+1       
            GRAD(ig) = GRAD(ig) + USER(N4-1+in+(ig-1)*nbf5)              &
                     * ( 2.0d0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )  &
                     + 2.0d0 * (PRODCWQWjk(nv,in,ig,USER(N5),USER(N9))   &
                               -PRODCWQWjk(nv,in,ig,USER(N6),USER(N10)) ) 
           enddo                                                          
-          !in = na+ncwo*(ndoc-i)+ncwo              !old-sort                       
-          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       !new-sort
+          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       
           GRAD(ig) = GRAD(ig) + USER(N4-1+in+(ig-1)*nbf5)               &
                    * ( 2.0d0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )   &
                    + 2.0d0 * ( PRODCWQWjk(nv,in,ig,USER(N5),USER(N9))   &
@@ -3673,8 +3624,7 @@
                    + 2.0d0 *   PRODDRQWjk1(nv,in,ig,USER(N4),USER(N9))  &
                    -           PRODDRQWjk1(nv,in,ig,USER(N4),USER(N10))  
           do iw=1,NCWO-1                                                 
-           !in = na+ncwo*(ndoc-i)+iw              !old-sort                      
-           in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
+           in = no1+(na-nb)+ndoc*(iw+1)-i+1       
            GRAD(ig) = GRAD(ig) + USER(N4-1+in+(ig-1)*nbf5)              &
                     * ( 2.0d0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )  &
                     + 2.0d0 * (PRODCWQWjk2(nv,in,ig,USER(N5),USER(N9))  &
@@ -3682,8 +3632,7 @@
                     + 2.0d0 *  PRODDRQWjk2(nv,in,ig,USER(N4),USER(N9))  &
                     -          PRODDRQWjk2(nv,in,ig,USER(N4),USER(N10))  
           enddo                                                          
-          !in = na+ncwo*(ndoc-i)+ncwo              !old-sort                       
-          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       !new-sort
+          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1       
           GRAD(ig) = GRAD(ig) + USER(N4-1+in+(ig-1)*nbf5)               &
                    * ( 2.0d0*USER(N8-1+in) + USER(N9-1+in*(in+1)/2) )   &
                    + 2.0d0 * ( PRODCWQWjk2(nv,in,ig,USER(N5),USER(N9))  &
@@ -3876,13 +3825,11 @@
          ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))       &
                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)          
          do iw=1,ncwo-1                                                  
-          !in = na+ncwo*(ndoc-i)+iw              !old-sort                         
-          in = no1+(na-nb)+ndoc*(iw+1)-i+1       !new-sort
+          in = no1+(na-nb)+ndoc*(iw+1)-i+1       
           ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))      &
                  + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)         
          enddo                                                           
-         !in = na+ncwo*(ndoc-i)+ncwo             !old-sort                         
-         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      !new-sort
+         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      
          ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))       &
                 + PRODCWQWj(in,CJ12,QJ) - PRODCWQWj(in,CK12,QK)          
         enddo                                                            
@@ -3935,15 +3882,13 @@
                    + 2.0d0 * ( PRODCWQWjk(nv,in,ig,DCJ12r,QJ)           &
                              - PRODCWQWjk(nv,in,ig,DCK12r,QK) )          
           do iw=1,NCWO-1                                                 
-           !in = na+ncwo*(ndoc-i)+iw             !old-sort                         
-           in = no1+(na-nb)+ndoc*(iw+1)-i+1      !new-sort
+           in = no1+(na-nb)+ndoc*(iw+1)-i+1      
            GRAD(ig) = GRAD(ig)                                          &
                     + DR(in,ig) * ( 2.0d0*HCORE(in) + QJ(in*(in+1)/2) ) &
                     + 2.0d0 * ( PRODCWQWjk(nv,in,ig,DCJ12r,QJ)          &
                               - PRODCWQWjk(nv,in,ig,DCK12r,QK) )         
           enddo                                                          
-          !in = na+ncwo*(ndoc-i)+ncwo             !old-sort                        
-          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      !new-sort
+          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      
           GRAD(ig) = GRAD(ig)                                           &
                    + DR(in,ig) * ( 2.0d0*HCORE(in) + QJ(in*(in+1)/2) )  &
                    + 2.0d0 * ( PRODCWQWjk(nv,in,ig,DCJ12r,QJ)           &
@@ -4030,14 +3975,12 @@
                 + PRODCWQWj1(in,CJ12,QJ) - PRODCWQWj1(in,CK12,QK)       &
                 + 2.0d0*PRODROQWj1(in,RO,QJ)-PRODROQWj1(in,RO,QK)        
          do iw=1,ncwo-1                                                  
-          !in = na+ncwo*(ndoc-i)+iw             !old-sort                              
-          in = no1+(na-nb)+ndoc*(iw+1)-i+1      !new-sort
+          in = no1+(na-nb)+ndoc*(iw+1)-i+1      
           ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))      &
                  + PRODCWQWj2(in,CJ12,QJ) - PRODCWQWj2(in,CK12,QK)      &
                 + 2.0d0*PRODROQWj2(in,RO,QJ)-PRODROQWj2(in,RO,QK)           
          enddo                                                           
-         !in = na+ncwo*(ndoc-i)+ncwo             !old-sort                         
-         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      !new-sort
+         in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      
          ENERGY = ENERGY + RO(in)*(2.0*HCORE(in)+QJ(in*(in+1)/2))       &
                 + PRODCWQWj2(in,CJ12,QJ) - PRODCWQWj2(in,CK12,QK)       &
                 + 2.0d0*PRODROQWj2(in,RO,QJ)-PRODROQWj2(in,RO,QK)          
@@ -4098,8 +4041,7 @@
                    + 2.0d0 *   PRODDRQWjk1(nv,in,ig,DR,QJ)              &
                    -           PRODDRQWjk1(nv,in,ig,DR,QK)               
           do iw=1,NCWO-1                                                 
-           !in = na+ncwo*(ndoc-i)+iw             !old-sort                                     
-           in = no1+(na-nb)+ndoc*(iw+1)-i+1      !new-sort
+           in = no1+(na-nb)+ndoc*(iw+1)-i+1      
            GRAD(ig) = GRAD(ig)                                          &
                     + DR(in,ig) * ( 2.0d0*HCORE(in) + QJ(in*(in+1)/2) ) &
                     + 2.0d0 * ( PRODCWQWjk2(nv,in,ig,DCJ12r,QJ)         &
@@ -4107,8 +4049,7 @@
                     + 2.0d0 *   PRODDRQWjk2(nv,in,ig,DR,QJ)             &
                     -           PRODDRQWjk2(nv,in,ig,DR,QK)              
           enddo                                                          
-          !in = na+ncwo*(ndoc-i)+ncwo             !old-sort                        
-          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      !new-sort
+          in = no1+(na-nb)+ndoc*(ncwo+1)-i+1      
           GRAD(ig) = GRAD(ig)                                           &
                    + DR(in,ig) * ( 2.0d0*HCORE(in) + QJ(in*(in+1)/2) )  &
                    + 2.0d0 * ( PRODCWQWjk2(nv,in,ig,DCJ12r,QJ)          &
@@ -4755,8 +4696,7 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
       DO l=1,NDOC
        ln = NO1+l
-       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)      !old-sort
-       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC  !new-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC  
         in = NO1+i
         CJ12(ln,in) = 0.0d0
         CJ12(in,ln) = 0.0d0
@@ -4768,8 +4708,7 @@
          DCK12r(ln,in,k) = DB(ln,k)*BETA(in)
          DCK12r(in,ln,k) = DB(in,k)*BETA(ln)
         enddo
-        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC 
          jn = NO1+j
          CJ12(jn,in) = 0.0d0
          CK12(jn,in) = - BETA(jn)*BETA(in)
@@ -4869,8 +4808,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO l=1,NDOC
        ln = NO1+l
-       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)      !old-sort
-       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC  !new-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC 
         in = NO1+i
         CJ12(ln,in) = 0.0d0
         CJ12(in,ln) = 0.0d0
@@ -4882,8 +4820,7 @@
          DCK12r(ln,in,k) = DB(ln,k)*BETA(in)
          DCK12r(in,ln,k) = DB(in,k)*BETA(ln)
         enddo
-        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC 
          jn = NO1+j
          CJ12(jn,in) = 0.0d0
          CK12(jn,in) = - BETA(jn)*BETA(in)
@@ -4945,8 +4882,7 @@
        IF(NCWO>1)THEN                        ! extended PNOF
         do iw=1,ncwo
          ! above Fermi level
-         !im = na+ncwo*(ndoc-i)+iw                       !old-sort
-         im = no1+ndoc+(na-nb)+(ndoc-i+1)+ndoc*(iw-1)    !new-sort
+         im = no1+ndoc+(na-nb)+(ndoc-i+1)+ndoc*(iw-1) 
          ROd(im) = RO(im) * Fin              ! ROd = RO*Hd/Hole
          do k=1,nv
           DROd(im,k) = Fin * ( DR(im,k) - RO(im)*DARG*DR(in,k) )
@@ -5138,8 +5074,7 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
       DO l=1,NDOC
        ln = NO1+l
-       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC 
         in = NO1+i
         CJ12(ln,in) = 0.0d0
         CJ12(in,ln) = 0.0d0
@@ -5151,8 +5086,7 @@
          DCK12r(ln,in,k) = DB(ln,k)*BETA(in)
          DCK12r(in,ln,k) = DB(in,k)*BETA(ln)
         enddo
-        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC 
          jn = NO1+j
          CJ12(jn,in) = 0.0d0
          CK12(jn,in) = - BETA(jn)*BETA(in)

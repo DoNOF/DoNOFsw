@@ -1162,8 +1162,7 @@
         G(i,ig) = G(i,ig) + BETA(ig)*FC(i,ig,WF1,COEF)                  &
                           - RO(ig) * FC(i,ig,WF2,COEF)
        enddo
-       !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-       do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+       do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
         ip = NO1+j
         do i=1,nbf
          G(i,ip) = G(i,ip) + BETA(ip)*FC(i,ip,WF1,COEF)                 &
@@ -1214,8 +1213,7 @@
         do i=1,nbf
          G(i,ig) = G(i,ig) + FIs(ig) * FC(i,ig,WF1,COEF)
         enddo
-        !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
          ip = NO1+j
          do i=1,nbf
           G(i,ip) = G(i,ip) + FIs(ip) * FC(i,ip,WF1,COEF)         
@@ -1255,8 +1253,7 @@
         ROd(in) = RO(in) * Fin
         IF(NCWO>1)THEN  !NA+1:NBF5
          do iw=1,ncwo                                                                   
-          !im = na+ncwo*(ndoc-i)+iw         !old-sort
-          im = no1+(na-nb)+ndoc*(iw+1)-i+1  !new-sort    
+          im = no1+(na-nb)+ndoc*(iw+1)-i+1
           ROd(im) = RO(im) * Fin   
          enddo
         ELSE      !perfect-pairing                       
@@ -1305,8 +1302,7 @@
         CALL DENMATg(l,DM2,COEF,ROd)       
         CALL DENMATg(l,DM3,COEF,Rd)
         CALL HSTARK3(WF1,DM1,WF2,DM2,WF3,DM3,IJKL,XIJKL) ! WFi(l)        
-        !do j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        do j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
          ip = NO1+j
          do i=1,nbf
           G(i,ip) = G(i,ip) + FIs(ip) * FC(i,ip,WF1,COEF)               &
@@ -1378,8 +1374,7 @@
       do m=1,NBF
        do n=m,NBF
         DMl(m,n) = RO(ig)*COEF(m,ig)*COEF(n,ig)
-        !do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
          ip = NO1+i
          DMl(m,n)= DMl(m,n) + RO(ip)*COEF(m,ip)*COEF(n,ip)
         end do
@@ -1406,8 +1401,7 @@
       do m=1,NBF
        do n=m,NBF
         DMl(m,n) = 0.00
-        !do i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        do i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
          ip = NO1+i
          DMl(m,n)= DMl(m,n) + RO(ip)*COEF(m,ip)*COEF(n,ip)
         end do
@@ -1639,8 +1633,7 @@
         ROd(in) = RO(in) * Fin
         IF(NCWO>1)THEN !NA+1:NBF5
          do iw=1,ncwo                                                                   
-          !im = na+ncwo*(ndoc-i)+iw         !old-sort
-          im = no1+(na-nb)+ndoc*(iw+1)-i+1  !new-sort    
+          im = no1+(na-nb)+ndoc*(iw+1)-i+1
           ROd(im) = RO(im) * Fin   
          enddo
         ELSE     !perfect-pairing                       

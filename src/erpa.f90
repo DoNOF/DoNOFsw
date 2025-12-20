@@ -608,6 +608,7 @@
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
       COMMON/INPNOF_ORBSPACE1/NSOC,NDNS,MSpin,HighSpin
+      COMMON/INPNOF_MOD/Imod
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
       COMMON/INPNOF_PNOF/IPNOF,NTWOPAR
       INTEGER :: NSOC,NDNS,MSpin
@@ -616,16 +617,20 @@
       DOUBLE PRECISION,DIMENSION(NBF5,NBF5,NBF5,NBF5) :: Daa,Dab
 
       INTEGER :: I,J,P,Q,R,T
+      DOUBLE PRECISION :: Sigma
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ROd,Rd
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: FI
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: Pi_s,Pi_d,INTRA,INTER,INTER2
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: Pi_s,Pi_d
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: INTRA,INTER,INTER2
 
-      ALLOCATE (ROd(NBF5),Rd(NBF5))
+      ALLOCATE(ROd(NBF5),Rd(NBF5))
       ALLOCATE(FI(NBF5))
-      ALLOCATE(Pi_s(NBF5,NBF5),Pi_d(NBF5,NBF5),INTRA(NBF5,NBF5),INTER(NBF5,NBF5),INTER2(NBF5,NBF5))
+      ALLOCATE(Pi_s(NBF5,NBF5),Pi_d(NBF5,NBF5))
+      ALLOCATE(INTRA(NBF5,NBF5),INTER(NBF5,NBF5),INTER2(NBF5,NBF5))
 
-      IF(IPNOF.NE.5 .AND. IPNOF.NE.7 .AND. IPNOF.NE.9) THEN
-        WRITE(*,*) "ERROR in ERPA: Compute_2RDM Subroutine has been coded only for PNOF5, PNOF7 and GNOF"
+      IF(IPNOF.NE.5 .AND. IPNOF.NE.7 .AND. IPNOF.NE.8) THEN
+        WRITE(*,*) "ERROR in ERPA: Compute_2RDM Subroutine has been     &
+                coded only for PNOF5, PNOF7, GNOF, GNOFm and GNOFs"
       END IF
 
       Daa(1:NBF5,1:NBF5,1:NBF5,1:NBF5) = 0.0D0
@@ -648,15 +653,13 @@
        ln = NO1+l
        INTER(ln,ln) = 0.0D0
        INTRA(ln,ln) = SQRT(RO(ln))*SQRT(RO(ln))
-       !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+       DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
         in = NO1+i
         INTER(ln,in) = 0.0D0
         INTER(in,ln) = 0.0D0
         INTRA(ln,in) = -SQRT(RO(ln))*SQRT(RO(in))
         INTRA(in,ln) = -SQRT(RO(in))*SQRT(RO(ln))
-        !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+        DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
          jn = NO1+j
          INTER(jn,in) = 0.0D0
          INTRA(jn,in) = SQRT(RO(jn))*SQRT(RO(in))
@@ -680,9 +683,14 @@
 
       ! Add PNOF7 contributions to D(alpha,beta)
       ! Eq. (21) in Phys. Rev. A 100, 032508 (2019).
-      IF(IPNOF.EQ.7 .OR. IPNOF.EQ.9) THEN
+      IF(IPNOF.EQ.7 .OR. IPNOF.EQ.8.) THEN
+        IF(IPNOF.EQ.8 .AND. Imod.EQ.2) THEN
+          Sigma = 0.9d0
+        ELSE
+          Sigma = 1.0d0
+        END IF
         FI = RO*(1-RO)
-        FI = SQRT(MAX(FI,0.0D0))
+        FI = Sigma * SQRT(MAX(FI,0.0D0))
         DO I=1,NBF5
           DO J=1,NBF5
             Pi_s(I,J)=FI(I)*FI(J)
@@ -692,13 +700,11 @@
         DO l=1,NDOC
          ln = NO1+l
          Pi_s(ln,ln) = 0.0D0
-         !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-         DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+         DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
           in = NO1+i
           Pi_s(ln,in) = 0.0D0
           Pi_s(in,ln) = 0.0D0
-          !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-          DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+          DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
            jn = NO1+j
            Pi_s(jn,in) = 0.0D0
           ENDDO
@@ -713,7 +719,7 @@
 
         ! In case of GNOF, modify Pi_s for the D(alpha,beta) contributions
         ! as in Eq. (4) of Phys. Rev. Lett. 127, 233001 (2021).
-        IF(IPNOF.EQ.9) THEN
+        IF(IPNOF.EQ.8 .AND. Imod.EQ.0) THEN
           Pi_s(1:NDOC,1:NDOC) = 0.0D0
           Pi_s(1:NDOC,NDOC+1:NDNS) = Pi_s(1:NDOC,NDOC+1:NDNS)*0.5
           Pi_s(NDOC+1:NDNS,1:NDOC) = Pi_s(NDOC+1:NDNS,1:NDOC)*0.5
@@ -727,8 +733,12 @@
 
         ! GNOF Pi_d for the D(alpha,beta) contributions
         ! as in Eq. (4) of Phys. Rev. Lett. 127, 233001 (2021).
-        IF(IPNOF.EQ.9) THEN
-          Hcut = 0.02d0*DSQRT(2.0d0)
+        IF(IPNOF.EQ.8) THEN
+          IF(Imod.EQ.2) THEN
+            Hcut = 0.025d0*DSQRT(2.0d0)
+          ELSE
+            Hcut = 0.02d0*DSQRT(2.0d0)
+          END IF
           ROd  = 0.0D0
           DROd = 0.0D0
           Rd   = 0.0D0
@@ -742,20 +752,17 @@
            COC = HOLEin/Hcut
            ARG  = - COC**2
            DARG = - 2*COC/Hcut
-           Fin = DEXP(ARG)                       ! Hd/Hole
-    !      ROd(NO1+1:NB)
+           Fin = DEXP(ARG)
            ROd(in) = RO(in) * Fin
-    !      ROd(NA+1:NBF5)
            IF(NCWO>1)THEN                        ! extended PNOF
             do iw=1,ncwo
              ! above Fermi level
-             !im = na+ncwo*(ndoc-i)+iw                       !old-sort
-             im = no1+ndoc+(na-nb)+(ndoc-i+1)+ndoc*(iw-1)    !new-sort
-             ROd(im) = RO(im) * Fin              ! ROd = RO*Hd/Hole
+             im = no1+ndoc+(na-nb)+(ndoc-i+1)+ndoc*(iw-1)
+             ROd(im) = RO(im) * Fin
             enddo
-           ELSE                                  ! perfect-pairing
+           ELSE
             icf = na+ndoc-i+1
-            ROd(icf) = RO(icf) * Fin             ! ROd = RO*Hd/Hole
+            ROd(icf) = RO(icf) * Fin
            ENDIF
           ENDDO
     !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -776,15 +783,13 @@
            ln = NO1+l
            INTER(ln,ln) = 0.0D0
            INTER2(ln,ln) = 0.0D0
-           !DO i=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-           DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+           DO i=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
             in = NO1+i
             INTER(ln,in) = 0.0D0
             INTER(in,ln) = 0.0D0
             INTER2(ln,in) = 0.0D0
             INTER2(in,ln) = 0.0D0
-            !DO j=NDNS+NCWO*(NDOC-l)+1,NDNS+NCWO*(NDOC-l+1)     !old-sort
-            DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC !new-sort
+            DO j=NDNS+NDOC-l+1,NDNS+NDOC-l+1+(NCWO-1)*NDOC,NDOC
              jn = NO1+j
              INTER(jn,in) = 0.0D0
              INTER2(jn,in) = 0.0D0

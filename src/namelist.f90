@@ -12,7 +12,8 @@
 
 ! NAMELIST_INPRUN
       SUBROUTINE NAMELIST_INPRUN(ITYPRUN,ICHARG,MULT,NINTEG,IDONTW,     &
-                                 IEMOMENTS,EX,EY,EZ,LIBCINT,IECPO,      &
+                                 IEMOMENTS,NLOPS,NPOINTS,STEPS,         &
+                                 ISOALPHAS,EX,EY,EZ,LIBCINT,IECPO,      &
                                  IHSSCAL,IPROJECT,ISIGMA,IGTYP,NATmax,  &
                                  NSHELLmax,NPRIMImax,IHUBBARD)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
@@ -22,7 +23,7 @@
       COMMON/INTFIL/NINTMX           
       LOGICAL EFIELDL
       COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
-      COMMON/ELPROP/IEMOM      
+      COMMON/ELPROP/IEMOM
       CHARACTER(8):: UNITS
       COMMON/CONTROL/UNITS
       COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
@@ -68,8 +69,32 @@
 !
 ! IEMOM            Electrostatic moments calculation
 !       = 1        calculate dipole moments (Default)
-!         2        also calculate quadrupole moments
-!         3        also calculate octopole moments
+!       = 2        also calculate quadrupole moments
+!       = 3        also calculate octopole moments
+!
+! NLOP             Non-Linear Optical Properties
+!       =-1        calculate Alpha, Beta & Gamma
+!       = 0        No calculation of NLOPs (Default)
+!       = 1        calculate polarizability Alpha
+!       = 2        calculate 1st-order hyperpolarizability Beta
+!       = 3        calculate 2nd-order hyperpolarizability Gamma
+!
+! NPOINT           Number of steps used in the dyadic scaling of
+!                  the electric field. It represents the total number
+!                  of fields that will be considered in the calculations
+!       = 9        (Default)
+!
+! STEP             Initial step size for the electric field. It defines
+!                  the base value of the field for the first step,
+!                  with subsequent values being scaled by powers of 2.
+!       = 1.0d-04  (Default)
+!
+! ISOALPHA         Computes the diagonal components of the static
+!                  polarizability tensor (αxx, αyy, αzz) using the
+!                  dyadic Romberg–Richardson scheme looping the field
+!                  direction over x, y, z. Then reports the isotropic
+!                  average and the anisotropy (Raman convention)
+!       = 0        (Default)
 !
 ! UNITS            Distance units (any angles must be in degrees)
 !       = ANGS     Angstroms (Default)
@@ -138,9 +163,10 @@
 !       = 2000     (Default)
 !
 !-----------------------------------------------------------------------
-      NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,UNITS,EVEC,USELIB,  &
-                      GTYP,USEHUB,DONTW,ERITYP,CUTOFF,RITYP,GEN,SMCD,   &
-                      HSSCAL,PROJECT,ISIGMA,NATmax,NSHELLmax,NPRIMImax
+      NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,NLOP,NPOINT,STEP,   &
+                      ISOALPHA,UNITS,EVEC,USELIB,GTYP,USEHUB,DONTW,     &
+                      ERITYP,CUTOFF,RITYP,GEN,SMCD,HSSCAL,PROJECT,      &
+                      ISIGMA,NATmax,NSHELLmax,NPRIMImax
 !-----------------------------------------------------------------------
       TI = 0.0D0                                                           
       TX = 0.0D0                                                           
@@ -152,6 +178,10 @@
       ICHARG    = 0
       IECP      = 0
       IEMOM     = 1
+      NLOP      = 0
+      NPOINT    = 9
+      STEP      = 1.0d-04
+      ISOALPHA  = 0
       UNITS     = ANGS
       EVEC      = 0.0D0     ! EVEC(1,2,3)=0
       USELIB    = .TRUE.
@@ -238,6 +268,7 @@
        EVEC = 0.0D0                ! No electric field
        IECP = 0                    ! Effective Core Potentials
        IEMOM = 0                   ! Electrostatic Moments
+       NLOP = 0                    ! Non Linear Optical Properties
       ELSE
        IHUBBARD = 0
       END IF
@@ -332,13 +363,21 @@
         WRITE(6,2)'UNITS ',UNITS                      
         CALL ABRT                                                      
       ENDIF                                                            
-      IF(IECP<0.or.IECP>3)THEN
+      IF(IECP<0.or.IECP>3)THEN   ! IEMOM = 0,1,2,3
         WRITE(6,3)IECP                        
         CALL ABRT                                                      
       END IF
-      IF(IHUB==0.and.(IEMOM<1.or.IEMOM>3))THEN   ! IEMOM = 1,2,3
+      IF(IHUB==0.and.(IEMOM<0.or.IEMOM>3))THEN  ! IEMOM = 0,1,2,3
         WRITE(6,4)IEMOM                       
         CALL ABRT                                                      
+      END IF
+      IF(IRUNTYP/=1 .and. NLOP/=0)THEN
+        WRITE(6,41)
+        CALL ABRT
+      END IF
+      IF(IHUB==0.and.(NLOP<-1.or.NLOP>3))THEN  ! NLOP = -1,0,1,2,3
+        WRITE(6,42)NLOP
+        CALL ABRT
       END IF
       IF(IERITYP==2 .and. IDONTW==0)THEN   ! IDONTW=1 with ERITYP=RI
         WRITE(6,5)
@@ -372,6 +411,10 @@
       ICH = ICHARG                                                      
       MUL = MULT
       IEMOMENTS = IEMOM
+      NLOPS = NLOP
+      NPOINTS = NPOINT
+      STEPS = STEP
+      ISOALPHAS = ISOALPHA
       NINTEG = NINTMX
       IECPO = IECP                                                   
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                        
@@ -384,8 +427,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     2 FORMAT(/1X,'Stop: $CONTRL KEYWORD ',A6,                           &
       ' was given an illegal value ',A8,'.'/)
-    3 FORMAT(/1X,'Stop: IECP   must be between  0 and 3, not',I8,/)
-    4 FORMAT(/1X,'Stop: IEMOM  must be between  1 and 3, not',I8,/) 
+    3 FORMAT(/1X,'Stop: IECP must be between 0 and 3, not',I8,/)
+    4 FORMAT(/1X,'Stop: IEMOM must be between 0 and 3, not',I8,/)
+   41 FORMAT(/1X,'Stop: RUNTYP must be ENERGY for NLOP /= 0',I8,/)
+   42 FORMAT(/1X,'Stop: NLOP must be between -1 and 3, not',I8,/)
     5 FORMAT(/1X,'Stop: DONTW must be T with ERITYP = RI',/)
     6 FORMAT(/1X,'Stop: ERITYP must be FULL or RI',/)
     7 FORMAT(/1X,'Stop: GTYP must be CART or SPH',/) 
@@ -505,9 +550,9 @@
 !
 !.......... IRHF                Restricted Hartree-Fock Calculation
 !                      = 0      Not obtaining HF orbitals
-!                      = 1      Self Consistent Field (SCF) Method
+!                      = 1      Self Consistent Field (SCF) (Default)
 !                               (only works with EFIELDL=.FALSE.)
-!                      = 2      Orbital rotaions through ADAM (Default)
+!                      = 2      Orbital rotaions through ADAM
 !                      = 3      Iterative Diagonalization (ID) Method
 !
 !.......... NCONVRHF            RHF-SCF Density Convergence Criteria
@@ -751,8 +796,8 @@
 !
 !.......... IAIMPAC             Write information into WFN file 
 !                               for the AIMPAC PROGRAM (UNIT 7)
-!                      = 0      Don't write
-!                      = 1      Write into WFN file (Default)
+!                      = 0      Don't write (Default)
+!                      = 1      Write into WFN file
 !
 !.......... IFCHK               Write information into Formatted 
 !                               Checkpoint (FCHK) file for visualization 
@@ -884,7 +929,7 @@
       NO1=0
       
 !     Hartree-Fock
-      IRHF=2
+      IRHF=1
       NCONVRHF=5
       MAXITRHF=100
       HFDAMP=.TRUE.
@@ -946,7 +991,7 @@
       DIAGLAG=.FALSE.  ! Only in the final Output
       IEKT=0           ! Only in the final Output
 !
-      IAIMPAC=1
+      IAIMPAC=0
       IFCHK=1
       MOLDEN=1
       INICOND=1

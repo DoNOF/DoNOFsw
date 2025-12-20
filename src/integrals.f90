@@ -68,13 +68,15 @@
        CALL DipInt(DInteg,NBFT,EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,          &
                    KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,        &
                    Cxyz,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
-       CALL ElecFieldInt(H,DInteg,NBFT)              
+       IF(IPRINTOPT==1)WRITE(6,'(1X,A16,3F10.5)')'Electric Field =',    &
+                       EFX,EFY,EFZ
+       CALL ElecFieldInt(H,DInteg,NBFT)
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL SYSTEM_CLOCK(timefinishoneE)
       DeltaToneE = (timefinishoneE - timestartoneE)/RATE
       IF(IPRINTOPT==1)                                                  &
-       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE                                                                                                    
+       WRITE(6,'(1X,A22,F10.2)')'Time to do integrals =',DeltaToneE
 !-----------------------------------------------------------------------
       RETURN                                                            
       END SUBROUTINE
@@ -128,7 +130,6 @@
       DOUBLE PRECISION,DIMENSION(NBFT) :: H
       DOUBLE PRECISION,DIMENSION(3*NBFT) :: DInteg
 !-----------------------------------------------------------------------
-      WRITE(6,'(1X,A16,3F10.5)')'Electric Field =',EFX,EFY,EFZ
       IF(EFX/=0.0d0)CALL DAXPY(NBFT,EFX,DInteg(1       ),1,H,1)
       IF(EFY/=0.0d0)CALL DAXPY(NBFT,EFY,DInteg(1+  NBFT),1,H,1)
       IF(EFZ/=0.0d0)CALL DAXPY(NBFT,EFZ,DInteg(1+2*NBFT),1,H,1)
@@ -675,6 +676,7 @@
       INTEGER NBF
       DIMENSION ERI(NN)
       INTEGER(8) :: IERI(NN)
+      INTEGER(8) :: LABEL
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
 !
@@ -715,6 +717,7 @@
 #include "mpip.h"
       INTEGER NBF
       INTEGER(8),DIMENSION(NN)::IERI
+      INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
@@ -773,6 +776,7 @@
 #include "mpip.h"
       INTEGER NBF
       INTEGER(8),DIMENSION(NN)::IERI
+      INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
@@ -835,6 +839,7 @@
 #include "mpip.h"
       INTEGER NBF
       INTEGER(8),DIMENSION(NN)::IERI
+      INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE::P(:),F(:),FF(:)
       ALLOCATE (P(N),F(N),FF(N))
@@ -895,6 +900,7 @@
 #include "mpip.h"
       INTEGER NBF
       INTEGER(8),DIMENSION(NN)::IERI
+      INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NN)::ERI
       ALLOCATABLE :: P1(:),F1(:),FF1(:)
       ALLOCATABLE :: P2(:),F2(:),FF2(:)
@@ -1165,17 +1171,10 @@
       INTEGER(4), DIMENSION(2) :: SHLS
       INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
 
-      INTEGER(4), ALLOCATABLE, DIMENSION(:,:) :: ATM4, BAS4
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:,:) :: BLK
 
       INTEGER, EXTERNAL :: CINTcgto_cart, CINTcgto_spheric
       INTEGER, EXTERNAL :: CECPscalar_cart, CECPscalar_sph
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      !ATM4 = ATM
-      !BAS4 = BAS
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
@@ -1231,7 +1230,6 @@
         END DO
       END DO
 !-----------------------------------------------------------------------
-      !DEALLOCATE(ATM4,BAS4)
       RETURN
       END
 
@@ -1253,30 +1251,23 @@
       INTEGER(4), DIMENSION(2) :: SHLS
       INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
 !
-      INTEGER(4), ALLOCATABLE, DIMENSION(:,:) :: ATM4, BAS4
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:,:) :: SBLK, VBLK, TBLK
 !
       INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_ovlp_sph
       INTEGER, EXTERNAL :: CINT1e_kin_sph, CINT1e_nuc_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_ovlp_cart
       INTEGER, EXTERNAL :: CINT1e_kin_cart, CINT1e_nuc_cart
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 !     LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
@@ -1298,13 +1289,13 @@
           ALLOCATE(SBLK(DI, DJ), TBLK(DI, DJ), VBLK(DI, DJ))
 !
           IF(IGTYP==1) THEN
-            ERR =CINT1e_ovlp_cart(SBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
-            ERR = CINT1e_kin_cart(TBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
-            ERR = CINT1e_nuc_cart(VBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
+            ERR = CINT1e_ovlp_cart(SBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+            ERR = CINT1e_kin_cart(TBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+            ERR = CINT1e_nuc_cart(VBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
           ELSE IF(IGTYP==2) THEN
-            ERR =CINT1e_ovlp_sph(SBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
-            ERR = CINT1e_kin_sph(TBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
-            ERR = CINT1e_nuc_sph(VBLK,SHLS,ATM4,NAT,BAS4,NBAS,ENV)
+            ERR = CINT1e_ovlp_sph(SBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+            ERR = CINT1e_kin_sph(TBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+            ERR = CINT1e_nuc_sph(VBLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
           END IF
 !
           DO I = 1, DI
@@ -1324,7 +1315,6 @@
         END DO
       END DO
 !-----------------------------------------------------------------------
-      DEALLOCATE(ATM4,BAS4)
       RETURN
       END
 
@@ -1345,30 +1335,23 @@
       INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
       DOUBLE PRECISION :: CX, CY, CZ, RC(3)
 
-      INTEGER(4), ALLOCATABLE, DIMENSION(:,:) :: ATM4, BAS4
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:,:,:) :: WINT
 
       INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_r_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_r_cart
       COMMON/CMCoord/Xcm,Ycm,Zcm
       DOUBLE PRECISION::Xcm, Ycm, Zcm
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6, NAT), BAS4(8, NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
@@ -1404,9 +1387,9 @@
 !          Integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           ALLOCATE(WINT(DI,DJ,3))
-          IF(IGTYP==1) ERR = CINT1e_r_cart(WINT, SHLS, ATM4, NAT, BAS4, &
+          IF(IGTYP==1) ERR = CINT1e_r_cart(WINT, SHLS, ATM, NAT, BAS, &
                   NBAS, ENV)
-          IF(IGTYP==2) ERR = CINT1e_r_sph(WINT, SHLS, ATM4, NAT, BAS4,  &
+          IF(IGTYP==2) ERR = CINT1e_r_sph(WINT, SHLS, ATM, NAT, BAS,  &
                   NBAS, ENV)
 
           DO K=1, NVAL
@@ -1430,7 +1413,6 @@
       END DO
 !-----------------------------------------------------------------------
       ENV(2:4) = 0.0D0
-      DEALLOCATE(ATM4, BAS4)
       RETURN
       END
 
@@ -1446,24 +1428,18 @@
       INTEGER(4) :: SHLS(4)
       DOUBLE PRECISION :: VMAX, VAL
       INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
-      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:,:)
       INTEGER, EXTERNAL :: CINTcgto_spheric, CINT2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, CINT2e_cart
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6, NAT), BAS4(8, NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
@@ -1480,9 +1456,9 @@
           SHLS(4) = JSH - 1
 
           ALLOCATE(BLK(DI, DJ, DI, DJ))
-          IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM4, NAT, BAS4,    &
+          IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM, NAT, BAS,    &
                   NBAS, ENV, 0_8)
-          IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM4, NAT, BAS4,     &
+          IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM, NAT, BAS,     &
                   NBAS, ENV, 0_8)
 
           VMAX = 0.0D0
@@ -1532,27 +1508,20 @@
       INTEGER(8), ALLOCATABLE :: IXC(:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:,:)
       INTEGER(4) :: SHLS(4)
-      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
       INTEGER, EXTERNAL :: CINTcgto_spheric, CINT2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, CINT2e_cart
       DOUBLE PRECISION,PARAMETER :: TENM12 = 1.0D-12
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
@@ -1630,10 +1599,10 @@
                 ALLOCATE(BLK(DI,DJ,DK,DL))
 
                 SHLS = (/ ISH-1, JSH-1, KSH-1, LSH-1 /)
-                IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM4, NAT,    &
-                        BAS4, NSHELL, ENV, 0_8)
-                IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM4, NAT,     &
-                        BAS4, NSHELL, ENV, 0_8)
+                IF(IGTYP==1) ERR = CINT2e_cart(BLK, SHLS, ATM, NAT,    &
+                        BAS, NSHELL, ENV, 0_8)
+                IF(IGTYP==2) ERR = CINT2e_sph(BLK, SHLS, ATM, NAT,     &
+                        BAS, NSHELL, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !               Write Label & Integral on File 1
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1659,7 +1628,7 @@
 
       !$OMP CRITICAL
       CALL LASTQOUTl(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm,NINTMX,       &
-                     NINTEGt,NREC,ICOUNT,IDONTW,IPRINTOPT)
+                     NINTEGt,NREC,ICOUNT,IDONTW)
       !$OMP END CRITICAL
       !$OMP END PARALLEL
 
@@ -1668,7 +1637,6 @@
       NREC = INT(NINTEGt/NINTMX) + 1
 !-----------------------------------------------------------------------
       DEALLOCATE(BUFPC,IXC)
-      DEALLOCATE(ATM4, BAS4)
       RETURN
       END
 
@@ -1787,9 +1755,9 @@
 
 ! LASTQOUTl
       SUBROUTINE LASTQOUTl(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm,        &
-                           NINTMX,NINTEGt,NREC,ICOUNT,IDONTW,IPRINTOPT)
+                           NINTMX,NINTEGt,NREC,ICOUNT,IDONTW)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW,IPRINTOPT
+      INTEGER :: NINTEGtm,NINTMX,NINTEGt,IDONTW
       INTEGER :: ICOUNT,NREC
       INTEGER(8)  :: IX(NINTMX)
       DOUBLE PRECISION :: BUFP(NINTMX)
@@ -2187,39 +2155,32 @@
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
-      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
       INTEGER :: ERR
 
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 
       LOCAUX(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS)
       DAUXcgto(1) = DI
       DO ISH = 2,NSHELLaux
         LOCAUX(ISH) = LOCAUX(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
         DAUXcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
@@ -2253,9 +2214,9 @@
 !           Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ALLOCATE(BLK(DI,DJ,DK))
-            IF(IGTYP==1)ERR = cint3c2e_cart(BLK,SHLS,ATM4,NAT,BAS4,     &
+            IF(IGTYP==1)ERR = cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,     &
                                             NBAS, ENV, 0_8)
-            IF(IGTYP==2)ERR = cint3c2e_sph(BLK,SHLS,ATM4,NAT,BAS4,      &
+            IF(IGTYP==2)ERR = cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,      &
                                            NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Contract to B tensor
@@ -2292,7 +2253,6 @@
       INTEGER :: LOC(NSHELL), LOCAUX(NSHELLaux)
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       INTEGER :: ERR
-      INTEGER(4), ALLOCATABLE :: ATM4(:,:), BAS4(:,:)
       INTEGER,ALLOCATABLE :: IPIV(:)
       DOUBLE PRECISION,ALLOCATABLE :: E(:)
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:), BUFP(:,:)
@@ -2301,35 +2261,28 @@
 
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
-
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
         LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
         Dcgto(ISH) = DI
       END DO
 
       LOCAUX(1) = 1
-      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS4)
-      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS4)
+      IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS)
+      IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS)
       DAUXcgto(1) = DI
       DO ISH = 2,NSHELLaux
         LOCAUX(ISH) = LOCAUX(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS4)
-        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS4)
+        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
+        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
         DAUXcgto(ISH) = DI
       END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2366,9 +2319,9 @@
 !           Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ALLOCATE(BLK(DI,DJ,DK))
-            IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM4, NAT, BAS4,&
+            IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM, NAT, BAS,&
                                              NBAS, ENV, 0_8)
-            IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM4, NAT, BAS4, &
+            IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM, NAT, BAS, &
                                             NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Store 3 center ERIs (mn|k)
@@ -2593,17 +2546,10 @@
       INTEGER :: NSHELL, ISH, KSH, ERR
       INTEGER :: DAUXcgto(NSHELLAUX)
 
-      INTEGER(4),ALLOCATABLE,DIMENSION(:,:) :: ATM4(:,:), BAS4(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:)
 
       INTEGER(4), EXTERNAL :: CINTcgto_cart, cint2c2e_cart, cint1e_ovlp_cart
       INTEGER(4), EXTERNAL :: CINTcgto_spheric, cint2c2e_sph, cint1e_ovlp_sph
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!                      LIBCINT use INT(4) arrays
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(ATM4(6,NAT), BAS4(8,NBAS))
-      ATM4 = ATM
-      BAS4 = BAS
 !-----------------------------------------------------------------------
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2622,9 +2568,9 @@
 !       Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ALLOCATE(BLK(DI,DK))
-        IF(IGTYP==1) ERR = cint2c2e_cart(BLK, SHLS, ATM4, NAT, BAS4,    &
+        IF(IGTYP==1) ERR = cint2c2e_cart(BLK, SHLS, ATM, NAT, BAS,    &
                 NBAS, ENV, 0_8)
-        IF(IGTYP==2) ERR = cint2c2e_sph(BLK, SHLS, ATM4, NAT, BAS4,     &
+        IF(IGTYP==2) ERR = cint2c2e_sph(BLK, SHLS, ATM, NAT, BAS,     &
                 NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Transfer integrals to G matrix
@@ -2669,9 +2615,9 @@
        AUX(I,I) = 1.0/DSQRT(EIG(I))
       END DO
 
-      IF(IPRINTOPT==1.AND.NTRUNC>0) THEN
-        WRITE(6,*) "RI Warning - Number of values truncated from metric:",NTRUNC
-      END IF
+      IF(IPRINTOPT==1.AND.NTRUNC>0)                                     &
+      WRITE(6,*) "RI Warning - Number of values truncated from metric:",&
+                 NTRUNC
 
       DEALLOCATE(EIG,W)
       CALL DGEMM("N","N",N,N,N,1.0D0,VEC,N,AUX,N,0.0D0,AUX2,N)

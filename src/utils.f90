@@ -1401,7 +1401,8 @@
        AUX(I,I) = 1.0/EIG(I)
       END DO
 
-      IF(IPRINTOPT==1) write(6,*) "Number of corrected eigenvalues at inverse",IDX
+      IF(IPRINTOPT==1) write(6,*)                                       &
+       "Number of corrected eigenvalues at inverse",IDX
 
       DEALLOCATE(EIG,W)
       GMAT = MATMUL(MATMUL(VEC,AUX),TRANSPOSE(VEC))
