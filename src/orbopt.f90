@@ -761,7 +761,7 @@
 
 ! FFJMN1rc
       SUBROUTINE FFJMN1rc(RO,CJ12,CK12,H,DJ,DK,F)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_ORBSPACE0/NO1,NDOC,NCO,NCWO,NVIR,NAC,NO0
@@ -780,9 +780,9 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
       DO I=1,NPROCS-1
-       NOPT=6
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBF,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+        NOPT=6
+        CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+        CALL MPI_SEND(NBF,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
       ENDDO
       CALL MPI_BCAST(NBF5,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(DJ,NSQ*NBF5,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
@@ -811,55 +811,55 @@
 !     Calculate Fj(m,n)
 !-----------------------------------------------------------------------
       IF(NO1>1)THEN
-       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
-       do ik=LL,UL
-        i = INT((ik-1)/nbf) + 1
-        k = MOD(ik-1,nbf) + 1
-        F(ik,1) = H(i,k) + PRODWCWij(ik,DJ,CJ12)-PRODWCWij(ik,DK,CK12)
-        DO J=NO1+1,NB
-         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)  
-        ENDDO                                                           
-        if(NSOC>0)then                                                  
-         DO J=NB+1,NA                                                   
-          F(ik,J) = RO(J) * H(i,k)                                     &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
-         ENDDO                                                          
-        end if                                                          
-        DO J=NA+1,NBF5                                                  
-         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+        !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+        do ik=LL,UL
+          i = INT((ik-1)/nbf) + 1
+          k = MOD(ik-1,nbf) + 1
+          F(ik,1) = H(i,k) + PRODWCWij(ik,DJ,CJ12)-PRODWCWij(ik,DK,CK12)
+          DO J=NO1+1,NB
+            F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+          ENDDO
+          if(NSOC>0)then
+            DO J=NB+1,NA
+              F(ik,J) = RO(J) * H(i,k)                                     &
+                    + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+            ENDDO
+          end if
+          DO J=NA+1,NBF5
+            F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+          ENDDO
+        enddo
+        !$OMP END PARALLEL DO
+        DO J=2,NO1
+          F(1:NSQ,J) = F(1:NSQ,1)
         ENDDO
-       enddo
-       !$OMP END PARALLEL DO
-       DO J=2,NO1
-        F(1:NSQ,J) = F(1:NSQ,1)
-       ENDDO
       ELSE
-       !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
-       do ik=LL,UL
-        i = INT((ik-1)/nbf) + 1
-        k = MOD(ik-1,nbf) + 1
-        DO J=1,NB
-         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
-        ENDDO                                                           
-        if(NSOC>0)then                                                  
-         DO J=NB+1,NA                                                   
-          F(ik,J) = RO(J) * H(i,k)                                     &
-                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12) 
-         ENDDO                                                          
-        end if                                                          
-        DO J=NA+1,NBF5                                                  
-         F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
-                 + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
-        ENDDO
-       enddo
-       !$OMP END PARALLEL DO
+        !$OMP PARALLEL DO PRIVATE(i,k,ik,J)
+        do ik=LL,UL
+          i = INT((ik-1)/nbf) + 1
+          k = MOD(ik-1,nbf) + 1
+          DO J=1,NB
+            F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+          ENDDO
+          if(NSOC>0)then
+            DO J=NB+1,NA
+              F(ik,J) = RO(J) * H(i,k)                                     &
+                    + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+            ENDDO
+          end if
+          DO J=NA+1,NBF5
+            F(ik,J) = RO(J) * ( H(i,k) + DJ(ik,J) )                       &
+                  + PRODWCWijq(ik,J,DJ,CJ12) - PRODWCWijq(ik,J,DK,CK12)
+          ENDDO
+        enddo
+        !$OMP END PARALLEL DO
       ENDIF
 #ifdef MPI
       CALL MPI_REDUCE(F,FF,NSQ*NBF5,MPI_REAL8,MPI_SUM,MASTER,           &
-                      MPI_COMM_WORLD,IERR)
+            MPI_COMM_WORLD,IERR)
       F = FF
       DEALLOCATE(FF)
 #endif
@@ -1415,17 +1415,17 @@
 
 ! HSTARK3
       SUBROUTINE HSTARK3(FM1,PM1,FM2,PM2,FM3,PM3,IERI,ERI)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/USEHUBBARD/IHUB      
+      COMMON/USEHUBBARD/IHUB
 #include "mpip.h"
       INTEGER(8),DIMENSION(NSTORE) :: IERI
       INTEGER(8) :: LABEL
       DOUBLE PRECISION,DIMENSION(NSTORE) :: ERI
       DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM1,PM1,FM2,PM2,FM3,PM3
       ALLOCATABLE :: P1(:),P2(:),P3(:),F1(:),F2(:),F3(:)
-#ifdef MPI
+#ifdef MPI 
       ALLOCATABLE :: FF1(:),FF2(:),FF3(:)
 #endif
       ALLOCATE (P1(NBFT),F1(NBFT),P2(NBFT),F2(NBFT),P3(NBFT),F3(NBFT))
@@ -1435,88 +1435,88 @@
 #ifdef MPI
       ALLOCATE (FF1(NBFT),FF2(NBFT),FF3(NBFT))
       DO I=1,NPROCS-1
-       NOPT=5
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+        NOPT=5 
+        CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
+        CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
       ENDDO
 #endif
       CALL SQUARETRIAN(PM1,P1,NBF,NBFT)
       CALL SQUARETRIAN(PM2,P2,NBF,NBFT)
-      CALL SQUARETRIAN(PM3,P3,NBF,NBFT)      
+      CALL SQUARETRIAN(PM3,P3,NBF,NBFT)
       F1 = 0.0d0
       F2 = 0.0d0
-      F3 = 0.0d0      
-#ifdef MPI
+      F3 = 0.0d0
+#ifdef MPI 
       FF1 = 0.0d0
       FF2 = 0.0d0
-      FF3 = 0.0d0      
+      FF3 = 0.0d0
       CALL MPI_BCAST(NBF,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P1,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
       CALL MPI_BCAST(P2,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(P3,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)      
+      CALL MPI_BCAST(P3,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
 #endif
       !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK)  REDUCTION(+:F1,F2,F3)
       DO M=1,NINTCR
-       LABEL = IERI(M)
-       CALL LABELIJKL(LABEL,I,J,K,L)
-       XJ = ERI(M)
-       NIJ = I*(I-1)/2 + J
-       NKL = K*(K-1)/2 + L
-       XJ = 0.25*XJ
-       IF(IHUB==0)CALL OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
-       XK = XJ
-       NIK = I*(I-1)/2 + K
-       NJL = MAX0(J,L)*(MAX0(J,L)-1)/2 + MIN0(J,L)
-       
-       IF(I==K.OR.J==L) XK=XK+XK
-       F1(NIK)=F1(NIK)+P1(NJL)*XK
-       F2(NIK)=F2(NIK)+P2(NJL)*XK
-       F3(NIK)=F3(NIK)+P3(NJL)*XK
-       
-       IF(NIK/=NJL)THEN
-        F1(NJL)=F1(NJL)+P1(NIK)*XK
-        F2(NJL)=F2(NJL)+P2(NIK)*XK
-        F3(NJL)=F3(NJL)+P3(NIK)*XK
-       ENDIF
-       
-       IF(I/=J.and.K/=L)THEN
-        NIL = I*(I-1)/2 + L
-        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
-        IF(I==L.OR.J==K) XJ=XJ+XJ
-        
-        F1(NIL)=F1(NIL)+P1(NJK)*XJ
-        F2(NIL)=F2(NIL)+P2(NJK)*XJ
-        F3(NIL)=F3(NIL)+P3(NJK)*XJ
+        LABEL = IERI(M)
+        CALL LABELIJKL(LABEL,I,J,K,L)
+        XJ = ERI(M)
+        NIJ = I*(I-1)/2 + J
+        NKL = K*(K-1)/2 + L
+        XJ = 0.25*XJ
+        IF(IHUB==0)CALL OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
+        XK = XJ
+        NIK = I*(I-1)/2 + K 
+        NJL = MAX0(J,L)*(MAX0(J,L)-1)/2 + MIN0(J,L)
 
-        IF(NIL/=NJK)THEN
-         F1(NJK)=F1(NJK)+P1(NIL)*XJ
-         F2(NJK)=F2(NJK)+P2(NIL)*XJ         
-         F3(NJK)=F3(NJK)+P3(NIL)*XJ         
-        ENDIF         
-       ENDIF
+        IF(I==K.OR.J==L) XK=XK+XK
+        F1(NIK)=F1(NIK)+P1(NJL)*XK
+        F2(NIK)=F2(NIK)+P2(NJL)*XK
+        F3(NIK)=F3(NIK)+P3(NJL)*XK
+
+        IF(NIK/=NJL)THEN
+          F1(NJL)=F1(NJL)+P1(NIK)*XK
+          F2(NJL)=F2(NJL)+P2(NIK)*XK
+          F3(NJL)=F3(NJL)+P3(NIK)*XK
+        ENDIF
+
+        IF(I/=J.and.K/=L)THEN
+          NIL = I*(I-1)/2 + L
+          NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
+          IF(I==L.OR.J==K) XJ=XJ+XJ
+
+          F1(NIL)=F1(NIL)+P1(NJK)*XJ
+          F2(NIL)=F2(NIL)+P2(NJK)*XJ
+          F3(NIL)=F3(NIL)+P3(NJK)*XJ
+
+          IF(NIL/=NJK)THEN
+            F1(NJK)=F1(NJK)+P1(NIL)*XJ
+            F2(NJK)=F2(NJK)+P2(NIL)*XJ
+            F3(NJK)=F3(NJK)+P3(NIL)*XJ
+          ENDIF
+        ENDIF
       ENDDO
       !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#ifdef MPI
+#ifdef MPI 
       CALL MPI_REDUCE(F1,FF1,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)
+            MPI_COMM_WORLD,IERR)
       CALL MPI_REDUCE(F2,FF2,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)
+            MPI_COMM_WORLD,IERR)
       CALL MPI_REDUCE(F3,FF3,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)
-                      
+            MPI_COMM_WORLD,IERR)
+
       CALL TRIANSQUARE(FM1,FF1,NBF,NBFT)
-      CALL TRIANSQUARE(FM2,FF2,NBF,NBFT)      
-      CALL TRIANSQUARE(FM3,FF3,NBF,NBFT)      
-      
+      CALL TRIANSQUARE(FM2,FF2,NBF,NBFT)
+      CALL TRIANSQUARE(FM3,FF3,NBF,NBFT)
+
       DEALLOCATE (P1,P2,P3,F1,F2,F3,FF1,FF2,FF3)
 #else
       CALL TRIANSQUARE(FM1,F1,NBF,NBFT)
       CALL TRIANSQUARE(FM2,F2,NBF,NBFT)
-      CALL TRIANSQUARE(FM3,F3,NBF,NBFT)      
-      
+      CALL TRIANSQUARE(FM3,F3,NBF,NBFT)
+
       DEALLOCATE (P1,P2,P3,F1,F2,F3)
 #endif
 !----------------------------------------------------------------------

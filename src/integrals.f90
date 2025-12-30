@@ -748,14 +748,12 @@
        IF(I==K.OR.J==L)XK=XK+XK
                        F(NIK)=F(NIK)+P(NJL)*XK
        IF(NIK/=NJL)    F(NJL)=F(NJL)+P(NIK)*XK
-       !IF(I==J.OR.K==L)GOTO 1
        IF(I==J.OR.K==L)CYCLE
        NIL = I*(I-1)/2 + L
        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
        IF(I==L.OR.J==K)XJ=XJ+XJ
                        F(NIL)=F(NIL)+P(NJK)*XJ
        IF(NIL/=NJK)    F(NJK)=F(NJK)+P(NIL)*XJ
-    !1 CONTINUE
       END DO
       !$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -948,7 +946,6 @@
         F3(NJL)=F3(NJL)+P3(NIK)*XK        
        ENDIF
        
-       !IF(I==J.OR.K==L)GOTO 1
        IF(I==J.OR.K==L)CYCLE
        NIL = I*(I-1)/2 + L
        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
@@ -964,7 +961,6 @@
         F3(NJK)=F3(NJK)+P3(NIL)*XJ        
        ENDIF
        
-    !1 CONTINUE
       END DO
       !$OMP END PARALLEL DO
 
@@ -1322,7 +1318,6 @@
       SUBROUTINE PRCALCl(XVAL,NVAL,L2,SIZE_ENV,ENV,NAT,ATM,NSHELL,      &
                          NBAS,BAS,IGTYP)
       IMPLICIT NONE
-
       INTEGER, INTENT(IN) :: NVAL, L2, SIZE_ENV, NAT, NSHELL, NBAS
       INTEGER, INTENT(IN) :: IGTYP
       DOUBLE PRECISION, INTENT(INOUT) :: ENV(SIZE_ENV)
@@ -1331,7 +1326,7 @@
 
       INTEGER :: IAT, ISH, JSH, I, J, K, LI, LJ, ID, IJ, NL2
       INTEGER :: DI, DJ, DJEFF, Ztot, Z, ERR
-      INTEGER(4) :: SHLS(2)
+      INTEGER :: SHLS(2)
       INTEGER, DIMENSION(NSHELL) :: LOC, Dcgto
       DOUBLE PRECISION :: CX, CY, CZ, RC(3)
 
@@ -1339,8 +1334,13 @@
 
       INTEGER, EXTERNAL :: CINTcgto_spheric, CINT1e_r_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, CINT1e_r_cart
+      INTEGER, EXTERNAL :: CINT1e_rr_sph, CINT1e_rrr_sph
+      INTEGER, EXTERNAL :: CINT1e_rr_cart, CINT1e_rrr_cart
       COMMON/CMCoord/Xcm,Ycm,Zcm
-      DOUBLE PRECISION::Xcm, Ycm, Zcm
+      DOUBLE PRECISION :: Xcm, Ycm, Zcm
+      INTEGER, PARAMETER :: QUADmap(6) = [1, 5, 9, 2, 3, 4]
+      INTEGER, PARAMETER :: OCTAmap(10) = [1, 14, 27, 2, 3, 5, 15, 9,   &
+                                           18, 6]
 !-----------------------------------------------------------------------
 ! LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
@@ -1376,41 +1376,118 @@
       ENV(4) = Zcm
 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DO ISH=1, NSHELL
-        SHLS(1) = ISH - 1
-        DI = Dcgto(ISH)
+      IF(NVAL >= 3) THEN
+        DO ISH=1, NSHELL
+          SHLS(1) = ISH - 1
+          DI = Dcgto(ISH)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        DO JSH=1, ISH
-          SHLS(2) = JSH - 1
-          DJ = Dcgto(JSH)
+          DO JSH=1, ISH
+            SHLS(2) = JSH - 1
+            DJ = Dcgto(JSH)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !          Integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-          ALLOCATE(WINT(DI,DJ,3))
-          IF(IGTYP==1) ERR = CINT1e_r_cart(WINT, SHLS, ATM, NAT, BAS, &
+            ALLOCATE(WINT(DI,DJ,3))
+            IF(IGTYP==1) ERR = CINT1e_r_cart(WINT, SHLS, ATM, NAT, BAS, &
                   NBAS, ENV)
-          IF(IGTYP==2) ERR = CINT1e_r_sph(WINT, SHLS, ATM, NAT, BAS,  &
+            IF(IGTYP==2) ERR = CINT1e_r_sph(WINT, SHLS, ATM, NAT, BAS,  &
                   NBAS, ENV)
 
-          DO K=1, NVAL
-            NL2 = (K-1)*L2
+            DO K=1, 3
+              NL2 = (K-1)*L2
 
-            DO I = 1, DI
-              LI = LOC(ISH) + I - 1
-              ID = (LI * (LI - 1))/2  + NL2
-              DJEFF = MERGE(I, DJ, ISH == JSH)
-              DO J = 1, DJEFF
-                LJ = LOC(JSH) + J - 1
-                IJ = LJ + ID
-                XVAL(IJ) = WINT(I, J, K)
+              DO I = 1, DI
+                LI = LOC(ISH) + I - 1
+                ID = (LI * (LI - 1))/2  + NL2
+                DJEFF = MERGE(I, DJ, ISH == JSH)
+                DO J = 1, DJEFF
+                  LJ = LOC(JSH) + J - 1
+                  IJ = LJ + ID
+                  XVAL(IJ) = WINT(I, J, K)
+                END DO
               END DO
             END DO
+            DEALLOCATE(WINT)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
           END DO
-          DEALLOCATE(WINT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         END DO
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      END DO
+      IF(NVAL >= 6) THEN
+        DO ISH=1, NSHELL
+          SHLS(1) = ISH - 1
+          DI = Dcgto(ISH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          DO JSH=1, ISH
+            SHLS(2) = JSH - 1
+            DJ = Dcgto(JSH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!          Integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ALLOCATE(WINT(DI,DJ,9))
+            IF(IGTYP==1) ERR = CINT1e_rr_cart(WINT, SHLS, ATM, NAT, BAS, &
+                  NBAS, ENV)
+            IF(IGTYP==2) ERR = CINT1e_rr_sph(WINT, SHLS, ATM, NAT, BAS,  &
+                  NBAS, ENV)
+
+            DO K=1,6
+              NL2 = (3+K-1)*L2
+
+              DO I = 1, DI
+                LI = LOC(ISH) + I - 1
+                ID = (LI * (LI - 1))/2  + NL2
+                DJEFF = MERGE(I, DJ, ISH == JSH)
+                DO J = 1, DJEFF
+                  LJ = LOC(JSH) + J - 1
+                  IJ = LJ + ID
+                  XVAL(IJ) = WINT(I, J, QUADmap(K))
+                END DO
+              END DO
+            END DO
+            DEALLOCATE(WINT)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        END DO
+      END IF
+      IF(NVAL == 19) THEN
+        DO ISH=1, NSHELL
+          SHLS(1) = ISH - 1
+          DI = Dcgto(ISH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          DO JSH=1, ISH
+            SHLS(2) = JSH - 1
+            DJ = Dcgto(JSH)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!          Integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+            ALLOCATE(WINT(DI,DJ,27))
+            IF(IGTYP==1) ERR = CINT1e_rrr_cart(WINT, SHLS, ATM, NAT, BAS, &
+                  NBAS, ENV)
+            IF(IGTYP==2) ERR = CINT1e_rrr_sph(WINT, SHLS, ATM, NAT, BAS,  &
+                  NBAS, ENV)
+
+            DO K=1,10
+              NL2 = (9+K-1)*L2
+
+              DO I = 1, DI
+                LI = LOC(ISH) + I - 1
+                ID = (LI * (LI - 1))/2  + NL2
+                DJEFF = MERGE(I, DJ, ISH == JSH)
+                DO J = 1, DJEFF
+                  LJ = LOC(JSH) + J - 1
+                  IJ = LJ + ID
+                  XVAL(IJ) = WINT(I, J, OCTAmap(K))
+                END DO
+              END DO
+            END DO
+            DEALLOCATE(WINT)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+          END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        END DO
+      END IF
 !-----------------------------------------------------------------------
       ENV(2:4) = 0.0D0
       RETURN
@@ -1532,13 +1609,13 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NINTEGt  = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL &
-      !$OMP PRIVATE(II, JJ, KK, LL, ISH, JSH, KSH, LSH, DI, DJ, DK, DL, &
-      !$OMP SKIPA, SKIPB, SKIPC, IEXCH, IJIJ, KLKL, SHLS, ERR, TEST,    &
-      !$OMP SCHSKP, NSCHWZ, IX, BUFP, BLK, ICOUNT)
+      !!$OMP PARALLEL &
+      !!$OMP PRIVATE(II, JJ, KK, LL, ISH, JSH, KSH, LSH, DI, DJ, DK, DL, &
+      !!$OMP SKIPA, SKIPB, SKIPC, IEXCH, IJIJ, KLKL, SHLS, ERR, TEST,    &
+      !!$OMP SCHSKP, NSCHWZ, IX, BUFP, BLK, ICOUNT)
       SCHSKP=.FALSE.
       ICOUNT = 1
-      !$OMP DO SCHEDULE(DYNAMIC)
+      !!$OMP DO SCHEDULE(DYNAMIC)
       DO II = 1, NSHELL                                ! II Shell
         DO JJ = 1, II                                  ! JJ Shell
           DO KK = 1, JJ                                ! KK Shell
@@ -1616,21 +1693,21 @@
           END DO
         END DO
       END DO
-      !$OMP END DO
+      !!$OMP END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Final Record on File 1. Calculate NINTEGt.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP CRITICAL
+      !!$OMP CRITICAL
       NINTEGt = (NREC-1)*NINTMX
-      !$OMP END CRITICAL
+      !!$OMP END CRITICAL
 
-      !$OMP BARRIER
+      !!$OMP BARRIER
 
-      !$OMP CRITICAL
+      !!$OMP CRITICAL
       CALL LASTQOUTl(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm,NINTMX,       &
                      NINTEGt,NREC,ICOUNT,IDONTW)
-      !$OMP END CRITICAL
-      !$OMP END PARALLEL
+      !!$OMP END CRITICAL
+      !!$OMP END PARALLEL
 
       CALL FINALIZEl(BUFPC, IXC, BUFP2, IX2, NINTEGtm, NINTMX, NINTEGt, &
                      NREC, IDONTW, IPRINTOPT)
@@ -1730,7 +1807,7 @@
 
               IF(ICOUNT > NINTMX) THEN
                 NXInteg = NINTMX
-                !$OMP CRITICAL
+                !!$OMP CRITICAL
                 IF(IDONTW==1)THEN
                   IJBUFi = (NREC-1)*NINTMX
                   DO ibuf=1,NINTMX
@@ -1741,7 +1818,7 @@
                   WRITE(1)NXInteg,IX,BUFP
                 END IF
                 NREC = NREC+1
-                !$OMP END CRITICAL
+                !!$OMP END CRITICAL
                 ICOUNT = 1
               END IF
 
@@ -2139,7 +2216,7 @@
 ! AuxERIl
       SUBROUTINE AuxERIl(NINTEGtm, BUFP2, NBF, IPRINTOPT, NSHELL, NAT,  &
                          SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
       INTEGER, INTENT(IN) :: IGTYP
@@ -2156,7 +2233,7 @@
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
       INTEGER :: ERR
-
+        
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
 !-----------------------------------------------------------------------
@@ -2173,7 +2250,7 @@
         Dcgto(ISH) = DI
       END DO
 
-      LOCAUX(1) = 1
+      LOCAUX(1) = 1 
       IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS)
       IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS)
       DAUXcgto(1) = DI
@@ -2191,13 +2268,12 @@
       ALLOCATE(GMAT(NBFaux,NBFaux))
       GMAT = 0.0D0
       CALL METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,         &
-                     DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
+            DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
       CALL PDPT_msqrtl(GMAT,NBFaux,IPRINTOPT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, LQSUM, DI, DJ, DK, SHLS,    &
-      !$OMP ERR, BLK, AUX, NORGH)
+      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
       !$OMP DO SCHEDULE(DYNAMIC)
       DO ISH = 1,NSHELL
         DI = Dcgto(ISH)
@@ -2215,14 +2291,14 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ALLOCATE(BLK(DI,DJ,DK))
             IF(IGTYP==1)ERR = cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,     &
-                                            NBAS, ENV, 0_8)
+                  NBAS, ENV, 0_8)
             IF(IGTYP==2)ERR = cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,      &
-                                           NBAS, ENV, 0_8)
+                  NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Contract to B tensor
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
             CALL QOUT3Cl(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,     &
-                         ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLaux)
+                  ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
             DEALLOCATE(BLK)
           END DO
@@ -2238,13 +2314,14 @@
 ! AuxERIModCholl
       SUBROUTINE AuxERIModCholl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,    &
                                 NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
       INTEGER, INTENT(IN) :: IGTYP
       DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2,NBFaux)
       DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
       INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+      INTEGER :: M,N,MN,I,J,K,INFO
 !
       INTEGER :: DI,DJ,DK
       INTEGER(4) :: SHLS(4)
@@ -2294,15 +2371,14 @@
       ALLOCATE(E(NBFaux),IPIV(NBFaux))
       GMAT = 0.0D0
       CALL METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,         &
-                     DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
+            DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
       CALL LDLT(GMAT,IPIV,E,NBFaux)
       CALL MODCHOL(NBFaux, GMAT, IPIV, E, 1D-10,IPRINTOPT)
       CALL GET_PLD12(GMAT,IPIV,E,NBFaux,P,L,D)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, LQSUM, DI, DJ, DK, SHLS,    &
-      !$OMP ERR, BLK, AUX, NORGH)
+      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
       !$OMP DO SCHEDULE(DYNAMIC)
       DO ISH = 1,NSHELL
         DI = Dcgto(ISH)
@@ -2320,14 +2396,14 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             ALLOCATE(BLK(DI,DJ,DK))
             IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM, NAT, BAS,&
-                                             NBAS, ENV, 0_8)
+                  NBAS, ENV, 0_8)
             IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM, NAT, BAS, &
-                                            NBAS, ENV, 0_8)
+                  NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !           Store 3 center ERIs (mn|k)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             CALL QOUT3CModCholl(BUFP,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH,  &
-                                JSH,KSH,LOC,LOCAUX,NSHELL,NSHELLaux)
+                  JSH,KSH,LOC,LOCAUX,NSHELL,NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
             DEALLOCATE(BLK)
           END DO
@@ -2353,7 +2429,7 @@
         DO M=1,N
           MN = M + N*(N-1)/2
           CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux), &
-                      NBFaux,INFO)
+                NBFaux,INFO)
           CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
         END DO
       END DO
@@ -2533,52 +2609,51 @@
 
 ! METRICmatl
       SUBROUTINE METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,   &
-                     DAUXcgto, LOCAUX, NSHELL, NSHELLAUX, NBFaux, IGTYP)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER, INTENT(IN) :: SIZE_ENV, NAT, NBAS, NSHELLAUX, IGTYP
+      DAUXcgto, LOCAUX, NSHELL, NSHELLAUX, NBFaux, IGTYP)
+      IMPLICIT NONE
+      INTEGER, INTENT(IN) :: SIZE_ENV, NAT, NBAS, NSHELLAUX, IGTYP, NBFaux
       DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
       INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
       DOUBLE PRECISION, INTENT(OUT) :: GMAT(NBFaux,NBFaux)
       INTEGER, INTENT(IN) :: LOCAUX(NSHELLAUX)
 !
       INTEGER :: DI, DK
-      INTEGER(4) :: SHLS(2)
+      INTEGER :: SHLS(2)
       INTEGER :: NSHELL, ISH, KSH, ERR
       INTEGER :: DAUXcgto(NSHELLAUX)
 
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:)
 
-      INTEGER(4), EXTERNAL :: CINTcgto_cart, cint2c2e_cart, cint1e_ovlp_cart
-      INTEGER(4), EXTERNAL :: CINTcgto_spheric, cint2c2e_sph, cint1e_ovlp_sph
+      INTEGER, EXTERNAL :: CINTcgto_cart, cint2c2e_cart, cint1e_ovlp_cart
+      INTEGER, EXTERNAL :: CINTcgto_spheric, cint2c2e_sph, cint1e_ovlp_sph
 !-----------------------------------------------------------------------
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL &
-      !$OMP PRIVATE(II, KK, ISH, KSH, LQSUM, BLK, DI, DK, ERR, SHLS)
+      !$OMP PARALLEL PRIVATE(ISH, KSH, BLK, DI, DK, ERR, SHLS)
       !$OMP DO SCHEDULE(DYNAMIC)
       DO ISH = 1,NSHELLAUX                          ! II Shell
-       SHLS(1) = ISH-1 + NSHELL
-       DI = DAUXcgto(ISH)
-       DO KSH = 1,ISH                               ! KK Shell
-        SHLS(2) = KSH-1 + NSHELL
-        DK = DAUXcgto(KSH)
+        SHLS(1) = ISH-1 + NSHELL
+        DI = DAUXcgto(ISH)
+        DO KSH = 1,ISH                               ! KK Shell
+          SHLS(2) = KSH-1 + NSHELL
+          DK = DAUXcgto(KSH)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Compute 2e- Integrals
 !       Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ALLOCATE(BLK(DI,DK))
-        IF(IGTYP==1) ERR = cint2c2e_cart(BLK, SHLS, ATM, NAT, BAS,    &
+          ALLOCATE(BLK(DI,DK))
+          IF(IGTYP==1) ERR = cint2c2e_cart(BLK, SHLS, ATM, NAT, BAS,    &
                 NBAS, ENV, 0_8)
-        IF(IGTYP==2) ERR = cint2c2e_sph(BLK, SHLS, ATM, NAT, BAS,     &
+          IF(IGTYP==2) ERR = cint2c2e_sph(BLK, SHLS, ATM, NAT, BAS,     &
                 NBAS, ENV, 0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Transfer integrals to G matrix
 !- - - - - - - - - - - - - - - - - - - - - - -
-        CALL QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
+          CALL QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
 !- - - - - - - - - - - - - - - - - - - - - - -
-        DEALLOCATE(BLK)
-       END DO
+          DEALLOCATE(BLK)
+        END DO
       END DO
       !$OMP END DO
       !$OMP END PARALLEL

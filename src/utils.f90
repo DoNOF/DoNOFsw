@@ -213,51 +213,55 @@
       
 ! CHECKORTHO
       SUBROUTINE CHECKORTHO(COEF,OVERLAP,IVIOORTHO,IPRINTOPT)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      INTEGER :: IVIOORTHO,IPRINTOPT      
+      IMPLICIT NONE
+      INTEGER :: IVIOORTHO,IPRINTOPT
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPNOF_NTHRESH/NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
-      DIMENSION COEF(NBF,NBF),OVERLAP(NBF,NBF)
+      INTEGER :: NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      INTEGER :: NTHRESHL,NTHRESHE,NTHRESHEC,NTHRESHEN
+      INTEGER :: IQ,JQ,i
+
+      DOUBLE PRECISION, EXTERNAL :: FC
+      DOUBLE PRECISION :: THRESHORTHO, CSC, CSCMAX
+      DOUBLE PRECISION :: COEF(NBF,NBF),OVERLAP(NBF,NBF)
 !-----------------------------------------------------------------------
       IF(NTHRESHE<=8)THEN
-       THRESHORTHO=1.0d-08
+        THRESHORTHO=1.0d-08
       ELSE
-       THRESHORTHO=10.0**(-NTHRESHE)
+        THRESHORTHO=10.0**(-NTHRESHE)
       ENDIF
       IVIOORTHO=0
       CSCMAX=0.0d0
       !$OMP PARALLEL DO PRIVATE(IQ,JQ,CSC,i) REDUCTION(+:IVIOORTHO) REDUCTION(MAX: CSCMAX)
       DO IQ=1,NBF
-       DO JQ=1,IQ
-        CSC=0.0d0
-        do i=1,nbf
-         CSC = CSC + COEF(i,IQ)*FC(i,JQ,OVERLAP,COEF)
-        enddo
-        IF(IQ==JQ.and.ABS(1.0-CSC)>THRESHORTHO)THEN
-         IVIOORTHO=IVIOORTHO+1
-         if(CSCMAX<ABS(1.0-CSC))CSCMAX=ABS(1.0-CSC)
-!         write(6,*)IQ,JQ,CSC         
-        ELSEIF(IQ/=JQ.and.ABS(CSC)>THRESHORTHO)THEN
-         IVIOORTHO=IVIOORTHO+1
-         if(CSCMAX<ABS(CSC))CSCMAX=ABS(CSC)
-!         write(6,*)IQ,JQ,CSC         
-        ENDIF
-       ENDDO
+        DO JQ=1,IQ
+          CSC=0.0d0
+          do i=1,nbf
+            CSC = CSC + COEF(i,IQ)*FC(i,JQ,OVERLAP,COEF)
+          enddo
+          IF(IQ==JQ.and.ABS(1.0-CSC)>THRESHORTHO)THEN
+            IVIOORTHO=IVIOORTHO+1
+            if(CSCMAX<ABS(1.0-CSC))CSCMAX=ABS(1.0-CSC)
+          ELSEIF(IQ/=JQ.and.ABS(CSC)>THRESHORTHO)THEN
+            IVIOORTHO=IVIOORTHO+1
+            if(CSCMAX<ABS(CSC))CSCMAX=ABS(CSC)
+          ENDIF
+        ENDDO
       ENDDO
       !$OMP END PARALLEL DO
       IF(IPRINTOPT==0)RETURN
       IF(IVIOORTHO==0)THEN
-       WRITE(6,1)
+        WRITE(6,1) 
       ELSE
-       WRITE(6,2)IVIOORTHO,CSCMAX
+        WRITE(6,2)IVIOORTHO,CSCMAX
       ENDIF
       RETURN
 !-----------------------------------------------------------------------
 !     Format definitions
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    1 FORMAT(/,' No violations of the orthonormality')
-    2 FORMAT(/,' Orthonormality violations:',I8,                        &
-               ', Maximum Violation:',E8.1)
+1     FORMAT(/,' No violations of the orthonormality')
+2     FORMAT(/,' Orthonormality violations:',I8,                        &
+            ', Maximum Violation:',E8.1)
 !-----------------------------------------------------------------------
       END
 
@@ -536,6 +540,25 @@
       RETURN
       END
 
+! DIAG
+      SUBROUTINE DIAG(NN,A,VEC,EIG,W)          
+      IMPLICIT NONE
+      INTEGER :: NN
+      DOUBLE PRECISION,DIMENSION(NN)::EIG,W
+      DOUBLE PRECISION,DIMENSION(NN,NN)::A,VEC
+      INTEGER :: LWORK, INFO
+      DOUBLE PRECISION,ALLOCATABLE::WORK(:)
+                            
+      VEC = A
+      LWORK = 3*NN-1
+      ALLOCATE(WORK(LWORK))
+
+      CALL DSYEV('V', 'L', NN, VEC, NN, EIG, WORK, LWORK, INFO)
+
+      DEALLOCATE(WORK)
+
+      END
+
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 !                                                                      !
 !   DIAG: Diagonalization of real symmetric matrix using Houselholder  !
@@ -543,230 +566,230 @@
 !                                                                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
-! DIAG
-      SUBROUTINE DIAG(NN,A,VEC,EIG,W)                                  
-!**********************************************************************!
-!     MATRIX DIAGNOLIZATION ROUTINE FOR REAL SYMMETRIC CASE            !
-!     HOUSEHOLDER METHOD                                               !
-!     RHOSQ = UPPER LIMIT FOR OFF-DIAGONAL ELEMENT                     !
-!     NN= SIZE OF MATRIX                                               !
-!     A = MATRIX (ONLY LOWER TRIANGLE IS USED + THIS IS DESTROYED)     !
-!     EIG = RETURNED EIGENVALUES IN ALGEBRAIC DESCENDING ORDER         !
-!     VEC = RETURNED EIGENVECTORS IN COLUMNS                           !
-!**********************************************************************!
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      PARAMETER (NAN = 5000)
-      INTEGER,DIMENSION(NAN)::IPOSV,IORD,IVPOS
-      DOUBLE PRECISION,DIMENSION(NAN)::GAMMA,BETA,P,Q,BETASQ
-      DOUBLE PRECISION,DIMENSION(NN)::EIG,W
-      DOUBLE PRECISION,DIMENSION(NN,NN)::A,VEC
-      EQUIVALENCE (P,Q,IVPOS,BETA),(IPOSV,GAMMA),(IORD,BETASQ)
-      DATA ZERO/0.0d0/,PT5/0.5d0/,ONE/1.0d0/,TWO/2.0d0/,RHOSQ/1.0D-30/
-!-----------------------------------------------------------------------
-      N=NN
-      IF (N == 0) GO TO 550
-      N1=N-1
-      N2=N-2
-      GAMMA(1)=A(1,1)
-      IF (N2<0)GO TO 180
-      IF (N2==0)GO TO 170
-      DO NR=1,N2
-       B=A(NR+1,NR)
-       S=ZERO
-       DO I=NR,N2
-        S=S+A(I+2,NR)**2
-       END DO
-!      PREPARE FOR POSSIBLE BYPASS OF TRANSFORMATION
-       A(NR+1,NR)=ZERO
-       IF (S <= ZERO) GO TO 150
-       S=S+B*B
-       SGN=+ONE
-       IF (B < ZERO) SGN=-ONE
-       SQRTS= SQRT(S)
-       D=SGN/(SQRTS+SQRTS)
-       TEMP= SQRT(PT5+B*D)
-       W(NR)=TEMP
-       A(NR+1,NR)=TEMP
-       D=D/TEMP
-       B=-SGN*SQRTS
-!      D IS FACTOR OF PROPORTIONALITY. NOW COMPUTE AND SAVE W VECTOR.
-!      EXTRA SINGLY SUBSCRIPTED W VECTOR USED FOR SPEED.
-       DO I=NR,N2
-        TEMP=D*A(I+2,NR)
-        W(I+1)=TEMP
-        A(I+2,NR)=TEMP
-       END DO
-!      PREMULTIPLY VECTOR W BY MATRIX A TO OBTAIN P VECTOR.
-!      SIMULTANEOUSLY ACCUMULATE DOT PRODUCT WP,(THE SCALAR K)
-       WTAW=ZERO
-       DO I=NR,N1
-        SUM=ZERO
-        DO J=NR,I
-         SUM=SUM+A(I+1,J+1)*W(J)
-        END DO
-        I1=I+1
-        IF( (N1-I1) >= 0 ) THEN
-         DO J=I1,N1
-          SUM=SUM+A(J+1,I+1)*W(J)
-         END DO
-        END IF
-        P(I)=SUM
-        WTAW=WTAW+SUM*W(I)
-       END DO
-!      P VECTOR AND SCALAR K  NOW STORED. NEXT COMPUTE Q VECTOR
-       DO I=NR,N1
-        Q(I)=P(I)-WTAW*W(I)
-       END DO
-!      NOW FORM PAP MATRIX, REQUIRED PART
-       DO J=NR,N1
-        QJ=Q(J)
-        WJ=W(J)
-        DO I=J,N1
-         A(I+1,J+1)=A(I+1,J+1)-TWO*(W(I)*QJ+WJ*Q(I))
-        END DO
-       END DO
-  150  BETA(NR)=B
-       BETASQ(NR)=B*B
-       GAMMA(NR+1)=A(NR+1,NR+1)
-      END DO
-  170 B=A(N,N-1)
-      BETA(N-1)=B
-      BETASQ(N-1)=B*B
-      GAMMA(N)=A(N,N)
-  180 BETASQ(N)=ZERO
-!     ADJOIN AN IDENTIFY MATRIX TO BE POSTMULTIPLIED BY ROTATIONS.
-      DO I=1,N
-       DO J=1,N
-        VEC(I,J)=ZERO
-       END DO
-       VEC(I,I)=ONE
-      END DO
-      M=N
-      SUM=ZERO
-      NPAS=1
-      GO TO 330
-  210 SUM=SUM+SHIFT
-      COSA=ONE
-      G=GAMMA(1)-SHIFT
-      PP=G
-      PPBS=PP*PP+BETASQ(1)
-      PPBR= SQRT(PPBS)
-      DO J=1,M
-       COSAP=COSA
-       IF(PPBS == ZERO)THEN
-        SINA=ZERO
-        SINA2=ZERO
-        COSA=ONE
-        GO TO 270
-       END IF
-       SINA=BETA(J)/PPBR
-       SINA2=BETASQ(J)/PPBS
-       COSA=PP/PPBR
-!      POSTMULTIPLY IDENTITY BY P-TRANSPOSE MATRIX
-       NT=J+NPAS
-       IF( (NT-N) >= 0 ) NT=N
-       DO I=1,NT
-        TEMP=COSA*VEC(I,J)+SINA*VEC(I,J+1)
-        VEC(I,J+1)=-SINA*VEC(I,J)+COSA*VEC(I,J+1)
-        VEC(I,J)=TEMP
-       END DO
-  270  DIA=GAMMA(J+1)-SHIFT
-       U=SINA2*(G+DIA)
-       GAMMA(J)=G+U
-       G=DIA-U
-       PP=DIA*COSA-SINA*COSAP*BETA(J)
-       IF( (J-M) == 0 )THEN
-        BETA(J)=SINA*PP
-        BETASQ(J)=SINA2*PP*PP
-        GO TO 310
-       ENDIF
-       PPBS=PP*PP+BETASQ(J+1)
-       PPBR= SQRT(PPBS)
-       BETA(J)=SINA*PPBR
-       BETASQ(J)=SINA2*PPBS
-      END DO
-  310 GAMMA(M+1)=G
-!     TEST FOR CONVERGENCE OF LAST DIAGONAL ELEMENT
-      NPAS=NPAS+1
-      IF( (BETASQ(M)-RHOSQ) > ZERO) GO TO 350
-  320 EIG(M+1)=GAMMA(M+1)+SUM
-  330 BETA(M)=ZERO
-      BETASQ(M)=ZERO
-      M=M-1
-      IF(M == 0) GO TO 380
-      IF( (BETASQ(M)-RHOSQ) <= ZERO )GO TO 320
-!     TAKE ROOT OF CORNER 2 BY 2 NEAREST TO LOWER DIAGONAL IN VALUE
-!     AS ESTIMATE OF EIGENVALUE TO USE FOR SHIFT
-  350 A2=GAMMA(M+1)
-      R2=PT5*A2
-      R1=PT5*GAMMA(M)
-      R12=R1+R2
-      DIF=R1-R2
-      TEMP= SQRT(DIF*DIF+BETASQ(M))
-      R1=R12+TEMP
-      R2=R12-TEMP
-      DIF= ABS(A2-R1)- ABS(A2-R2)
-      IF(DIF >= ZERO)THEN
-       SHIFT=R2
-       GO TO 210
-      END IF
-      SHIFT=R1
-      GO TO 210
-  380 EIG(1)=GAMMA(1)+SUM
-!     INITIALIZE AUXILIARY TABLES REQUIRED FOR REARRANGING THE VECTORS
-      DO J=1,N
-       IPOSV(J)=J
-       IVPOS(J)=J
-       IORD(J)=J
-      END DO
-!     USE A TRANSPOSITION SORT TO ORDER THE EIGENVALUES
-      M=N
-      GO TO 430
-  400 DO J=1,M
-       IF( (EIG(J)-EIG(J+1)) > ZERO )THEN
-        TEMP=EIG(J)
-        EIG(J)=EIG(J+1)
-        EIG(J+1)=TEMP
-        ITEMP=IORD(J)
-        IORD(J)=IORD(J+1)
-        IORD(J+1)=ITEMP
-       END IF
-      END DO
-  430 M=M-1
-      IF(M /= 0)GO TO 400
-      IF(N1 == 0)GO TO 490
-      DO L=1,N1
-       NV=IORD(L)
-       NP=IPOSV(NV)
-       IF( (NP-L) == 0 )GO TO 480
-       LV=IVPOS(L)
-       IVPOS(NP)=LV
-       IPOSV(LV)=NP
-       DO I=1,N
-        TEMP=VEC(I,L)
-        VEC(I,L)=VEC(I,NP)
-        VEC(I,NP)=TEMP
-       END DO
-  480  CONTINUE
-      END DO
-!     BACK TRANSFORM THE VECTORS OF THE TRIPLE DIAGONAL MATRIX
-  490 DO NRR=1,N
-       K=N1
-  500  K=K-1
-       IF( K <= 0)GO TO 540
-       SUM=ZERO
-       DO I=K,N1
-        SUM=SUM+VEC(I+1,NRR)*A(I+1,K)
-       END DO
-       SUM=SUM+SUM
-       DO I=K,N1
-        VEC(I+1,NRR)=VEC(I+1,NRR)-SUM*A(I+1,K)
-       END DO
-       GO TO 500
-  540  CONTINUE
-      END DO
-  550 RETURN
-      END
+!! DIAG
+!      SUBROUTINE DIAG(NN,A,VEC,EIG,W)                                  
+!!**********************************************************************!
+!!     MATRIX DIAGNOLIZATION ROUTINE FOR REAL SYMMETRIC CASE            !
+!!     HOUSEHOLDER METHOD                                               !
+!!     RHOSQ = UPPER LIMIT FOR OFF-DIAGONAL ELEMENT                     !
+!!     NN= SIZE OF MATRIX                                               !
+!!     A = MATRIX (ONLY LOWER TRIANGLE IS USED + THIS IS DESTROYED)     !
+!!     EIG = RETURNED EIGENVALUES IN ALGEBRAIC DESCENDING ORDER         !
+!!     VEC = RETURNED EIGENVECTORS IN COLUMNS                           !
+!!**********************************************************************!
+!      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
+!      PARAMETER (NAN = 5000)
+!      INTEGER,DIMENSION(NAN)::IPOSV,IORD,IVPOS
+!      DOUBLE PRECISION,DIMENSION(NAN)::GAMMA,BETA,P,Q,BETASQ
+!      DOUBLE PRECISION,DIMENSION(NN)::EIG,W
+!      DOUBLE PRECISION,DIMENSION(NN,NN)::A,VEC
+!      EQUIVALENCE (P,Q,IVPOS,BETA),(IPOSV,GAMMA),(IORD,BETASQ)
+!      DATA ZERO/0.0d0/,PT5/0.5d0/,ONE/1.0d0/,TWO/2.0d0/,RHOSQ/1.0D-30/
+!!-----------------------------------------------------------------------
+!      N=NN
+!      IF (N == 0) GO TO 550
+!      N1=N-1
+!      N2=N-2
+!      GAMMA(1)=A(1,1)
+!      IF (N2<0)GO TO 180
+!      IF (N2==0)GO TO 170
+!      DO NR=1,N2
+!       B=A(NR+1,NR)
+!       S=ZERO
+!       DO I=NR,N2
+!        S=S+A(I+2,NR)**2
+!       END DO
+!!      PREPARE FOR POSSIBLE BYPASS OF TRANSFORMATION
+!       A(NR+1,NR)=ZERO
+!       IF (S <= ZERO) GO TO 150
+!       S=S+B*B
+!       SGN=+ONE
+!       IF (B < ZERO) SGN=-ONE
+!       SQRTS= SQRT(S)
+!       D=SGN/(SQRTS+SQRTS)
+!       TEMP= SQRT(PT5+B*D)
+!       W(NR)=TEMP
+!       A(NR+1,NR)=TEMP
+!       D=D/TEMP
+!       B=-SGN*SQRTS
+!!      D IS FACTOR OF PROPORTIONALITY. NOW COMPUTE AND SAVE W VECTOR.
+!!      EXTRA SINGLY SUBSCRIPTED W VECTOR USED FOR SPEED.
+!       DO I=NR,N2
+!        TEMP=D*A(I+2,NR)
+!        W(I+1)=TEMP
+!        A(I+2,NR)=TEMP
+!       END DO
+!!      PREMULTIPLY VECTOR W BY MATRIX A TO OBTAIN P VECTOR.
+!!      SIMULTANEOUSLY ACCUMULATE DOT PRODUCT WP,(THE SCALAR K)
+!       WTAW=ZERO
+!       DO I=NR,N1
+!        SUM=ZERO
+!        DO J=NR,I
+!         SUM=SUM+A(I+1,J+1)*W(J)
+!        END DO
+!        I1=I+1
+!        IF( (N1-I1) >= 0 ) THEN
+!         DO J=I1,N1
+!          SUM=SUM+A(J+1,I+1)*W(J)
+!         END DO
+!        END IF
+!        P(I)=SUM
+!        WTAW=WTAW+SUM*W(I)
+!       END DO
+!!      P VECTOR AND SCALAR K  NOW STORED. NEXT COMPUTE Q VECTOR
+!       DO I=NR,N1
+!        Q(I)=P(I)-WTAW*W(I)
+!       END DO
+!!      NOW FORM PAP MATRIX, REQUIRED PART
+!       DO J=NR,N1
+!        QJ=Q(J)
+!        WJ=W(J)
+!        DO I=J,N1
+!         A(I+1,J+1)=A(I+1,J+1)-TWO*(W(I)*QJ+WJ*Q(I))
+!        END DO
+!       END DO
+!  150  BETA(NR)=B
+!       BETASQ(NR)=B*B
+!       GAMMA(NR+1)=A(NR+1,NR+1)
+!      END DO
+!  170 B=A(N,N-1)
+!      BETA(N-1)=B
+!      BETASQ(N-1)=B*B
+!      GAMMA(N)=A(N,N)
+!  180 BETASQ(N)=ZERO
+!!     ADJOIN AN IDENTIFY MATRIX TO BE POSTMULTIPLIED BY ROTATIONS.
+!      DO I=1,N
+!       DO J=1,N
+!        VEC(I,J)=ZERO
+!       END DO
+!       VEC(I,I)=ONE
+!      END DO
+!      M=N
+!      SUM=ZERO
+!      NPAS=1
+!      GO TO 330
+!  210 SUM=SUM+SHIFT
+!      COSA=ONE
+!      G=GAMMA(1)-SHIFT
+!      PP=G
+!      PPBS=PP*PP+BETASQ(1)
+!      PPBR= SQRT(PPBS)
+!      DO J=1,M
+!       COSAP=COSA
+!       IF(PPBS == ZERO)THEN
+!        SINA=ZERO
+!        SINA2=ZERO
+!        COSA=ONE
+!        GO TO 270
+!       END IF
+!       SINA=BETA(J)/PPBR
+!       SINA2=BETASQ(J)/PPBS
+!       COSA=PP/PPBR
+!!      POSTMULTIPLY IDENTITY BY P-TRANSPOSE MATRIX
+!       NT=J+NPAS
+!       IF( (NT-N) >= 0 ) NT=N
+!       DO I=1,NT
+!        TEMP=COSA*VEC(I,J)+SINA*VEC(I,J+1)
+!        VEC(I,J+1)=-SINA*VEC(I,J)+COSA*VEC(I,J+1)
+!        VEC(I,J)=TEMP
+!       END DO
+!  270  DIA=GAMMA(J+1)-SHIFT
+!       U=SINA2*(G+DIA)
+!       GAMMA(J)=G+U
+!       G=DIA-U
+!       PP=DIA*COSA-SINA*COSAP*BETA(J)
+!       IF( (J-M) == 0 )THEN
+!        BETA(J)=SINA*PP
+!        BETASQ(J)=SINA2*PP*PP
+!        GO TO 310
+!       ENDIF
+!       PPBS=PP*PP+BETASQ(J+1)
+!       PPBR= SQRT(PPBS)
+!       BETA(J)=SINA*PPBR
+!       BETASQ(J)=SINA2*PPBS
+!      END DO
+!  310 GAMMA(M+1)=G
+!!     TEST FOR CONVERGENCE OF LAST DIAGONAL ELEMENT
+!      NPAS=NPAS+1
+!      IF( (BETASQ(M)-RHOSQ) > ZERO) GO TO 350
+!  320 EIG(M+1)=GAMMA(M+1)+SUM
+!  330 BETA(M)=ZERO
+!      BETASQ(M)=ZERO
+!      M=M-1
+!      IF(M == 0) GO TO 380
+!      IF( (BETASQ(M)-RHOSQ) <= ZERO )GO TO 320
+!!     TAKE ROOT OF CORNER 2 BY 2 NEAREST TO LOWER DIAGONAL IN VALUE
+!!     AS ESTIMATE OF EIGENVALUE TO USE FOR SHIFT
+!  350 A2=GAMMA(M+1)
+!      R2=PT5*A2
+!      R1=PT5*GAMMA(M)
+!      R12=R1+R2
+!      DIF=R1-R2
+!      TEMP= SQRT(DIF*DIF+BETASQ(M))
+!      R1=R12+TEMP
+!      R2=R12-TEMP
+!      DIF= ABS(A2-R1)- ABS(A2-R2)
+!      IF(DIF >= ZERO)THEN
+!       SHIFT=R2
+!       GO TO 210
+!      END IF
+!      SHIFT=R1
+!      GO TO 210
+!  380 EIG(1)=GAMMA(1)+SUM
+!!     INITIALIZE AUXILIARY TABLES REQUIRED FOR REARRANGING THE VECTORS
+!      DO J=1,N
+!       IPOSV(J)=J
+!       IVPOS(J)=J
+!       IORD(J)=J
+!      END DO
+!!     USE A TRANSPOSITION SORT TO ORDER THE EIGENVALUES
+!      M=N
+!      GO TO 430
+!  400 DO J=1,M
+!       IF( (EIG(J)-EIG(J+1)) > ZERO )THEN
+!        TEMP=EIG(J)
+!        EIG(J)=EIG(J+1)
+!        EIG(J+1)=TEMP
+!        ITEMP=IORD(J)
+!        IORD(J)=IORD(J+1)
+!        IORD(J+1)=ITEMP
+!       END IF
+!      END DO
+!  430 M=M-1
+!      IF(M /= 0)GO TO 400
+!      IF(N1 == 0)GO TO 490
+!      DO L=1,N1
+!       NV=IORD(L)
+!       NP=IPOSV(NV)
+!       IF( (NP-L) == 0 )GO TO 480
+!       LV=IVPOS(L)
+!       IVPOS(NP)=LV
+!       IPOSV(LV)=NP
+!       DO I=1,N
+!        TEMP=VEC(I,L)
+!        VEC(I,L)=VEC(I,NP)
+!        VEC(I,NP)=TEMP
+!       END DO
+!  480  CONTINUE
+!      END DO
+!!     BACK TRANSFORM THE VECTORS OF THE TRIPLE DIAGONAL MATRIX
+!  490 DO NRR=1,N
+!       K=N1
+!  500  K=K-1
+!       IF( K <= 0)GO TO 540
+!       SUM=ZERO
+!       DO I=K,N1
+!        SUM=SUM+VEC(I+1,NRR)*A(I+1,K)
+!       END DO
+!       SUM=SUM+SUM
+!       DO I=K,N1
+!        VEC(I+1,NRR)=VEC(I+1,NRR)-SUM*A(I+1,K)
+!       END DO
+!       GO TO 500
+!  540  CONTINUE
+!      END DO
+!  550 RETURN
+!      END
 
 ! PRODWCWFik
       FUNCTION PRODWCWFik(ik,INDf,W,CW12)

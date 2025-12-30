@@ -17,39 +17,39 @@ MODULE AOINTS
       ! 4 Shells
       INTEGER :: QQ4
       INTEGER(8) :: IJKL
-      !$OMP THREADPRIVATE(QQ4, IJKL)
+      !!$OMP THREADPRIVATE(QQ4, IJKL)
 
       !COMMON/NORMAL/NORM
       ! NORM decides if gaussians are normalized
       LOGICAL       NORM
-      !$OMP THREADPRIVATE(NORM)
+      !!$OMP THREADPRIVATE(NORM)
 
       !COMMON/MISC/IANDJ,KANDL,SAME
       LOGICAL     IANDJ,KANDL,SAME
       ! Look symmetries in the shells of the integrals
-      !$OMP THREADPRIVATE(IANDJ, KANDL, SAME)
+      !!$OMP THREADPRIVATE(IANDJ, KANDL, SAME)
 
       !COMMON /ERIOUT/ INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL
       INTEGER :: INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL
       ! Mirror ISH, JSH, KSH and LSH, but considers permutation
-      !$OMP THREADPRIVATE(INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL)
+      !!$OMP THREADPRIVATE(INU,JNU,KNU,LNU,NGTI,NGTJ,NGTK,NGTL)
       !
 
       !NROOTS for each integral block
       INTEGER :: NROOTS
-      !$OMP THREADPRIVATE(NROOTS)
+      !!$OMP THREADPRIVATE(NROOTS)
 
       INTEGER :: NGTH(4)
 
       !COMMON/INTDEX1/IJGT(784),KLGT(784)
       INTEGER :: IJGT(784),KLGT(784)
-      !$OMP THREADPRIVATE(IJGT, KLGT)
+      !!$OMP THREADPRIVATE(IJGT, KLGT)
 
       !COMMON /INTDEX/ IJX(784),IJY(784),IJZ(784),IK(784),              &
       !                KLX(784),KLY(784),KLZ(784)
       INTEGER :: IJX(784),IJY(784),IJZ(784),IK(784),                    &
                       KLX(784),KLY(784),KLZ(784)
-      !$OMP THREADPRIVATE(IJX,IJY,IJZ,IK,KLX,KLY,KLZ)
+      !!$OMP THREADPRIVATE(IJX,IJY,IJZ,IK,KLX,KLY,KLZ)
 
       !COMMON/SHLINF/ GA(30),CSA(30),CPA(30),CDA(30),                   &
       !              CFA(30),CGA(30),CHA(30),CIA(30),                   &
@@ -72,12 +72,12 @@ MODULE AOINTS
                     AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,                     &
                    DX,DY,DZ,RCD
       INTEGER :: NGA,NGB,NGC,NGD
-      !$OMP THREADPRIVATE(GA,CSA,CPA,CDA,CFA,CGA,CHA,CIA,               &
-      !$OMP               GB,CSB,CPB,CDB,CFB,CGB,CHB,CIB,               &
-      !$OMP               GC,CSC,CPC,CDC,CFC,CGC,CHC,CIC,               &
-      !$OMP               GD,CSD,CPD,CDD,CFD,CGD,CHD,CID,               &
-      !$OMP               AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,               &
-      !$OMP               DX,DY,DZ,RCD,NGA,NGB,NGC,NGD)
+      !!$OMP THREADPRIVATE(GA,CSA,CPA,CDA,CFA,CGA,CHA,CIA,               &
+      !!$OMP               GB,CSB,CPB,CDB,CFB,CGB,CHB,CIB,               &
+      !!$OMP               GC,CSC,CPC,CDC,CFC,CGC,CHC,CIC,               &
+      !!$OMP               GD,CSD,CPD,CDD,CFD,CGD,CHD,CID,               &
+      !!$OMP               AX,AY,AZ,BX,BY,BZ,RAB,CX,CY,CZ,               &
+      !!$OMP               DX,DY,DZ,RCD,NGA,NGB,NGC,NGD)
 
       !COMMON/SHLNOS/LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,               &
       !               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,          &
@@ -85,9 +85,9 @@ MODULE AOINTS
       INTEGER :: LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,                   &
                      MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,           &
                      NIJ,IJ,KL
-      !$OMP THREADPRIVATE(LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,          &
-      !$OMP               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,      &
-      !$OMP               NIJ,IJ,KL)
+      !!$OMP THREADPRIVATE(LIT,LJT,LKT,LLT,LOCI,LOCJ,LOCK,LOCL,          &
+      !!$OMP               MINI,MINJ,MINK,MINL,MAXI,MAXJ,MAXK,MAXL,      &
+      !!$OMP               NIJ,IJ,KL)
 
       INTEGER :: II,JJ
       LOGICAL :: IIANDJJ
@@ -97,12 +97,12 @@ MODULE AOINTS
       DOUBLE PRECISION :: A_IJGNRL(900),R_IJGNRL(900),X1_IJGNRL(900),    &
                           Y1_IJGNRL(900),Z1_IJGNRL(900)
       INTEGER :: IJD(784)
-      !$OMP THREADPRIVATE(A_IJGNRL,R_IJGNRL,X1_IJGNRL,Y1_IJGNRL,         &
-      !$OMP               Z1_IJGNRL,IJD)
+      !!$OMP THREADPRIVATE(A_IJGNRL,R_IJGNRL,X1_IJGNRL,Y1_IJGNRL,         &
+      !!$OMP               Z1_IJGNRL,IJD)
 
       !COMMON/DENS/DKL(784),DIJ(784)
       DOUBLE PRECISION :: DKL(784),DIJ(784)
-      !$OMP THREADPRIVATE(DKL,DIJ)
+      !!$OMP THREADPRIVATE(DKL,DIJ)
 
       !COMMON/SETINT/IN(13),KN(13),NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,   &
       !              BP01,B00,B10,XCP00,XC00,YCP00,YC00,                &
@@ -112,14 +112,14 @@ MODULE AOINTS
       DOUBLE PRECISION :: BP01,B00,B10,XCP00,XC00,YCP00,YC00,           &
                     ZCP00,ZC00,F00,                                     &
                     DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL
-      !$OMP THREADPRIVATE(INN,KNN,NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,    &
-      !$OMP          BP01,B00,B10,XCP00,XC00,YCP00,YC00,                &
-      !$OMP          ZCP00,ZC00,F00,                                    &
-      !$OMP          DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL)
+      !!$OMP THREADPRIVATE(INN,KNN,NIMAX,NJMAX,NKMAX,NLMAX,NMAX,MMAX,    &
+      !!$OMP          BP01,B00,B10,XCP00,XC00,YCP00,YC00,                &
+      !!$OMP          ZCP00,ZC00,F00,                                    &
+      !!$OMP          DXIJ,DYIJ,DZIJ,DXKL,DYKL,DZKL)
 
       !COMMON /XYZ   / XINT(31213),YINT(31213),ZINT(31213)
       DOUBLE PRECISION :: XINT(31213),YINT(31213),ZINT(31213)
-      !$OMP THREADPRIVATE(XINT,YINT,ZINT)
+      !!$OMP THREADPRIVATE(XINT,YINT,ZINT)
 
 
       CONTAINS
@@ -3193,7 +3193,7 @@ MODULE AOINTS
            ICOUNT = ICOUNT+1
             IF(ICOUNT > NINTMX) THEN
              NXInteg = NINTMX
-             !$OMP CRITICAL
+             !!$OMP CRITICAL
              IF(IDONTW==1)THEN
               IJBUFi = (NREC-1)*NINTMX
               do ibuf=1,NINTMX
@@ -3204,7 +3204,7 @@ MODULE AOINTS
               WRITE(1)NXInteg,IX,BUFP
              END IF
              NREC = NREC+1
-             !$OMP END CRITICAL
+             !!$OMP END CRITICAL
              ICOUNT = 1
             END IF
            END IF
@@ -3594,15 +3594,15 @@ MODULE AOINTS
       ! NORGSP(I) = 0
       !ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL
+      !!$OMP PARALLEL
       !IEXCH = 1
       QQ4   = 1.0d0
-      !$OMP END PARALLEL
+      !!$OMP END PARALLEL
       !NINTEG  = 0
 !- - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(DDIJ(49*900))
-      !$OMP PARALLEL DO PRIVATE(ISH, JSH, IJIJ, DDIJ, GHONDO, VMAX,     &
-      !$OMP MINI, MINJ, MAXI, JMAX, ISHandJSH, IJN, I, J, NN, VAL)
+      !!$OMP PARALLEL DO PRIVATE(ISH, JSH, IJIJ, DDIJ, GHONDO, VMAX,     &
+      !!$OMP MINI, MINJ, MAXI, JMAX, ISHandJSH, IJN, I, J, NN, VAL)
       DO ISH = 1,NSHELL
        DO JSH = 1,ISH
         IJIJ = INT(ISH * (ISH - 1) / 2) + JSH
@@ -3635,7 +3635,7 @@ MODULE AOINTS
         XINTS(IJIJ) = SQRT(VMAX)
        END DO
       END DO
-      !$OMP END PARALLEL DO
+      !!$OMP END PARALLEL DO
       DEALLOCATE(DDIJ)
 !-----------------------------------------------------------------------
       RETURN
@@ -3690,14 +3690,14 @@ MODULE AOINTS
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NINTEGt  = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL &
-      !$OMP PRIVATE(II, JJ, KK, LL, SKIPA, SKIPB, SKIPC, NPSYM, IEXCH,  &
-      !$OMP ISH, JSH, KSH, LSH, IJIJ, KLKL, TEST, SCHSKP, NSCHWZ, LQSUM,&
-      !$OMP AUX, GHONDOl, IX, BUFP, ICOUNT)
+      !!$OMP PARALLEL &
+      !!$OMP PRIVATE(II, JJ, KK, LL, SKIPA, SKIPB, SKIPC, NPSYM, IEXCH,  &
+      !!$OMP ISH, JSH, KSH, LSH, IJIJ, KLKL, TEST, SCHSKP, NSCHWZ, LQSUM,&
+      !!$OMP AUX, GHONDOl, IX, BUFP, ICOUNT)
       SCHSKP=.FALSE.
       NSCHWZ= 0
       ICOUNT = 1
-      !$OMP DO SCHEDULE(DYNAMIC)
+      !!$OMP DO SCHEDULE(DYNAMIC)
       DO II = 1,NSHELL                            ! II Shell
        DO JJ = 1,II                                ! JJ Shell
         DO KK = 1,JJ                               ! KK Shell
@@ -3783,19 +3783,19 @@ MODULE AOINTS
         END DO
        END DO
       END DO
-      !$OMP END DO
+      !!$OMP END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Final Record on File 1. Calculate NINTEGt.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP CRITICAL
+      !!$OMP CRITICAL
       NINTEGt = (NREC-1)*NINTMX
-      !$OMP END CRITICAL
-      !$OMP BARRIER
-      !$OMP CRITICAL
+      !!$OMP END CRITICAL
+      !!$OMP BARRIER
+      !!$OMP CRITICAL
       CALL LASTQOUT(BUFP,IX,BUFP2,IX2,BUFPC,IXC,NINTEGtm,NINTMX,        &
                     NINTEGt,NREC,ICOUNT,IDONTW,IPRINTOPT)
-      !$OMP END CRITICAL
-      !$OMP END PARALLEL
+      !!$OMP END CRITICAL
+      !!$OMP END PARALLEL
       CALL FINALIZE(BUFPC,IXC,BUFP2,IX2,NINTEGtm,NINTMX,NINTEGt,NREC,   &
                     IDONTW,IPRINTOPT)
       NREC = INT(NINTEGt/NINTMX) + 1
@@ -11820,9 +11820,9 @@ END MODULE AOINTS
       NORGSH = 0
       NORGSP = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
-      !$OMP AUX, NORGH, GHONDO)
-      !$OMP DO SCHEDULE(DYNAMIC)
+      !!$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
+      !!$OMP AUX, NORGH, GHONDO)
+      !!$OMP DO SCHEDULE(DYNAMIC)
       DO II = 1,NSHELL
        DO JJ = 1,II
         DO KK = 1,NSHELLaux
@@ -11864,8 +11864,8 @@ END MODULE AOINTS
         END DO
        END DO
       END DO
-      !$OMP END DO
-      !$OMP END PARALLEL
+      !!$OMP END DO
+      !!$OMP END PARALLEL
       DEALLOCATE(AUX)
       DEALLOCATE(GMAT)
 !-----------------------------------------------------------------------
@@ -11911,10 +11911,10 @@ END MODULE AOINTS
       ! NORGSP(I) = 0
       !ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL &
-      !$OMP PRIVATE(II, KK, ISH, KSH, LQSUM,&
-      !$OMP AUX, NORGH, GHONDO)
-      !$OMP DO SCHEDULE(DYNAMIC)
+      !!$OMP PARALLEL &
+      !!$OMP PRIVATE(II, KK, ISH, KSH, LQSUM,&
+      !!$OMP AUX, NORGH, GHONDO)
+      !!$OMP DO SCHEDULE(DYNAMIC)
       DO II = 1,NSHELLaux                        ! II Shell
        DO KK = 1,II                               ! KK Shell
 !- - - - - - - - - - - - - - - - - - - - - - - -
@@ -11948,8 +11948,8 @@ END MODULE AOINTS
 !- - - - - - - - - - - - - - - - - - - - - - -
        END DO
       END DO
-      !$OMP END DO
-      !$OMP END PARALLEL
+      !!$OMP END DO
+      !!$OMP END PARALLEL
 
       DEALLOCATE(AUX)
 !-----------------------------------------------------------------------
@@ -12027,9 +12027,9 @@ END MODULE AOINTS
       NORGSH = 0
       NORGSP = 0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
-      !$OMP AUX, NORGH, GHONDO)
-      !$OMP DO SCHEDULE(DYNAMIC)
+      !!$OMP PARALLEL PRIVATE(II, JJ, KK, ISH, JSH, KSH, LQSUM,   &
+      !!$OMP AUX, NORGH, GHONDO)
+      !!$OMP DO SCHEDULE(DYNAMIC)
       DO II = 1,NSHELL
        DO JJ = 1,II
         DO KK = 1,NSHELLaux
@@ -12071,14 +12071,14 @@ END MODULE AOINTS
         END DO
        END DO
       END DO
-      !$OMP END DO
-      !$OMP END PARALLEL
+      !!$OMP END DO
+      !!$OMP END PARALLEL
       DEALLOCATE(AUX)
 !-----------------------------------------------------------------------
 !     Build b tensor, solve linear equation system LD^1/2 b = P^T(k|mn)
 !-----------------------------------------------------------------------
       BUFP2 = 0.0D0
-      !$OMP PARALLEL DO PRIVATE(I,J,K)
+      !!$OMP PARALLEL DO PRIVATE(I,J,K)
       DO I=1,NBF*(NBF+1)/2
         DO J=1,NBFaux
           DO K=1,NBFaux
@@ -12086,7 +12086,7 @@ END MODULE AOINTS
           END DO
         END DO
       END DO
-      !$OMP END PARALLEL DO
+      !!$OMP END PARALLEL DO
       DEALLOCATE(BUFP)
       DO N=1,NBF
         DO M=1,N

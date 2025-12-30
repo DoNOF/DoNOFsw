@@ -1452,86 +1452,93 @@
       END
 
 ! FORM2JK
-      SUBROUTINE FORM2JK(FM,PM,IERI,ERI)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/USEHUBBARD/IHUB      
+      SUBROUTINE FORM2JK(FM, PM, IERI, ERI)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NIJKL/NINTMX, NIJKL, NINTCR, NSTORE
+      COMMON/USEHUBBARD/IHUB
 #include "mpip.h"
-      INTEGER(8),DIMENSION(NSTORE)::IERI
-      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
-      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
-      ALLOCATABLE::P(:),F(:)
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NINTMX, NIJKL, NINTCR, NSTORE
+      INTEGER :: IHUB
+
+      INTEGER :: M, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK
+      DOUBLE PRECISION :: XJ, XK
+
+      INTEGER(8), DIMENSION(NSTORE)::IERI
+      DOUBLE PRECISION, DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION, DIMENSION(NBF, NBF):: FM, PM
+      DOUBLE PRECISION, ALLOCATABLE :: P(:), F(:)
       INTEGER(8)::LABEL
 #ifdef MPI
       ALLOCATABLE::FF(:)
 #endif
-      ALLOCATE (P(NBFT),F(NBFT))
+      ALLOCATE (P(NBFT), F(NBFT))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
       ALLOCATE (FF(NBFT))
-      DO I=1,NPROCS-1
-       NOPT=3
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-      ENDDO
+      DO I = 1, NPROCS - 1
+        NOPT = 3
+        CALL MPI_SEND(NOPT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+        CALL MPI_SEND(NBFT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+      END DO
 #endif
 !-----------------------------------------------------------------------
-      CALL SQUARETRIAN(PM,P,NBF,NBFT)
+      CALL SQUARETRIAN(PM, P, NBF, NBFT)
 !-----------------------------------------------------------------------
       F = 0.0d0
 #ifdef MPI
       FF = 0.0d0
-      CALL MPI_BCAST(NBF,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(P,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NBF, 1, MPI_INTEGER, MASTER, MPI_COMM_WORLD, IERR)
+      CALL MPI_BCAST(P, NBFT, MPI_REAL8, MASTER, MPI_COMM_WORLD, IERR)
 #endif
-      !$OMP PARALLEL DO PRIVATE(LABEL, XJ, XK, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
-      DO M=1,NINTCR
-       LABEL = IERI(M)
-       CALL LABELIJKL(LABEL,I,J,K,L)
+      !!$OMP PARALLEL DO PRIVATE(M, LABEL, XJ, XK, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
+      DO M = 1, NINTCR
+        LABEL = IERI(M)
+        CALL LABELIJKL(LABEL, I, J, K, L)
 !-----------------------------------------------------------------------
 !      2*J
 !-----------------------------------------------------------------------
-       XJ = ERI(M)
-       NIJ = I*(I-1)/2 + J
-       NKL = K*(K-1)/2 + L
+        XJ = ERI(M)
+        NIJ = I*(I - 1)/2 + J
+        NKL = K*(K - 1)/2 + L
 
-       IF(IHUB==0)CALL OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
+        IF (IHUB == 0) CALL OTTOINTEGR(I, J, K, L, NIJ, NKL, XJ)
 
-                      F(NIJ)=F(NIJ)+P(NKL)*XJ
-       IF(NIJ/=NKL)   F(NKL)=F(NKL)+P(NIJ)*XJ
+        F(NIJ) = F(NIJ) + P(NKL)*XJ
+        IF (NIJ /= NKL) F(NKL) = F(NKL) + P(NIJ)*XJ
 !-----------------------------------------------------------------------
 !      -K
 !-----------------------------------------------------------------------
-       XJ = 0.25*XJ
-       XK = XJ
-       NIK = I*(I-1)/2 + K
-       NJL = MAX0(J,L)*(MAX0(J,L)-1)/2 + MIN0(J,L)
-       IF(I==K.OR.J==L) XK=XK+XK
-                          F(NIK)=F(NIK)-P(NJL)*XK
-       IF(NIK/=NJL)       F(NJL)=F(NJL)-P(NIK)*XK
-       IF(I/=J.and.K/=L)THEN
-        NIL = I*(I-1)/2 + L
-        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
-        IF(I==L.OR.J==K) XJ=XJ+XJ
-                           F(NIL)=F(NIL)-P(NJK)*XJ
-        IF(NIL/=NJK)       F(NJK)=F(NJK)-P(NIL)*XJ
-       ENDIF
-      ENDDO
-      !$OMP END PARALLEL DO
+        XJ = 0.25D0*XJ
+        XK = XJ
+        NIK = I*(I - 1)/2 + K
+        NJL = MAX0(J, L)*(MAX0(J, L) - 1)/2 + MIN0(J, L)
+        IF (I == K .OR. J == L) XK = XK + XK
+        F(NIK) = F(NIK) - P(NJL)*XK
+        IF (NIK /= NJL) F(NJL) = F(NJL) - P(NIK)*XK
+        IF (I /= J .and. K /= L) THEN
+          NIL = I*(I - 1)/2 + L
+          NJK = MAX0(J, K)*(MAX0(J, K) - 1)/2 + MIN0(J, K)
+          IF (I == L .OR. J == K) XJ = XJ + XJ
+          F(NIL) = F(NIL) - P(NJK)*XJ
+          IF (NIL /= NJK) F(NJK) = F(NJK) - P(NIL)*XJ
+        END IF
+      END DO
+      !!$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      CALL MPI_REDUCE(F,FF,NBFT,MPI_REAL8,MPI_SUM,MASTER,               &
-                      MPI_COMM_WORLD,IERR)
-      CALL TRIANSQUARE(FM,FF,NBF,NBFT)
-      DEALLOCATE(P,F,FF)
+      CALL MPI_REDUCE(F, FF, NBFT, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL TRIANSQUARE(FM, FF, NBF, NBFT)
+      DEALLOCATE (P, F, FF)
 #else
-      CALL TRIANSQUARE(FM,F,NBF,NBFT)
-      DEALLOCATE(P,F)
+      CALL TRIANSQUARE(FM, F, NBF, NBFT)
+      DEALLOCATE (P, F)
 #endif
 !----------------------------------------------------------------------
       RETURN
@@ -2329,32 +2336,31 @@
       END
 
 ! QHMATm
-      SUBROUTINE QHMATm(C,QD,HCORE,AHCORE)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)  
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      SUBROUTINE QHMATm(C, QD, HCORE, AHCORE)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NBF5/NBF5, NBFT5, NSQ5
 !
-      DIMENSION C(NBF,NBF),QD(NBF,NBF,NBF),HCORE(NBF5),AHCORE(NBF,NBF)
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NBF5, NBFT5, NSQ5
+      INTEGER :: J
+
+      DOUBLE PRECISION :: C(NBF, NBF), QD(NBF, NBF, NBF), HCORE(NBF5), AHCORE(NBF, NBF)
 !-----------------------------------------------------------------------
 !     Calculate D matrix for each value J and keep in QD(J,:,:)
 !     Calculate molecular Hcore matrix (HCORE)
 !-----------------------------------------------------------------------
-      ALLOCATE(AUX(NBF,NBF))
-      !$OMP PARALLEL DO PRIVATE(J, AUX)
-      DO J=1,NBF
-       CALL DENMATj(J,AUX,C,NBF)
-       QD(J,1:NBF,1:NBF) = AUX(1:NBF,1:NBF)
-      ENDDO
-      !$OMP END PARALLEL DO
-      !$OMP PARALLEL DO PRIVATE(J, AUX)
-      DO J=1,NBF5
-       AUX(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
-       CALL TRACEm(HCORE(J),AUX,AHCORE,NBF)
-      ENDDO
+      !$OMP PARALLEL DO PRIVATE(J)
+      DO J = 1, NBF
+        CALL DENMATj(J, QD(J, :, :), C, NBF)
+      END DO 
+      !$OMP END PARALLEL DO 
+      !$OMP PARALLEL DO PRIVATE(J)
+      DO J = 1, NBF5
+        CALL TRACEm(HCORE(J), QD(J, :, :), AHCORE, NBF) 
+      END DO
       !$OMP END PARALLEL DO
 !-----------------------------------------------------------------------
-      DEALLOCATE(AUX)
       RETURN
       END
 
@@ -2372,399 +2378,423 @@
       END
 
 ! QJMATm
-      SUBROUTINE QJMATm(QD,QJ,IJKL,XIJKL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      SUBROUTINE QJMATm(QD, QJ, IJKL, XIJKL)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NIJKL/NINTMX, NIJKL, NINTCR, NSTORE
+      COMMON/INPFILE_NBF5/NBF5, NBFT5, NSQ5
+
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NINTMX, NIJKL, NINTCR, NSTORE
+      INTEGER :: NBF5, NBFT5, NSQ5
 !
-      DIMENSION QD(NBF,NBF,NBF),QJ(NBFT5),XIJKL(NSTORE)
-      INTEGER(8) IJKL(NSTORE)
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX1,AUX2
-      ALLOCATE (AUX1(NBF,NBF),AUX2(NBF,NBF))       ! AUX1:Jj(i,l)
+      DOUBLE PRECISION :: QD(NBF, NBF, NBF), QJ(NBFT5), XIJKL(NSTORE)
+      INTEGER(8) IJKL(NSTORE) 
+      INTEGER :: I, J, IJ
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:, :) :: AUX
+      ALLOCATE (AUX(NBF, NBF))
 !-----------------------------------------------------------------------
 !     Coulomb Integrals QJ(i,j)
 !-----------------------------------------------------------------------
-      DO J=1,NBF5
-       AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
-       CALL HSTARJ(AUX1,AUX2,IJKL,XIJKL)
-       !$OMP PARALLEL DO PRIVATE(I, IJ, AUX2)
-       DO I=1,J
-        IJ=I+J*(J-1)/2
-        AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
-        CALL TRACEm(QJ(IJ),AUX2,AUX1,NBF)
-       ENDDO
-       !$OMP END PARALLEL DO
-      ENDDO
+      DO J = 1, NBF5
+        CALL HSTARJ(AUX, QD(J, :, :), IJKL, XIJKL)
+        !!$OMP PARALLEL DO PRIVATE(I, IJ)
+        DO I = 1, J
+          IJ = I + J*(J - 1)/2
+          CALL TRACEm(QJ(IJ), QD(I, :, :), AUX, NBF)
+        END DO
+        !!$OMP END PARALLEL DO
+      END DO
 !-----------------------------------------------------------------------
-      DEALLOCATE (AUX1,AUX2)
+      DEALLOCATE (AUX)
       RETURN
       END
 
 ! QKMATm
-      SUBROUTINE QKMATm(QD,QK,IJKL,XIJKL)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      SUBROUTINE QKMATm(QD, QK, IJKL, XIJKL)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NIJKL/NINTMX, NIJKL, NINTCR, NSTORE
+      COMMON/INPFILE_NBF5/NBF5, NBFT5, NSQ5
+
+      INTEGER ::NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER ::NINTMX, NIJKL, NINTCR, NSTORE
+      INTEGER ::NBF5, NBFT5, NSQ5
 !
-      DIMENSION QD(NBF,NBF,NBF),QK(NBFT5),XIJKL(NSTORE)
+      DOUBLE PRECISION :: QD(NBF, NBF, NBF), QK(NBFT5), XIJKL(NSTORE)
       INTEGER(8) IJKL(NSTORE)
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: AUX1,AUX2
-      ALLOCATE (AUX1(NBF,NBF),AUX2(NBF,NBF))       ! AUX1:Kj(i,l)
+      INTEGER :: I, J, IJ
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION(:, :) :: AUX
+      ALLOCATE (AUX(NBF, NBF))
 !-----------------------------------------------------------------------
 !     Exchange Integrals QK(i,j)
 !-----------------------------------------------------------------------
-      DO J=1,NBF5
-       AUX2(1:NBF,1:NBF) = QD(J,1:NBF,1:NBF)
-       CALL HSTARK(AUX1,AUX2,IJKL,XIJKL)
-       !$OMP PARALLEL DO PRIVATE(I, IJ, AUX2)
-       DO I=1,J
-        IJ=I+J*(J-1)/2
-        AUX2(1:NBF,1:NBF) = QD(I,1:NBF,1:NBF)
-        CALL TRACEm(QK(IJ),AUX2,AUX1,NBF)
-       ENDDO
-       !$OMP END PARALLEL DO
-      ENDDO
+      DO J = 1, NBF5
+        CALL HSTARK(AUX, QD(J, :, :), IJKL, XIJKL)
+        !!$OMP PARALLEL DO PRIVATE(I, IJ)
+        DO I = 1, J
+          IJ = I + J*(J - 1)/2
+          CALL TRACEm(QK(IJ), QD(I, :, :), AUX, NBF)
+        END DO
+        !!$OMP END PARALLEL DO
+      END DO
 !-----------------------------------------------------------------------
-      DEALLOCATE (AUX1,AUX2)
+      DEALLOCATE (AUX)
       RETURN
       END
 
 ! QJKMATmRI
-      SUBROUTINE QJKMATmRI(QJ,QK,XIJKAUX,C)
+      SUBROUTINE QJKMATmRI(QJ, QK, XIJKAUX, C)
 !     Coulomb and Exchange Integrals QJ(i,j) and QK(i,j)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL ERIACTIVATED       
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
-      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      IMPLICIT NONE
+      LOGICAL ERIACTIVATED
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/ERIACT/ERIACTIVATED, NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
+      COMMON/INPFILE_NBF5/NBF5, NBFT5, NSQ5
 #include "mpip.h"
-      DOUBLE PRECISION::QJ(NBFT5),QK(NBFT5)
-      DOUBLE PRECISION::XIJKAUX(NBF*(NBF+1)/2,IAUXDIM)
+      DOUBLE PRECISION::QJ(NBFT5), QK(NBFT5)
+      DOUBLE PRECISION::XIJKAUX(NBF*(NBF + 1)/2, IAUXDIM)
 #ifdef MPI
-      DOUBLE PRECISION,DIMENSION(NBFT5)::QQJ,QQK
+      DOUBLE PRECISION, DIMENSION(NBFT5)::QQJ, QQK
 #endif
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
+      INTEGER :: NBF5, NBFT5, NSQ5
 !-----------------------------------------------------------------------
-      DOUBLE PRECISION :: C(NBF,NBF)
-      DOUBLE PRECISION,ALLOCATABLE :: B_IN(:,:), B_IJ(:,:)
-      DOUBLE PRECISION,ALLOCATABLE :: QJJ(:), QKK(:)
-      INTEGER :: I,J,K,M,N
+      DOUBLE PRECISION :: VAL
+      DOUBLE PRECISION :: C(NBF, NBF)
+      DOUBLE PRECISION, ALLOCATABLE :: B_IN(:, :), B_IJ(:, :)
+      DOUBLE PRECISION, ALLOCATABLE :: QJJ(:), QKK(:)
+      INTEGER :: I, J, K, M, N, MN, IJ
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      DO I=1,NPROCS-1
-       NOPT = 2
-       QQJ = 0.0d0
-       QQK = 0.0d0
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-      ENDDO
-      CALL MPI_BCAST(C,NBF*NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      DO I = 1, NPROCS - 1
+        NOPT = 2
+        QQJ = 0.0d0
+        QQK = 0.0d0
+        CALL MPI_SEND(NOPT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+      END DO
+      CALL MPI_BCAST(C, NBF*NBF, MPI_REAL8, MASTER, MPI_COMM_WORLD, IERR)
 #endif
-      ALLOCATE(B_IN(NBF5,NBF), B_IJ(NBF5,NBF5))
-      ALLOCATE(QJJ(NBFT5),QKK(NBFT5))
+      ALLOCATE (QJJ(NBFT5), QKK(NBFT5))
       QJJ = 0.0D0
       QKK = 0.0D0
-      !$OMP PARALLEL DO PRIVATE(K, M, N, MN, I, J, IJ, B_IN, B_IJ)      &
+      !$OMP PARALLEL PRIVATE(K, M, N, MN, I, J, IJ, B_IN, B_IJ, VAL)    &
       !$OMP REDUCTION(+:QJJ,QKK)
-      DO K=1,IAUXDIM
+      ALLOCATE (B_IN(NBF5, NBF), B_IJ(NBF5, NBF5))
+      !$OMP DO
+      DO K = 1, IAUXDIM
 
-        B_IN(1:NBF5,1:NBF) = 0.0d0
-        DO I=1,NBF5
-          DO N=1,NBF
-            DO M=1,N
-              MN = M + N*(N-1)/2
-              B_IN(I,N) = B_IN(I,N) + C(M,I)*XIJKAUX(MN,K)
-              IF(M.NE.N) B_IN(I,M) = B_IN(I,M)+C(N,I)*XIJKAUX(MN,K)
+        B_IN(1:NBF5, 1:NBF) = 0.0d0
+        DO N = 1, NBF
+          DO M = 1, N
+            MN = M + N*(N - 1)/2
+            VAL = XIJKAUX(MN, K)
+            DO I = 1, NBF5
+              B_IN(I, N) = B_IN(I, N) + C(M, I)*VAL
+              IF (M .NE. N) B_IN(I, M) = B_IN(I, M) + C(N, I)*VAL
             END DO
           END DO
         END DO
 
-        B_IJ(1:NBF5,1:NBF5) = 0.0d0
-        DO J=1,NBF5
-          DO N=1,NBF
-            DO I=1,J
-              B_IJ(I,J) = B_IJ(I,J) + C(N,J)*B_IN(I,N)
+        B_IJ(1:NBF5, 1:NBF5) = 0.0d0
+        DO J = 1, NBF5
+          DO N = 1, NBF
+            DO I = 1, J
+              B_IJ(I, J) = B_IJ(I, J) + C(N, J)*B_IN(I, N)
             END DO
           END DO
         END DO
 
-        DO J=1,NBF5
-          DO I=1,J
-            IJ=I+J*(J-1)/2
-            QJJ(IJ) = QJJ(IJ) + B_IJ(I,I)*B_IJ(J,J)
-          END DO
-        END DO
-
-        DO J=1,NBF5
-          DO I=1,J
-            IJ=I+J*(J-1)/2
-            QKK(IJ) = QKK(IJ) + B_IJ(I,J)*B_IJ(I,J)
+        DO J = 1, NBF5
+          DO I = 1, J
+            IJ = I + J*(J - 1)/2
+            QJJ(IJ) = QJJ(IJ) + B_IJ(I, I)*B_IJ(J, J)
+            QKK(IJ) = QKK(IJ) + B_IJ(I, J)*B_IJ(I, J)
           END DO
         END DO
 
       END DO
-      !$OMP END PARALLEL DO
-      DEALLOCATE(B_IN, B_IJ)
+      !$OMP END DO
+      DEALLOCATE (B_IN, B_IJ)
+      !$OMP END PARALLEL
       QJ(1:NBFT5) = QJJ(1:NBFT5)
       QK(1:NBFT5) = QKK(1:NBFT5)
-      DEALLOCATE(QJJ,QKK)
+      DEALLOCATE (QJJ, QKK)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      CALL MPI_REDUCE(QJ,QQJ,NBFT5,MPI_REAL8,MPI_SUM,MASTER,            &
-                      MPI_COMM_WORLD,IERR)                               
-      CALL MPI_REDUCE(QK,QQK,NBFT5,MPI_REAL8,MPI_SUM,MASTER,            &
-                      MPI_COMM_WORLD,IERR)
+      CALL MPI_REDUCE(QJ, QQJ, NBFT5, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL MPI_REDUCE(QK, QQK, NBFT5, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
       QJ = QQJ
       QK = QQK
-#endif      
+#endif
 !-----------------------------------------------------------------------
       RETURN
       END
 
 ! HSTARJ
-      SUBROUTINE HSTARJ(FM,PM,IERI,ERI)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/USEHUBBARD/IHUB      
+      SUBROUTINE HSTARJ(FM, PM, IERI, ERI)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NIJKL/NINTMX, NIJKL, NINTCR, NSTORE
+      COMMON/USEHUBBARD/IHUB
 #include "mpip.h"
-      INTEGER(8),DIMENSION(NSTORE)::IERI
-      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
-      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
-      ALLOCATABLE::P(:),F(:)
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NINTMX, NIJKL, NINTCR, NSTORE
+      INTEGER :: IHUB
+
+      INTEGER(8), DIMENSION(NSTORE)::IERI
+      DOUBLE PRECISION, DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION, DIMENSION(NBF, NBF):: FM, PM
+      DOUBLE PRECISION, ALLOCATABLE::P(:), F(:)
       INTEGER(8)::LABEL
+      INTEGER :: I, J, K, L, NIJ, NKL, M
+      DOUBLE PRECISION :: XJ
 #ifdef MPI
-      ALLOCATABLE::FF(:)
+      DOUBLE PRECISION, ALLOCATABLE::FF(:)
 #endif
-      ALLOCATE (P(NBFT),F(NBFT))
+      ALLOCATE (P(NBFT), F(NBFT))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
       ALLOCATE (FF(NBFT))
-      DO I=1,NPROCS-1
-       NOPT=1
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-      ENDDO
+      DO I = 1, NPROCS - 1
+        NOPT = 1
+        CALL MPI_SEND(NOPT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+        CALL MPI_SEND(NBFT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+      END DO
 #endif
-      CALL SQUARETRIAN(PM,P,NBF,NBFT)
+      CALL SQUARETRIAN(PM, P, NBF, NBFT)
       F = 0.0d0
 #ifdef MPI
       FF = 0.0d0
-      CALL MPI_BCAST(NBF,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(P,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NBF, 1, MPI_INTEGER, MASTER, MPI_COMM_WORLD, IERR)
+      CALL MPI_BCAST(P, NBFT, MPI_REAL8, MASTER, MPI_COMM_WORLD, IERR)
 #endif
-      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, NIJ, NKL) REDUCTION(+:F)
-      DO M=1,NINTCR
-       LABEL = IERI(M)
-       CALL LABELIJKL(LABEL,I,J,K,L)
-       XJ = ERI(M)
-       NIJ = I*(I-1)/2 + J
-       NKL = K*(K-1)/2 + L
+      !!$OMP PARALLEL DO PRIVATE(M, LABEL, I, J, K, L, XJ, NIJ, NKL) REDUCTION(+:F)
+      DO M = 1, NINTCR
+        LABEL = IERI(M)
+        CALL LABELIJKL(LABEL, I, J, K, L)
+        XJ = ERI(M)
+        NIJ = I*(I - 1)/2 + J
+        NKL = K*(K - 1)/2 + L
 
-       IF(IHUB==0)CALL OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
+        IF (IHUB == 0) CALL OTTOINTEGR(I, J, K, L, NIJ, NKL, XJ)
 
-                       F(NIJ)=F(NIJ)+0.5*P(NKL)*XJ
-       IF(NIJ/=NKL)    F(NKL)=F(NKL)+0.5*P(NIJ)*XJ
-      ENDDO
-      !$OMP END PARALLEL DO
+        F(NIJ) = F(NIJ) + 0.5D0*P(NKL)*XJ
+        IF (NIJ /= NKL) F(NKL) = F(NKL) + 0.5D0*P(NIJ)*XJ
+      END DO
+      !!$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      CALL MPI_REDUCE(F,FF,NBFT,MPI_REAL8,MPI_SUM,MASTER,               &
-                      MPI_COMM_WORLD,IERR)
-      CALL TRIANSQUARE(FM,FF,NBF,NBFT)
-      DEALLOCATE(P,F,FF)
+      CALL MPI_REDUCE(F, FF, NBFT, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL TRIANSQUARE(FM, FF, NBF, NBFT)
+      DEALLOCATE (P, F, FF)
 #else
-      CALL TRIANSQUARE(FM,F,NBF,NBFT)
-      DEALLOCATE(P,F)
+      CALL TRIANSQUARE(FM, F, NBF, NBFT)
+      DEALLOCATE (P, F)
 #endif
 !----------------------------------------------------------------------
       RETURN
       END
 
 ! HSTARK
-      SUBROUTINE HSTARK(FM,PM,IERI,ERI)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
-      COMMON/USEHUBBARD/IHUB      
+      SUBROUTINE HSTARK(FM, PM, IERI, ERI)
+      IMPLICIT NONE
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/INPFILE_NIJKL/NINTMX, NIJKL, NINTCR, NSTORE
+      COMMON/USEHUBBARD/IHUB
 #include "mpip.h"
-      INTEGER(8),DIMENSION(NSTORE)::IERI
-      DOUBLE PRECISION,DIMENSION(NSTORE)::ERI
-      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FM,PM
-      ALLOCATABLE::P(:),F(:)
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NINTMX, NIJKL, NINTCR, NSTORE
+      INTEGER :: IHUB
+
+      INTEGER :: M, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK
+      DOUBLE PRECISION :: XJ, XK
+
+      INTEGER(8), DIMENSION(NSTORE)::IERI
+      DOUBLE PRECISION, DIMENSION(NSTORE)::ERI
+      DOUBLE PRECISION, DIMENSION(NBF, NBF):: FM, PM
+      DOUBLE PRECISION, ALLOCATABLE::P(:), F(:)
       INTEGER(8)::LABEL
 #ifdef MPI
       ALLOCATABLE::FF(:)
 #endif
-      ALLOCATE (P(NBFT),F(NBFT))
+      ALLOCATE (P(NBFT), F(NBFT))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
       ALLOCATE (FF(NBFT))
-      DO I=1,NPROCS-1
-       NOPT=2
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-       CALL MPI_SEND(NBFT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-      ENDDO
+      DO I = 1, NPROCS - 1
+        NOPT = 2
+        CALL MPI_SEND(NOPT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+        CALL MPI_SEND(NBFT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+      END DO
 #endif
-      CALL SQUARETRIAN(PM,P,NBF,NBFT)
+      CALL SQUARETRIAN(PM, P, NBF, NBFT)
       F = 0.0d0
 #ifdef MPI
       FF = 0.0d0
-      CALL MPI_BCAST(NBF,1,MPI_INTEGER,MASTER,MPI_COMM_WORLD,IERR)
-      CALL MPI_BCAST(P,NBFT,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      CALL MPI_BCAST(NBF, 1, MPI_INTEGER, MASTER, MPI_COMM_WORLD, IERR)
+      CALL MPI_BCAST(P, NBFT, MPI_REAL8, MASTER, MPI_COMM_WORLD, IERR)
 #endif
-      !$OMP PARALLEL DO PRIVATE(LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
-      DO M=1,NINTCR
-       LABEL = IERI(M)
-       CALL LABELIJKL(LABEL,I,J,K,L)
-       XJ = ERI(M)
-       NIJ = I*(I-1)/2 + J
-       NKL = K*(K-1)/2 + L
+      !!$OMP PARALLEL DO PRIVATE(M, LABEL, I, J, K, L, XJ, XK, NIJ, NKL, NIK, NJL, NIL, NJK) REDUCTION(+:F)
+      DO M = 1, NINTCR
+        LABEL = IERI(M)
+        CALL LABELIJKL(LABEL, I, J, K, L)
+        XJ = ERI(M)
+        NIJ = I*(I - 1)/2 + J
+        NKL = K*(K - 1)/2 + L
 
-       XJ = 0.25*XJ
-       IF(IHUB==0)CALL OTTOINTEGR(I,J,K,L,NIJ,NKL,XJ)
+        XJ = 0.25D0*XJ
+        IF (IHUB == 0) CALL OTTOINTEGR(I, J, K, L, NIJ, NKL, XJ)
 
-       XK = XJ
-       NIK = I*(I-1)/2 + K
-       NJL = MAX0(J,L)*(MAX0(J,L)-1)/2 + MIN0(J,L)
-       IF(I==K.OR.J==L) XK=XK+XK
-                          F(NIK)=F(NIK)+P(NJL)*XK
-       IF(NIK/=NJL)       F(NJL)=F(NJL)+P(NIK)*XK
-       IF(I/=J.and.K/=L)THEN
-        NIL = I*(I-1)/2 + L
-        NJK = MAX0(J,K)*(MAX0(J,K)-1)/2 + MIN0(J,K)
-        IF(I==L.OR.J==K) XJ=XJ+XJ
-                           F(NIL)=F(NIL)+P(NJK)*XJ
-        IF(NIL/=NJK)       F(NJK)=F(NJK)+P(NIL)*XJ
-       ENDIF
-      ENDDO
-      !$OMP END PARALLEL DO
+        XK = XJ
+        NIK = I*(I - 1)/2 + K
+        NJL = MAX0(J, L)*(MAX0(J, L) - 1)/2 + MIN0(J, L)
+        IF (I == K .OR. J == L) XK = XK + XK
+        F(NIK) = F(NIK) + P(NJL)*XK
+        IF (NIK /= NJL) F(NJL) = F(NJL) + P(NIK)*XK
+        IF (I /= J .and. K /= L) THEN
+          NIL = I*(I - 1)/2 + L
+          NJK = MAX0(J, K)*(MAX0(J, K) - 1)/2 + MIN0(J, K)
+          IF (I == L .OR. J == K) XJ = XJ + XJ
+          F(NIL) = F(NIL) + P(NJK)*XJ
+          IF (NIL /= NJK) F(NJK) = F(NJK) + P(NIL)*XJ
+        END IF
+      END DO
+      !!$OMP END PARALLEL DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      CALL MPI_REDUCE(F,FF,NBFT,MPI_REAL8,MPI_SUM,MASTER,               &
-                      MPI_COMM_WORLD,IERR)
-      CALL TRIANSQUARE(FM,FF,NBF,NBFT)
-      DEALLOCATE (P,F,FF)
+      CALL MPI_REDUCE(F, FF, NBFT, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL TRIANSQUARE(FM, FF, NBF, NBFT)
+      DEALLOCATE (P, F, FF)
 #else
-      CALL TRIANSQUARE(FM,F,NBF,NBFT)
-      DEALLOCATE (P,F)
+      CALL TRIANSQUARE(FM, F, NBF, NBFT)
+      DEALLOCATE (P, F)
 #endif
 !----------------------------------------------------------------------
       RETURN
       END
 
-! HSTARJKRI
-      SUBROUTINE HSTARJKRI(FMJ,FMK,ERIaux,C)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+!HSTARJKRI
+      SUBROUTINE HSTARJKRI(FMJ, FMK, ERIaux, C)
+      IMPLICIT NONE
       LOGICAL ERIACTIVATED
-      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
-      COMMON/ERIACT/ERIACTIVATED,NIJKaux,NINTCRaux,NSTOREaux,IAUXDIM
+      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/ERIACT/ERIACTIVATED, NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
 #include "mpip.h"
-      DOUBLE PRECISION,DIMENSION(NBF*(NBF+1)/2,IAUXDIM)::ERIaux
-      DOUBLE PRECISION,DIMENSION(NBF,NBF):: FMJ,FMK
-      DOUBLE PRECISION,ALLOCATABLE :: FJ(:),FK(:)
+      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      INTEGER :: NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
+      DOUBLE PRECISION, DIMENSION(NBF*(NBF + 1)/2, IAUXDIM)::ERIaux
+      DOUBLE PRECISION, DIMENSION(NBF, NBF):: FMJ, FMK
+      DOUBLE PRECISION, ALLOCATABLE :: FJ(:), FK(:)
 #ifdef MPI
-      DOUBLE PRECISION,DIMENSION(NBFT)::FFJ,FFK
+      DOUBLE PRECISION, DIMENSION(NBFT)::FFJ, FFK
 #endif
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      DOUBLE PRECISION,DIMENSION(NBF) :: C
-      DOUBLE PRECISION, ALLOCATABLE :: B_IN(:)
-      DOUBLE PRECISION :: B_II
-      INTEGER :: M,N,K
+      DOUBLE PRECISION, DIMENSION(NBF) :: C
+      DOUBLE PRECISION, ALLOCATABLE :: B_IN(:,:), B_II(:)
+      INTEGER :: M, N, K, MN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Wake up the nodes for the task
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      DO I=1,NPROCS-1
-       NOPT=1
-       FFJ = 0.0d0
-       FFK = 0.0d0
-       CALL MPI_SEND(NOPT,1,MPI_INTEGER,I,I,MPI_COMM_WORLD,IERR)
-      ENDDO
-      CALL MPI_BCAST(C,NBF,MPI_REAL8,MASTER,MPI_COMM_WORLD,IERR)
+      DO I = 1, NPROCS - 1
+        NOPT = 1
+        FFJ = 0.0d0
+        FFK = 0.0d0
+        CALL MPI_SEND(NOPT, 1, MPI_INTEGER, I, I, MPI_COMM_WORLD, IERR)
+      END DO
+      CALL MPI_BCAST(C, NBF, MPI_REAL8, MASTER, MPI_COMM_WORLD, IERR)
 #endif
 
-      ALLOCATE(FJ(NBFT), FK(NBFT), B_IN(NBF))
+      ALLOCATE (FJ(NBFT), FK(NBFT))
 
-      FJ(1:NBFT) = 0.0d0
-      FK(1:NBFT) = 0.0d0
+      FJ = 0.0d0
+      FK = 0.0d0
 
-      !$OMP PARALLEL DO PRIVATE(K, M, N, MN, B_II, B_IN)                &
-      !$OMP REDUCTION(+:FJ, FK)
-      DO K=1,IAUXDIM
-        B_IN(1:NBF) = 0.0d0
-        B_II = 0.0d0
+      ALLOCATE (B_IN(NBF,IAUXDIM), B_II(IAUXDIM))
+      B_IN = 0.0d0
+      B_II = 0.0d0
 
-        DO N=1,NBF
-          DO M=1,N
-            MN = M + N*(N-1)/2
-            B_IN(N) = B_IN(N) + C(M)*ERIaux(MN,K)
-            IF(M.NE.N) B_IN(M) = B_IN(M)+C(N)*ERIaux(MN,K)
-          END DO
-        END DO
-
-        DO N=1,NBF
-          B_II = B_II + C(N)*B_IN(N)
-        END DO
-
-        DO N=1,NBF
-          DO M=1,N
-            MN = M + N*(N-1)/2
-            FJ(MN) = FJ(MN) + B_II*ERIaux(MN,K)
-          END DO
-        END DO
-
-        DO N=1,NBF
-          DO M=1,N
-            MN = M + N*(N-1)/2
-            FK(MN) = FK(MN) + B_IN(M)*B_IN(N)
+      !$OMP PARALLEL DO PRIVATE(N, M, MN, K)
+      DO K = 1, IAUXDIM
+        DO N = 1, NBF
+          DO M = 1, N
+            MN = M + N*(N - 1)/2
+            B_IN(N, K) = B_IN(N, K) + C(M)*ERIaux(MN, K)
+            IF (M .NE. N) B_IN(M, K) = B_IN(M, K) + C(N)*ERIaux(MN, K)
           END DO
         END DO
       END DO
       !$OMP END PARALLEL DO
 
+      !$OMP PARALLEL DO PRIVATE(N, K)
+      DO K = 1, IAUXDIM
+        DO N = 1, NBF
+          B_II(K) = B_II(K) + C(N)*B_IN(N, K)
+        END DO
+      END DO
+      !$OMP END PARALLEL DO
+
+      !$OMP PARALLEL DO PRIVATE(N, M, MN, K) COLLAPSE(2)
+      DO N = 1, NBF
+        DO M = 1, N
+          MN = M + N*(N - 1)/2
+          DO K = 1, IAUXDIM            
+            FJ(MN) = FJ(MN) + B_II(K)*ERIaux(MN, K)
+            FK(MN) = FK(MN) + B_IN(M,K)*B_IN(N,K)
+          END DO
+        END DO
+      END DO
+      !$OMP END PARALLEL DO
+      DEALLOCATE (B_IN, B_II)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Get the pieces from slaves
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #ifdef MPI
-      CALL MPI_REDUCE(FJ,FFJ,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)
-      CALL MPI_REDUCE(FK,FFK,NBFT,MPI_REAL8,MPI_SUM,MASTER,             &
-                      MPI_COMM_WORLD,IERR)
-      CALL TRIANSQUARE(FMJ,FFJ,NBF,NBFT)
-      CALL TRIANSQUARE(FMK,FFK,NBF,NBFT)
-#else      
-      CALL TRIANSQUARE(FMJ,FJ,NBF,NBFT)
-      CALL TRIANSQUARE(FMK,FK,NBF,NBFT)
-#endif      
-      DEALLOCATE(FJ, FK, B_IN)
+      CALL MPI_REDUCE(FJ, FFJ, NBFT, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL MPI_REDUCE(FK, FFK, NBFT, MPI_REAL8, MPI_SUM, MASTER, &
+            MPI_COMM_WORLD, IERR)
+      CALL TRIANSQUARE(FMJ, FFJ, NBF, NBFT)
+      CALL TRIANSQUARE(FMK, FFK, NBF, NBFT)
+#else
+      CALL TRIANSQUARE(FMJ, FJ, NBF, NBFT)
+      CALL TRIANSQUARE(FMK, FK, NBF, NBFT)
+#endif
+      DEALLOCATE (FJ, FK)
 !----------------------------------------------------------------------
       RETURN
       END
 
 ! LABELIJKL
-      SUBROUTINE LABELIJKL(LABEL,I,J,K,L)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
-      INTEGER(8) :: LABEL
+      PURE SUBROUTINE LABELIJKL(LABEL, I, J, K, L)
+      IMPLICIT NONE
+      INTEGER(8), INTENT(IN) :: LABEL
+      INTEGER, INTENT(OUT) :: I, J, K, L
 !-----------------------------------------------------------------------
 !     Determine label (ijkl) (2**16-1=65535)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      I = ISHFT( LABEL, -48_8 )                                 
-      J = IAND( ISHFT( LABEL, -32_8 ), 65535_8 )                  
-      K = IAND( ISHFT( LABEL, -16_8 ), 65535_8 )                  
-      L = IAND( LABEL, 65535_8 )                                
+      I = INT(ISHFT(LABEL, -48_8))
+      J = INT(IAND(ISHFT(LABEL, -32_8), 65535_8))
+      K = INT(IAND(ISHFT(LABEL, -16_8), 65535_8))
+      L = INT(IAND(LABEL, 65535_8))
 !-----------------------------------------------------------------------
       RETURN
       END
