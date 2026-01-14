@@ -684,9 +684,7 @@
       ! Add PNOF7 contributions to D(alpha,beta)
       ! Eq. (21) in Phys. Rev. A 100, 032508 (2019).
       IF(IPNOF.EQ.7 .OR. IPNOF.EQ.8.) THEN
-        IF(IPNOF.EQ.8 .AND. Imod.EQ.2) THEN
-          Sigma = 0.9d0
-        ELSE
+        IF(IPNOF.EQ.8) THEN
           Sigma = 1.0d0
         END IF
         FI = RO*(1-RO)
@@ -734,11 +732,7 @@
         ! GNOF Pi_d for the D(alpha,beta) contributions
         ! as in Eq. (4) of Phys. Rev. Lett. 127, 233001 (2021).
         IF(IPNOF.EQ.8) THEN
-          IF(Imod.EQ.2) THEN
-            Hcut = 0.025d0*DSQRT(2.0d0)
-          ELSE
-            Hcut = 0.02d0*DSQRT(2.0d0)
-          END IF
+          Hcut = 0.02d0*DSQRT(2.0d0)
           ROd  = 0.0D0
           DROd = 0.0D0
           Rd   = 0.0D0

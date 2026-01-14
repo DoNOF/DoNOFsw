@@ -1464,6 +1464,7 @@
 
       INTEGER :: M, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK
       DOUBLE PRECISION :: XJ, XK
+      INTEGER :: NOPT
 
       INTEGER(8), DIMENSION(NSTORE)::IERI
       DOUBLE PRECISION, DIMENSION(NSTORE)::ERI
@@ -1471,7 +1472,7 @@
       DOUBLE PRECISION, ALLOCATABLE :: P(:), F(:)
       INTEGER(8)::LABEL
 #ifdef MPI
-      ALLOCATABLE::FF(:)
+      DOUBLE PRECISION, ALLOCATABLE::FF(:)
 #endif
       ALLOCATE (P(NBFT), F(NBFT))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2460,6 +2461,7 @@
       INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
       INTEGER :: NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
       INTEGER :: NBF5, NBFT5, NSQ5
+      INTEGER :: NOPT
 !-----------------------------------------------------------------------
       DOUBLE PRECISION :: VAL
       DOUBLE PRECISION :: C(NBF, NBF)
@@ -2555,6 +2557,7 @@
       DOUBLE PRECISION, ALLOCATABLE::P(:), F(:)
       INTEGER(8)::LABEL
       INTEGER :: I, J, K, L, NIJ, NKL, M
+      INTEGER :: NOPT
       DOUBLE PRECISION :: XJ
 #ifdef MPI
       DOUBLE PRECISION, ALLOCATABLE::FF(:)
@@ -2620,6 +2623,7 @@
       INTEGER :: IHUB
 
       INTEGER :: M, I, J, K, L, NIJ, NKL, NIK, NJL, NIL, NJK
+      INTEGER :: NOPT
       DOUBLE PRECISION :: XJ, XK
 
       INTEGER(8), DIMENSION(NSTORE)::IERI
@@ -2628,7 +2632,7 @@
       DOUBLE PRECISION, ALLOCATABLE::P(:), F(:)
       INTEGER(8)::LABEL
 #ifdef MPI
-      ALLOCATABLE::FF(:)
+      DOUBLE PRECISION, ALLOCATABLE::FF(:)
 #endif
       ALLOCATE (P(NBFT), F(NBFT))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2700,6 +2704,8 @@
 #include "mpip.h"
       INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
       INTEGER :: NIJKaux, NINTCRaux, NSTOREaux, IAUXDIM
+      INTEGER :: I
+      INTEGER :: NOPT
       DOUBLE PRECISION, DIMENSION(NBF*(NBF + 1)/2, IAUXDIM)::ERIaux
       DOUBLE PRECISION, DIMENSION(NBF, NBF):: FMJ, FMK
       DOUBLE PRECISION, ALLOCATABLE :: FJ(:), FK(:)
@@ -4116,8 +4122,6 @@
 !          ( Phys. Rev. Lett. 127, 233001, 2021 )                      !
 !          Define the coefficientes in front J,K,L integrals for GNOFm !
 !          ( Phys. Rev. Lett. 134, 206401, 2025 )                      !
-!          Define the coefficientes in front J,K,L integrals for GNOFs !
-!          ( In Progress                        )                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
 ! CJCKD3 = PNOF3 + pairing conditions
@@ -4865,7 +4869,7 @@
       RETURN
       END
 
-! CJCKD8 = GNOF(Imod=0) GNOFm(Imod=1) GNOFs(Imod=2)
+! CJCKD8 = GNOF(Imod=0) GNOFm(Imod=1) 
       SUBROUTINE CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
@@ -4888,8 +4892,6 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(Imod==0 .OR. Imod==1)then           ! GNOFm
        Hcutd = 0.02d0*DSQRT(2.0d0)
-      else if(Imod==2)then                   ! PNOF8
-       Hcutd = 0.025d0*DSQRT(2.0d0)
       end if
       ROd  = 0.0d0
       DROd = 0.0d0
@@ -4955,23 +4957,6 @@
          enddo
         endif
        ENDDO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      else if(Imod==2)then
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      FIs = 0.9 * (Np*Hp)^1/2
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-       DO j=NO1+1,NBF5
-        FIs(j) = DSQRT( RO(j)*(1.0d0-RO(j)) )
-        if(FIs(j)>0.0d0)then
-         do k=1,nv
-          DFIs(j,k) = (0.5d0-RO(j))*DR(j,k)/FIs(j)
-         enddo
-        endif
-       ENDDO
-!
-       Sigma = 0.9d0
-       FIs = Sigma * FIs
-       DFIs = Sigma * DFIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
       end if
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -5058,7 +5043,7 @@
           ENDDO      
          ENDDO
         end if            
-      ELSE IF(Imod==1 .OR. Imod==2) THEN
+      ELSE IF(Imod==1) THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       CJpq = 2NpNq , CKpq = NpNq + FIs(p)*FIs(q)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
