@@ -51,7 +51,7 @@ make hybrid  # ifort OpenMP+MPI     -> /exe/DoNOFhybrid.x
 
 Several input files can be found inside /examples. A basic single point calculation with the GNOF functional looks like the following:
 ~~~
- &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 USELIB=T ERITYP='FULL' /
+ &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP='FULL' /
  $DATA
  Water (H2O)
  cc-pVDZ
