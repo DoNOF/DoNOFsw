@@ -1,0 +1,10 @@
+ &INPRUN RUNTYP='DYN' MULT=1 ICHARG=-1 /
+ $DATA
+ Title: Dynamics F- + H2 -> HF + H-
+ cc-pVDZ
+ F 9.0  -0.3000  -6.0000   0.0000
+ H 1.0  -0.3707   0.0000   0.0000
+ H 1.0   0.3707   0.0000   0.0000
+ $END
+ &NOFINP IPNOF=8 Imod=1 /
+ &INPDYN dt=0.1 Vxyz=0,0.1,0,0.025,0,0,-0.025/
