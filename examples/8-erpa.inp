@@ -1,0 +1,8 @@
+ &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 /
+ $DATA
+ Title: Excited States H2
+ cc-pVDZ
+ H  1.0 -0.3707  0.0000  0.0000
+ H  1.0  0.3707  0.0000  0.0000
+ $END
+ &NOFINP IPNOF=8 Imod=1 ERPA=T /

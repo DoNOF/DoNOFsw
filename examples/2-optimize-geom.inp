@@ -1,11 +1,8 @@
  &INPRUN RUNTYP='OPTGEO' MULT=1 ICHARG=0 /
- $DATA
- Title: Water GNOFm geometry optimization
+ Title: Geometry Optimization of HCN with GNOF
  cc-pVDZ
-O  8.0  0.0000     0.0000    0.1173
-H  1.0  0.0000     0.7572   -0.4692
-H  1.0  0.0000    -0.7572   -0.4692
+ H  1.0  0.000  0.000   1.064
+ C  6.0  0.000  0.000   0.000
+ N  7.0  0.000  0.000  -1.156
  $END
- &NOFINP IPNOF=8 Imod=1 /
-
-
+ &NOFINP IPNOF=8 /
