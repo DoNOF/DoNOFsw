@@ -251,19 +251,19 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE(GRADS(3*NAT))
        IF(IRUNTYP==1)THEN
-        !if(NLOP/=0)then  ! compute non-linear optical properties
-        ! CALL DIPNLOP(NP,STEP,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,       &
-        !              NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
-        !              KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
-        !              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
-        !              DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,ISOALPHA)
-        !else
+        if(NLOP/=0)then  ! compute non-linear optical properties
+         CALL DIPNLOP(NP,STEP,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,       &
+                      NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
+                      KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
+                      C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
+                      DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,ISOALPHA)
+        else
          CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,&
                        ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,  &
                        INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,  &
                        CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM, &
                        NBAS,BAS,IGTYP,1,1)
-       ! end if
+        end if
        ELSE IF(IRUNTYP==2)THEN
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
