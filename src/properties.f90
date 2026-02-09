@@ -677,12 +677,14 @@
       SUMA = SUMA + D0*D0
 
       do i=NO1+1,NCO
-       do j=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO 
+       do iw=1,NCWO
+        j = NO1+(NCO-NO1)*(iw+1)-i+1
         BB(i,j) = DSQRT(RO(j)/RO(i))
        enddo
       enddo
 
       CALL OneNCO(NO1,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,D0,THAPSG)
+
       IF(NCO>1)THEN
        do ig=2,NCO
         if(mod(ig, 2)==0)then
@@ -707,7 +709,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,NCO
-       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO 
+       do iw=1,NCWO
+        ip = I1+(NCO-I1)*(iw+1)-i+1
         IOCU(i)=ip
         Di = -DD*BB(i,ip)
         IF(DABS(Di)>THAPSG)THEN
@@ -729,7 +732,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,I2-2
-       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO
+       do iw=1,NCWO
+        ip = I1+(NCO-I1)*(iw+1)-i+1
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         CALL EvenNCO(i,I2,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,Di,THAPSG)
@@ -747,7 +751,8 @@
       DOUBLE PRECISION,DIMENSION(NCO,NO1NAC)::BB
 !-----------------------------------------------------------------------
       do i=I1+1,I2-1
-       do ip=NCO+NCO-i+1,NCO+NCO-i+1+(NCO-1)*NCO,NCO
+       do iw=1,NCWO
+        ip = I1+(NCO-I1)*(iw+1)-i+1
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         if(I2==NCO)then

@@ -19,7 +19,7 @@ The solution is established optimizing the energy functional with respect to the
 git clone http://github.com/sunqm/libcint.git
 cd libcint
 mkdir build; cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr/local/lib ..
+cmake ..
 sudo make install
 ~~~
 

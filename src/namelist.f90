@@ -110,8 +110,8 @@
 !       = T        LIBCINT (Default)
 !
 ! GTYP             Type of Gaussian functions
-!       = CART     Cartesian (Default)
-!       = SPH      Spherical (only if LIBCINT)
+!       = CART     Cartesian 
+!       = SPH      Spherical (Default)
 !
 ! USEHUB           Use Hubbard Model
 !       = F        (Default)
@@ -185,7 +185,7 @@
       UNITS     = ANGS
       EVEC      = 0.0D0     ! EVEC(1,2,3)=0
       USELIB    = .TRUE.
-      GTYP      = CART
+      GTYP      = SPH
       USEHUB    = .FALSE.
       DONTW     = .TRUE.
       ERITYP    = RI
@@ -523,13 +523,13 @@
 !                               orbitals. The rest of fragment orbitals 
 !                               remain frozen
 !
-!.......... ISOFTMAX            Use Softmax function for ON (Gamma) opt.
-!                      = 0      Trigonometric Parametrization for ON
+!.......... ISOFTMAX            Parameterization type for the ONs
+!                      = 0      Trigonometric
 !                      = 1      Softmax function (Default)
 !
 !.......... IORBOPT             Select method for NO optimization
 !
-!                      = 1      Iterative diagonalization (OrbOptFMIUGr)
+!                      = 1      Iterative diagonalization
 !                      = 2      Adaptative Momentum (ADAM) (Default)
 !                      = 3      ADABelief
 !                      = 4      YOGI
@@ -551,8 +551,7 @@
 !.......... IRHF                Restricted Hartree-Fock Calculation
 !                      = 0      Not obtaining HF orbitals
 !                      = 1      Self Consistent Field (SCF) (Default)
-!                               (only works with EFIELDL=.FALSE.)
-!                      = 2      Orbital rotaions through ADAM
+!                      = 2      Orbital rotations through ADAM
 !                      = 3      Iterative Diagonalization (ID) Method
 !
 !.......... NCONVRHF            RHF-SCF Density Convergence Criteria
@@ -595,15 +594,15 @@
 !                      = 2      GNOFs
 !
 !.......... HighSpin            Spin-uncompensated calculation type
-!                      = F      (Default) Multiplet state (Ms=0)
+!                      = F      Multiplet state (Ms=0) (Default) 
 !                      = T      High-spin uncompensated state (Ms=S)
 !
 !.......... NCWO                Number of coupled weakly occupied MOs 
 !                               per strongly occupied = Nc -> PNOFi(Nc)
-!                      = 1      NCWO = 1
-!                      = 2,3,...
+!                      = 1,2,3,...
 !                      =-1      NCWO = NVIR/NDOC (Default)
-!                               NVIR: Number of HF virtual  MOs (OCC=0)
+!                               NVIR: NVIR: Number of Hartre-Fock virtual 
+!                               molecular orbitals, now weakly occupied
 !                               NDOC: Number of strongly occupied MOs
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
