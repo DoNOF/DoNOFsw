@@ -6,7 +6,7 @@
 !======================================================================!
 
 ! HUBBARD
-      SUBROUTINE HUBBARD(IRUNTYP,ICHARG,MULT,IDONTW)
+      SUBROUTINE HUBBARD(IRUNTYP,ICHARG,MULT,IDONTW,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL RESTART,CONVGDELAG,CONVG,COEF21,EFIELDL
       COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
@@ -288,7 +288,8 @@
                   IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,      &
                   IDUMMYA,IDUMMYA,IDUMMYP,IDUMMYP,RDUMMYP,RDUMMYP,      &
                   RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,      &
-                  RDUMMYP,RDUMMYP,ELAGN,COEFN,RON,IT,ITTOTAL,DIPS,1,1)
+                  RDUMMYP,RDUMMYP,ELAGN,COEFN,RON,IT,ITTOTAL,DIPS,1,1,  &
+                  IGTYP)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     END SINGLE-POINT CALCULATION (ICOEF=0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -335,7 +336,8 @@
                    IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,IDUMMYS,     &
                    IDUMMYA,IDUMMYA,IDUMMYP,IDUMMYP,RDUMMYP,RDUMMYP,     &
                    RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,RDUMMYP,     &
-                   RDUMMYP,RDUMMYP,ELAGN,COEFN,RON,IT,ITTOTAL,DIPS,1,1)
+                   RDUMMYP,RDUMMYP,ELAGN,COEFN,RON,IT,ITTOTAL,DIPS,1,1, &
+                   IGTYP)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      END SINGLE-POINT CALCULATION (CONVG=TRUE)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

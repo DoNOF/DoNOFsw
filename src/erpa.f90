@@ -684,9 +684,7 @@
       ! Add PNOF7 contributions to D(alpha,beta)
       ! Eq. (21) in Phys. Rev. A 100, 032508 (2019).
       IF(IPNOF.EQ.7 .OR. IPNOF.EQ.8.) THEN
-        IF(IPNOF.EQ.8) THEN
-          Sigma = 1.0d0
-        END IF
+        Sigma = 1.0d0
         FI = RO*(1-RO)
         FI = Sigma * SQRT(MAX(FI,0.0D0))
         DO I=1,NBF5

@@ -643,7 +643,7 @@
       END
 
 ! PUNCHAPSG
-      SUBROUTINE PUNCHAPSG(NO1,NCWO,NCO,NBF5,RO,SUMA,THAPSG)
+      SUBROUTINE PUNCHAPSG(NO1,NDOC,NCWO,NCO,NBF5,RO,SUMA,THAPSG)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       ALLOCATABLE::IOCU(:),BB(:,:)
@@ -662,7 +662,7 @@
 !       NO1 + NDOC  |  NCWO*NDOC + NO0    = NBF
 !           |      NAC           |
 !-----------------------------------------------------------------------
-      NO1NAC=NCO+NCWO*(NCO-NO1)                             ! NO1+NAC
+      NO1NAC=NCO+NCWO*NDOC                             ! NO1+NAC
       ALLOCATE(IOCU(NO1NAC),BB(NCO,NO1NAC))
       IOCU = 0
       SUMA = 0.0d0
@@ -676,10 +676,11 @@
       WRITE(9,1)D0,(IOCU(i),-IOCU(i),i=1,NCO)
       SUMA = SUMA + D0*D0
 
-      do i=NO1+1,NCO
-       do iw=1,NCWO
-        j = NO1+(NCO-NO1)*(iw+1)-i+1
-        BB(i,j) = DSQRT(RO(j)/RO(i))
+      do i=1,NDOC
+       in = no1+i
+       do iw=1,ncwo
+        jn = no1 + ndoc*(iw+1)-i+1
+        BB(in,jn) = DSQRT(RO(jn)/RO(in))
        enddo
       enddo
 
@@ -710,7 +711,7 @@
 !-----------------------------------------------------------------------
       do i=I1+1,NCO
        do iw=1,NCWO
-        ip = I1+(NCO-I1)*(iw+1)-i+1
+        ip = I1+(NCO-I1)*(iw+1)+I1-i+1
         IOCU(i)=ip
         Di = -DD*BB(i,ip)
         IF(DABS(Di)>THAPSG)THEN
@@ -733,7 +734,7 @@
 !-----------------------------------------------------------------------
       do i=I1+1,I2-2
        do iw=1,NCWO
-        ip = I1+(NCO-I1)*(iw+1)-i+1
+        ip = I1+(NCO-I1)*(iw+1)+I1-i+1
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         CALL EvenNCO(i,I2,NCWO,NCO,NO1NAC,IOCU,BB,SUMA,Di,THAPSG)
@@ -752,7 +753,7 @@
 !-----------------------------------------------------------------------
       do i=I1+1,I2-1
        do iw=1,NCWO
-        ip = I1+(NCO-I1)*(iw+1)-i+1
+        ip = I1+(NCO-I1)*(iw+1)+I1-i+1
         IOCU(i) = ip
         Di = -DD*BB(i,ip)
         if(I2==NCO)then

@@ -24,12 +24,13 @@
 !                                                                      !
 ! ==================================================================== !
 !                                                                      !
-!                           Date: October 2025                         !
+!                            Date: April 2026                          !
 !                                                                      !
-!    Program to compute the ground state properties of a molecule      !
-!    in the gas phase using PNOF5 - GNOF + perturbation corrections    !
+!         Program for Natural Orbital Functional Calculations          !
+!                Manual: https://donof.readthedocs.io/                 !
 !                                                                      !
-!              ( Comp. Phys. Comm. 259, 107651, 2021 )                 !
+!                 Comp. Phys. Comm. 259, 107651, 2021                  !
+!                   J. Chem. Phys. 164, 072501, 2026                   !
 !                                                                      !
 !======================================================================!
 
@@ -46,8 +47,14 @@
       INTEGER,ALLOCATABLE,DIMENSION(:)::IAN, IMIN, IMAX, KSTART, KATOM
       INTEGER,ALLOCATABLE,DIMENSION(:)::KTYPE0,KLOC0,INTYP0,KNG0,KMIN0
       INTEGER,ALLOCATABLE,DIMENSION(:)::KTYPE, KLOC, INTYP, KNG, KMIN
-      INTEGER,ALLOCATABLE,DIMENSION(:)::KMAX0,ISH0,ITYP0
+      INTEGER,ALLOCATABLE,DIMENSION(:)::KMAX0, ISH0, ITYP0
       INTEGER,ALLOCATABLE,DIMENSION(:)::KMAX, ISH, ITYP
+      INTEGER,ALLOCATABLE,DIMENSION(:)::KATOMaux0,KTYPEaux0,KLOCaux0
+      INTEGER,ALLOCATABLE,DIMENSION(:)::KATOMaux, KTYPEaux, KLOCaux
+      INTEGER,ALLOCATABLE,DIMENSION(:)::KSTARTaux0,KNGaux0
+      INTEGER,ALLOCATABLE,DIMENSION(:)::KSTARTaux, KNGaux
+      INTEGER,ALLOCATABLE,DIMENSION(:)::IZCORE0, IZCORE
+!
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:)::Cxyz0,Cxyz
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ZAN0,ZMASS0,C10,C20
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ZAN, ZMASS, C1, C2 
@@ -55,6 +62,8 @@
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EX, CS, CP, CD
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CF0,CG0,CH0,CI0
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: CF, CG, CH, CI
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EXaux0,Caux0
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: EXaux, Caux
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: GRADS      
       DOUBLE PRECISION,DIMENSION(3) :: DIPS
@@ -94,35 +103,42 @@
 !     Input namelist INPRUN variables (NINTEG=NINTMX)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !
-!     IRUNTYP: Specifies the run calculation
-!         ICH: Molecular charge  
-!         MUL: Multiplicity of the electronic state
-!      NINTEG: Total Number of 2e- integrals (NINTEG = NINTMX)
-!      IDONTW: Do not write 2e- integrals on the disk (Unit=1)
-!       IEMOM: Electrostatic moments calculation
-!        NLOP: Non-linear optical property calculation (-1,0,1,2,3)
-!          NP: Number of steps used in the dyadic scaling of the field
-!        STEP: Initial step size for the electric field in NLOP
-!    ISOALPHA: Isotropic average and the anisotropy (Raman convention)
-! EFX,EFY,EFZ: The x,y,z components of the electric eield
-!        IECP: Effective Core Potentials
-!     IHSSCAL: Compute Hessian and vibrational analysis if IRUNTYP=3
-!    IPROJECT: Project Hessian to eliminate rot/vib contaminants
-!      ISIGMA: Rotational symmetric number for thermochemistry
+!      IRUNTYP: Specifies the run calculation
+!          ICH: Molecular charge
+!          MUL: Multiplicity of the electronic state
+!       NINTEG: Total Number of 2e- integrals (NINTEG = NINTMX)
+!       IDONTW: Do not write 2e- integrals on the disk (Unit=1)
+!        IEMOM: Electrostatic moments calculation
+!         NLOP: Non-linear optical property calculation (-1,0,1,2,3)
+!           NP: Number of steps used in the dyadic scaling of the field
+!         STEP: Initial step size for the electric field in NLOP
+!     ISOALPHA: Isotropic average and the anisotropy (Raman convention)
+!  EFX,EFY,EFZ: The x,y,z components of the electric eield
+!         IECP: Effective Core Potentials
+!      IHSSCAL: Compute Hessian and vibrational analysis if IRUNTYP=3
+!     IPROJECT: Project Hessian to eliminate rot/vib contaminants
+!       ISIGMA: Rotational symmetric number for thermochemistry
+!        IGTYP: Gaussian Typ (1:GTYP=CART or 2:GTYP=SPH)
 !
-!      NATmax: Maximum Number of Atoms
-!   NSHELLmax: Maximum Number of Shells
-!   NPRIMImax: Maximum Number of Gaussian Functions
+!       NATmax: Maximum Number of Atoms
+!    NSHELLmax: Maximum Number of Shells
+!    NPRIMImax: Maximum Number of Gaussian Functions
+!
+! NSHELLAUXmax: Maximum Number of Auxiliary Shells
+! NPRIMIAUXmax: Maximum Number of Auxiliary Gaussian Functions
+!
+!    IHUBBARD: Hubbard Calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL NAMELIST_INPRUN(IRUNTYP,ICH,MUL,NINTEG,IDONTW,IEMOM,NLOP,NP, &
                            STEP,ISOALPHA,EFX,EFY,EFZ,ILIBCINT,IECP,     &
                            IHSSCAL,IPROJECT,ISIGMA,IGTYP,NATmax,        &
-                           NSHELLmax,NPRIMImax,IHUBBARD)
+                           NSHELLmax,NPRIMImax,NSHELLAUXmax,            &
+                           NPRIMIAUXmax,IHUBBARD)
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
       if(IHUBBARD==1)then         !     Hubbard Calculation
 !-----------------------------------------------------------------------
-       CALL HUBBARD(IRUNTYP,ICH,MUL,IDONTW)      
+       CALL HUBBARD(IRUNTYP,ICH,MUL,IDONTW,IGTYP)
 !-----------------------------------------------------------------------      
       else                        !     Molecular Calculation
 !-----------------------------------------------------------------------
@@ -138,21 +154,24 @@
                 C10(NPRIMImax),C20(NPRIMImax),EX0(NPRIMImax),           &
                 CS0(NPRIMImax),CP0(NPRIMImax),CD0(NPRIMImax),           &
                 CF0(NPRIMImax),CG0(NPRIMImax),CH0(NPRIMImax),           &
-                CI0(NPRIMImax))
-!       LIBCINT
-        SIZE_ENV = 20 + 3*NATmax + 2*NPRIMImax + 1000
-        ALLOCATE(ENV0(SIZE_ENV))
-        ALLOCATE(ATM0(6,NATmax))
-        ALLOCATE(BAS0(8,NSHELLmax + 1000))
+                CI0(NPRIMImax),IZCORE0(NATmax),KATOMaux0(NSHELLAUXmax), &
+                KTYPEaux0(NSHELLAUXmax),KLOCaux0(NSHELLAUXmax),         &
+                KSTARTaux0(NSHELLAUXmax),KNGaux0(NSHELLAUXmax),         &
+                EXaux0(NPRIMIAUXmax),Caux0(NPRIMIAUXmax))
+!      LIBCINT
+       SIZE_ENV = 20 + 3*NATmax + 2*NPRIMImax + 1000
+       ALLOCATE(ENV0(SIZE_ENV),ATM0(6,NATmax),BAS0(8,NSHELLmax + 1000))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Read in Basis Set and get initial Molecular Orbitals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        CALL START(IGTYP,NAT,NATmax,NBF,NBFaux,NQMT,NE,NA,NB,NSHELL,     &
-                  NSHELLmax,NSHELLaux,NPRIMI,NPRIMImax,NPRIMIaux,       &
+                  NSHELLmax,NSHELLaux,NSHELLAUXmax,NPRIMI,NPRIMImax,    &
+                  NPRIMIAUX,NPRIMIAUXmax,NPRIMIecp,NSHELLecp,           &
                   ZAN0,Cxyz0,IAN0,IMIN0,IMAX0,ZMASS0,KSTART0,KATOM0,    &
                   KTYPE0,KNG0,KLOC0,KMIN0,KMAX0,INTYP0,ISH0,ITYP0,      &
-                  C10,C20,EX0,CS0,CP0,CD0,CF0,CG0,CH0,CI0,NPRIMIecp,    &
-                  NSHELLecp,SIZE_ENV,ENV0,ATM0,BAS0)
+                  KATOMaux0,KTYPEaux0,KLOCaux0,KSTARTaux0,KNGaux0,      &
+                  C10,C20,EX0,CS0,CP0,CD0,CF0,CG0,CH0,CI0,IZCORE0,      &
+                  EXaux0,Caux0,SIZE_ENV,ENV0,ATM0,BAS0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      NAT: Number of Atoms             
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -167,12 +186,15 @@
        END IF
 !      
        allocate(IAN(NAT),IMIN(NAT),IMAX(NAT),ZAN(NAT),ZMASS(NAT))
+       allocate(IZCORE(NAT))
        IAN(1:nat)   = IAN0(1:nat)
        IMIN(1:nat)  = IMIN0(1:nat)
        IMAX(1:nat)  = IMAX0(1:nat)
        ZAN(1:nat)   = ZAN0(1:nat)
        ZMASS(1:nat) = ZMASS0(1:nat)
        deallocate(IAN0,IMIN0,IMAX0,ZAN0,ZMASS0)
+       IZCORE(1:nat)= IZCORE0(1:nat)
+       deallocate(IZCORE0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      NSHELL: Total number of shells
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -187,12 +209,22 @@
        KMIN(1:nshell)  = KMIN0(1:nshell) 
        KMAX(1:nshell)  = KMAX0(1:nshell) 
        deallocate(KSTART0,KATOM0,KTYPE0,KLOC0,INTYP0,KNG0,KMIN0,KMAX0)
+!
+       allocate(KATOMaux(NSHELLaux),KTYPEaux(NSHELLaux))
+       allocate(KLOCaux(NSHELLaux),KSTARTaux(NSHELLaux))
+       allocate(KNGaux(NSHELLaux))
+       KATOMaux(1:nshellaux)  = KATOMaux0(1:nshellaux)
+       KTYPEaux(1:nshellaux)  = KTYPEaux0(1:nshellaux)
+       KLOCaux(1:nshellaux)   = KLOCaux0(1:nshellaux)
+       KSTARTaux(1:nshellaux) = KSTARTaux0(1:nshellaux)
+       KNGaux(1:nshellaux)    = KNGaux0(1:nshellaux)
+       deallocate(KATOMaux0,KTYPEaux0,KLOCaux0,KSTARTaux0,KNGaux0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      NPRIMI: Total number of primitive exponents
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       allocate(ISH(nprimi),ITYP(nprimi),C1(nprimi),C2(nprimi))
-       allocate(EX(nprimi),CS(nprimi),CP(nprimi),CD(nprimi))
-       allocate(CF(nprimi),CG(nprimi),CH(nprimi),CI(nprimi))
+       allocate(ISH(NPRIMI),ITYP(NPRIMI),C1(NPRIMI),C2(NPRIMI))
+       allocate(EX(NPRIMI),CS(NPRIMI),CP(NPRIMI),CD(NPRIMI))
+       allocate(CF(NPRIMI),CG(NPRIMI),CH(NPRIMI),CI(NPRIMI))
        ISH(1:nprimi)  = ISH0(1:nprimi) 
        ITYP(1:nprimi) = ITYP0(1:nprimi) 
        C1(1:nprimi) = C10(1:nprimi)
@@ -206,6 +238,11 @@
        CH(1:nprimi) = CH0(1:nprimi)
        CI(1:nprimi) = CI0(1:nprimi)      
        deallocate(ISH0,ITYP0,C10,C20,EX0,CS0,CP0,CD0,CF0,CG0,CH0,CI0)
+!
+       allocate(EXaux(NPRIMIaux),Caux(NPRIMIaux))
+       EXaux(1:nprimiaux) = EXaux0(1:nprimiaux)
+       Caux(1:nprimiaux)  = Caux0(1:nprimiaux)
+       deallocate(EXaux0,Caux0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Copy LIBCINT variables
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -241,7 +278,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        CALL RUNNOFHEADER(NAT,ICH,MUL,NBF,NBFaux,NQMT,NE,NA,NB,EFX,EFY,  &
                          EFZ,NSHELL,NSHELLaux,NPRIMI,IAN,IEMOM,IECP,    &
-                         IRUNTYP,Cxyz,ZAN)
+                         IRUNTYP,Cxyz,ZAN,IZCORE,SIZE_ENV,ENV)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      If RUNTYP = 1) ENERGY  : single-point energy
 !                  2) GRADIENT: single-point energy + gradients
@@ -256,38 +293,39 @@
                       NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
                       KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
                       C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
-                      DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,ISOALPHA)
+                      DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,      &
+                      NLOP,ISOALPHA,KTYPEaux,NSHELLaux)
         else
          CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,&
                        ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,  &
                        INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,  &
-                       CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM, &
-                       NBAS,BAS,IGTYP,1,1)
+                       CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,  &
+                       ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,1,1)
         end if
        ELSE IF(IRUNTYP==2)THEN
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,   &
-                      CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,  &
-                      NBAS,BAS,IGTYP,1,1)
+                      CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,   &
+                      ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,1,1)
        ELSE IF(IRUNTYP==3)THEN
         CALL OPTIMIZE(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,   &
                       KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,  &
-                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,SIZE_ENV, &
-                      ENV,ATM,NBAS,BAS,IGTYP,GRADS,IRUNTYP,IHSSCAL,     &
-                      IPROJECT,ISIGMA)
+                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,IZCORE,   &
+                      SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,GRADS,IRUNTYP,    &
+                      IHSSCAL,IPROJECT,ISIGMA,KTYPEaux)
        ELSE IF(IRUNTYP==4)THEN
         CALL HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,    &
                      KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,   &
                      ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,DIPS,GRADS,     &
                      IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,          &
-                     NBAS,BAS,IGTYP)
+                     NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
        ELSE IF(IRUNTYP==5)THEN
         CALL MOLDYN (NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,  &
-                     CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,&
-                     NBAS,BAS,IGTYP)
+                     CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,          &
+                     SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux)
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        DEALLOCATE(ENV,ATM,BAS)
@@ -361,9 +399,9 @@
 
 ! RUNNOFHEADER
       SUBROUTINE RUNNOFHEADER(NATOMSn,ICHn,MULn,NBFn,NBFauxn,NQMTn,NEn, &
-                              NAn,NBn,EX,EY,EZ,NSHELLn,NSHELLauxn,      &
+                              NAn,NBn,EX,EY,EZ,NSHELLn,NSHELLAUXn,      &
                               NPRIMIn,IAN,IEMOMn,IECPn,IRUNTYP,Cxyz,    &
-                              ZNUC)
+                              ZNUC,IZCORE,SIZE_ENV,ENV)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL EFIELDL,RESTART,ERIACTIVATED
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -374,11 +412,12 @@
       COMMON/INPFILE_NO1PT2/NO1PT2,NEX
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/ELPROP/IEMOM
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-      KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/NumLinIndOrb/NQMT
+      COMMON/USELIBCINT/ILIBCINT
       !
-      INTEGER,DIMENSION(NATOMSn) :: IAN
+      INTEGER :: SIZE_ENV
+      INTEGER,DIMENSION(NATOMSn) :: IAN,IZCORE
+      DOUBLE PRECISION,DIMENSION(SIZE_ENV) :: ENV
       DOUBLE PRECISION,DIMENSION(3,NATOMSn) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NATOMSn) :: ZNUC
       CHARACTER*4,ALLOCATABLE,DIMENSION(:) :: ATMNAME
@@ -418,7 +457,7 @@
       IECP   = IECPn
 !- - - - - - - - - - - - - -
       NBFaux = NBFauxn
-      NSHELLaux = NSHELLauxn
+      NSHELLaux = NSHELLAUXn
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     NBFT: Dimension for symmetric matices
 !      NSQ: Dimension for square matices
@@ -451,7 +490,17 @@
        ALLOCATE(ATMNAME(NATOMS))
        CALL ATOMNAMES(NATOMS,ZNUC,IZCORE,ATMNAME,Cxyz,1,1)
        DEALLOCATE(ATMNAME)
-      ENDIF
+!      Update coordinates in ENV if LIBCINT is used
+       IF(ILIBCINT==1)THEN
+        Ioff = 20
+        DO iat=1,NATOMS
+         Ioff = 20 + (iat-1)*3
+         ENV(Ioff+1) = Cxyz(1,iat)
+         ENV(Ioff+2) = Cxyz(2,iat)
+         ENV(Ioff+3) = Cxyz(3,iat)
+        END DO
+       END IF
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Output Basic
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -841,8 +890,8 @@
 !
 !     30 (DYN.xyz)  Formatted xyz trajectory file
 !     31 (DYNl.xyz) Formatted xyz last trajectory file (use for restart)
-!     32 (DYNen)    Formatted File with energy information
-!     33 ()
+!     32 (endyn.dat)Formatted File with energy information
+!     33 (ini.xyz)  Formatted File with initial conditions for dynamics
 !     34 (EPOTs)    Formatted File with ngcf potential energies
 !
 !     50 (BASIS_FILE) Opened in Subroutine ATOMS <- MOLECULE <- START
@@ -1205,11 +1254,11 @@
                           NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,   &
                           KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,   &
                           C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,     &
-                          DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NOPTCG,  &
-                          IPRINTOPT)
+                          DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,  &
+                          KTYPEaux,NSHELLaux,NOPTCG,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER :: NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI
-      INTEGER :: IRUNTYP,NOPTCG,IPRINTOPT
+      INTEGER :: IRUNTYP,NOPTCG,IPRINTOPT,NSHELLaux
       LOGICAL RESTART,SMCD
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/USELIBCINT/ILIBCINT
@@ -1217,9 +1266,10 @@
 #include "mpip.h"
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
-      INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: C1,C2,EX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: CS,CP,CD,CF,CG,CH,CI
@@ -1275,7 +1325,7 @@
                        IBUF,BUFaux,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,    &
                        NINTEGAUXtm,NINTEGt,NREC,XINTS,NSH2,IDONTW,      &
                        INPUTC,IPRINTOPT,ZAN,SIZE_ENV,ENV,ATM,NBAS,BAS,  &
-                       IGTYP)
+                       IGTYP,KTYPEaux,NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Preparing for RunNOF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1312,11 +1362,11 @@
 !     PNOF Calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL RunNOF(NAT,NBF,NBFT,NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,    &
-                  KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
-                  C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF,&
-                  DIPN,QUADN,OCTUN,NVAL,DQOInt,NINTEG,NREC,IBUF,BUF,    &
-                  BUFaux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,IRUNTYP,DIPS, &
-                  XINTS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
+                 KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,  &
+                 C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF, &
+                 DIPN,QUADN,OCTUN,NVAL,DQOInt,NINTEG,NREC,IBUF,BUF,     &
+                 BUFaux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,IRUNTYP,DIPS,  &
+                 IZCORE,XINTS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
       DEALLOCATE(AHCORE,OVERLAP,CHF,EiHF,DIPN,QUADN,OCTUN,DQOInt,AUX)
       DEALLOCATE(IBUF,BUF,BUFaux,XINTS)
       NOPTCGMPI = NOPTCG

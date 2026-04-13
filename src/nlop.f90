@@ -9,8 +9,8 @@
                          NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,   &
                          KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
                          C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,   &
-                         DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,     &
-                         ISOALPHA)
+                         DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,   &
+                         NLOP,ISOALPHA,KTYPEaux,NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !     ARGUMENTS
       INTEGER,INTENT(IN) :: NP,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NLOP
@@ -18,9 +18,10 @@
       DOUBLE PRECISION,INTENT(IN) :: STEP
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NAT),INTENT(IN) :: ZAN
-      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux),INTENT(IN) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: CD,CF,CG,CH,CI
@@ -68,7 +69,8 @@
                       NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
                       KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
                       C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
-                      DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP)
+                      DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP, &
+                      KTYPEaux,NSHELLaux)
        ELSE IF (ISOALPHA==1) THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -!
 !                  α_iso = (αxx + αyy + αzz)/3                          !
@@ -78,7 +80,8 @@
                           NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,  &
                           KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,&
                           C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,  &
-                          DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP)
+                          DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,  &
+                          NLOP,KTYPEaux,NSHELLaux)
        ENDIF
       END IF
 !     Hyperpolarizabilities (βzzz,γzzzz) & Polarizability αzz (NLOP==-1)
@@ -87,7 +90,8 @@
                      NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,       &
                      KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,     &
                      C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,       &
-                     DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP)
+                     DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,  &
+                     KTYPEaux,NSHELLaux)
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -!
 !             αxz,αyz,αzz, βxzz,βyzz,βzzz, γxzzz,γyzzz,γzzzz            !
@@ -96,7 +100,8 @@
 !                     NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,      &
 !                     KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,    &
 !                     C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,      &
-!                     DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP)
+!                     DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP, &
+!                     KTYPEaux,NSHELLaux)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -111,7 +116,8 @@
                           NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,  &
                           KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,&
                           C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,  &
-                          DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP)
+                          DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,  &
+                          NLOP,KTYPEaux,NSHELLaux)
 !-----------------------------------------------------------------------
 !     Romberg–Richardson (full triangles) for derivatives of DIPz(F):
 !     ALPHAzz = dDIPz/dF, BETAzzz = d2DIPz/dF2, GAMMAzzzz = d3DIPz/dF3
@@ -152,9 +158,10 @@
       DOUBLE PRECISION,INTENT(IN) :: STEP
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NAT),INTENT(IN) :: ZAN
-      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux),INTENT(IN) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: CD,CF,CG,CH,CI
@@ -162,7 +169,7 @@
       DOUBLE PRECISION,DIMENSION(3) :: DIPS
       INTEGER :: SIZE_ENV,ATM(6,NAT),NBAS,BAS(8,NBAS),IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
-!
+!     Locals
       INTEGER :: MAXM, M, I, I0, FINDX, IPrintTria
       INTEGER :: ibA, jbA, ibB, jbB, ibG, jbG
       DOUBLE PRECISION :: TOL, DMU(3)
@@ -186,8 +193,8 @@
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
-                     CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS, &
-                     BAS,IGTYP,0,1)
+                     CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,   &
+                     ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,1)
        WRITE(6,1)
        WRITE(6,2)
        WRITE(6,3)EFZ,DIPS(3),EELEC+EN
@@ -209,11 +216,11 @@
        EFZ = STEP * 2.0D0**(I-1)
        M = M + 1
        MAXLOOP = 10
-       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,         &
-                     NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,        &
-                     KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,  &
-                     CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,   &
-                     ENV,ATM,NBAS,BAS,IGTYP,0,0)
+       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
+                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
+                     CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,ATM,&
+                     NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
        FV(M) = EFZ
        DIPz(M) = DMU(3)
        WRITE(6,3) FV(M), DIPz(M), EELEC+EN
@@ -225,8 +232,8 @@
       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,   &
                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,     &
                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,  &
-                    CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,ENV,ATM,NBAS,   &
-                    BAS,IGTYP,0,0)
+                    CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,ATM, &
+                    NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Energy and Dipole for I=1,NP+1 (EFZ<0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -235,11 +242,11 @@
        EFZ = - STEP * 2.0D0**(I-1)
        M = M + 1
        MAXLOOP = 10
-       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,         &
-                     NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,        &
-                     KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,  &
-                     CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,   &
-                     ENV,ATM,NBAS,BAS,IGTYP,0,0)
+       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
+                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
+                     CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,ATM,&
+                     NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
        FV(M) = EFZ
        DIPz(M) = DMU(3)
        WRITE(6,3) FV(M), DIPz(M), EELEC+EN
@@ -628,8 +635,8 @@
                             NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,&
                             KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,   &
                             ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,   &
-                            IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,     &
-                            IGTYP,NLOP)
+                            IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,  &
+                            BAS,IGTYP,NLOP,KTYPEaux,NSHELLaux)
 !-----------------------------------------------------------------------
 !     Compute components of polarizability and hyperpolarizabilities
 !     from dipole derivatives induced by an electric field applied
@@ -668,9 +675,10 @@
       DOUBLE PRECISION,INTENT(IN) :: STEP
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NAT),INTENT(IN) :: ZAN
-      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux),INTENT(IN) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: CD,CF,CG,CH,CI
@@ -679,7 +687,7 @@
       INTEGER :: SIZE_ENV,ATM(6,NAT),NBAS,BAS(8,NBAS),IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
 !
-      INTEGER :: MAXM, M, I, I0
+      INTEGER :: MAXM, M, I, I0, FINDX
       DOUBLE PRECISION :: TOL
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: FV, HPOS
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DIPx, DIPy, DIPz
@@ -691,8 +699,7 @@
       DOUBLE PRECISION :: errBx, errBy, errBz
       DOUBLE PRECISION :: errGx, errGy, errGz
 !
-      INTEGER FINDX
-      EXTERNAL FINDX
+      EXTERNAL :: FINDX
 !-----------------------------------------------------------------------
       MAXM = 2*NP + 3
       ALLOCATE(FV(MAXM), DIPx(MAXM), DIPy(MAXM), DIPz(MAXM), HPOS(NP))
@@ -709,8 +716,8 @@
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
-                     CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS, &
-                     BAS,IGTYP,0,1)
+                     CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,   &
+                     ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,1)
        WRITE(6,1)
        WRITE(6,2)
        WRITE(6,3)EFZ,DIPS(3),EELEC+EN
@@ -734,11 +741,11 @@
        EFZ = STEP * 2.0D0**(I-1)
        M = M + 1
        MAXLOOP = 10
-       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,         &
-                     NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,        &
-                     KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,  &
-                     CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,   &
-                     ENV,ATM,NBAS,BAS,IGTYP,0,0)
+       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
+                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
+                     CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,ATM,&
+                     NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
        FV(M) = EFZ
        DIPx(M) = DMU(1)
        DIPy(M) = DMU(2)
@@ -752,8 +759,8 @@
       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,   &
                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,     &
                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,  &
-                    CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,ENV,ATM,NBAS,   &
-                    BAS,IGTYP,0,0)
+                    CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,ATM, &
+                    NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Energy and Dipole for I=1,NP+1 (EFZ<0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -765,8 +772,9 @@
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,         &
                      NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,        &
                      KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,  &
-                     CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,   &
-                     ENV,ATM,NBAS,BAS,IGTYP,0,0)
+                     CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,     &
+                     SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,          &
+                     NSHELLaux,0,0)
        FV(M) = EFZ
        DIPx(M) = DMU(1)
        DIPy(M) = DMU(2)
@@ -937,8 +945,9 @@
                               NBFaux,NSHELL,NPRIMI,ZAN,Cxyz,IAN,IMIN,   &
                               IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,   &
                               KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,  &
-                              CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV, &
-                              ATM,NBAS,BAS,IGTYP,NLOP)
+                              CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,       &
+                              SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,NLOP,     &
+                              KTYPEaux,NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL EFIELDL,RESTART
       COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
@@ -955,9 +964,10 @@
       DOUBLE PRECISION,INTENT(IN) :: STEP
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NAT),INTENT(IN) :: ZAN
-      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT),INTENT(IN) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux),INTENT(IN) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN) :: CD,CF,CG,CH,CI
@@ -1008,23 +1018,23 @@
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,&
-                      CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,&
-                      BAS,IGTYP,0,1)
+                      CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,  &
+                      ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,1)
         WRITE(6,1)
         WRITE(6,21)
        else if(AX==2)then
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,&
-                      CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,&
-                      BAS,IGTYP,0,0)
+                      CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,  &
+                      ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
         WRITE(6,22)
        else if(AX==3)then
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                       ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,   &
                       INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,&
-                      CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,&
-                      BAS,IGTYP,0,0)
+                      CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,  &
+                      ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
         WRITE(6,23)
        end if
 !      Ensure F=0 (M=1) present
@@ -1056,8 +1066,9 @@
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,        &
                       NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,       &
                       KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX, &
-                      CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,  &
-                      ENV,ATM,NBAS,BAS,IGTYP,0,0)
+                      CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,    &
+                      SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,         &
+                      NSHELLaux,0,0)
         FV(M) = h
         DIPc(M) = DMU(AX)
         WRITE(6,3) FV(M), DIPc(M), EELEC+EN
@@ -1069,8 +1080,8 @@
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF, &
-                     CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,ENV,ATM,NBAS,  &
-                     BAS,IGTYP,0,0)
+                     CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,SIZE_ENV,ENV,    &
+                     ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Energy and Dipole for I=1,NP+1 [ EF(ax) < 0 ]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1094,8 +1105,9 @@
         CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,        &
                       NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,       &
                       KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX, &
-                      CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,SIZE_ENV,  &
-                      ENV,ATM,NBAS,BAS,IGTYP,0,0)
+                      CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DMU,IZCORE,    &
+                      SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,         &
+                      NSHELLaux,0,0)
         FV(M) = -h
         DIPc(M) = DMU(AX)
         WRITE(6,3) FV(M), DIPc(M), EELEC+EN

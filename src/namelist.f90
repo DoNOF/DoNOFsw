@@ -15,7 +15,8 @@
                                  IEMOMENTS,NLOPS,NPOINTS,STEPS,         &
                                  ISOALPHAS,EX,EY,EZ,LIBCINT,IECPO,      &
                                  IHSSCAL,IPROJECT,ISIGMA,IGTYP,NATmax,  &
-                                 NSHELLmax,NPRIMImax,IHUBBARD)
+                                 NSHELLmax,NPRIMImax,NSHELLAUXmax,      &
+                                 NPRIMIAUXmax,IHUBBARD)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)   
 #include "mpip.h"      
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
@@ -110,8 +111,8 @@
 !       = T        LIBCINT (Default)
 !
 ! GTYP             Type of Gaussian functions
-!       = CART     Cartesian 
-!       = SPH      Spherical (Default)
+!       = CART     Cartesian (Default)
+!       = SPH      Spherical (only if LIBCINT)
 !
 ! USEHUB           Use Hubbard Model
 !       = F        (Default)
@@ -131,6 +132,7 @@
 ! RITYP            Typ of Auxiliary Basis
 !       = JKFIT    Read from jkfit files (Default)
 !       = GEN      Use Generative Auxiliary Basis
+!       = RIFIT    Read from rifit files (Default)
 !
 ! GEN              Generative Auxiliary Basis to use in RI Approx.
 !                  if ERITYP = RI. Values: A2,A2*,A3,A3*,A4,A4* 
@@ -140,9 +142,8 @@
 !                  G matrix in the RI Approximation.
 !       = F        (Default)
 !      
-! HSSCAL           Compute Hessian from analytic gradients and carry
-!                  out normal mode vibrational analysis at st. point 
-!                  if RUNTYP = OPTGEO (IRUNTYP=3)
+! HSSCAL           Compute Hessian from analytic gradients if RUNTYP =
+!                  OPTGEO and carry out normal mode vibrational analysis
 !       = T        (Default)
 !
 ! PROJECT          Project Hessian to eliminate rot/vib contaminants
@@ -154,19 +155,26 @@
 !                  For more info see https://cccbdb.nist.gov/thermo.asp
 !
 ! NATmax           Maximum Number of Atoms
-!       = 1001     (Default)
+!       = 100      (Default)
 !
 ! NSHELLmax        Maximum Number of Shells
-!       = 600      (Default)
+!       = 500      (Default)
 !
 ! NPRIMImax        Maximum Number of Gaussian Functions
 !       = 2000     (Default)
+!
+! NSHELLAUXmax     Maximum Number of Auxiliary Shells
+!       = 1000     (Default)
+!
+! NPRIMIAUXmax     Maximum Number of Auxiliary Gaussian Functions
+!       = 1000     = NSHELLAUXmax (Default)
 !
 !-----------------------------------------------------------------------
       NAMELIST/INPRUN/RUNTYP,MULT,ICHARG,IECP,IEMOM,NLOP,NPOINT,STEP,   &
                       ISOALPHA,UNITS,EVEC,USELIB,GTYP,USEHUB,DONTW,     &
                       ERITYP,CUTOFF,RITYP,GEN,SMCD,HSSCAL,PROJECT,      &
-                      ISIGMA,NATmax,NSHELLmax,NPRIMImax
+                      ISIGMA,NATmax,NSHELLmax,NPRIMImax,NSHELLAUXmax,   &
+                      NPRIMIAUXmax
 !-----------------------------------------------------------------------
       TI = 0.0D0                                                           
       TX = 0.0D0                                                           
@@ -196,9 +204,11 @@
       HSSCAL    = .TRUE.
       PROJECT   = .TRUE.
       ISIGMA    = 1
-      NATmax    = 1001     
-      NSHELLmax = 600  
-      NPRIMImax = 2000 
+      NATmax    = 100
+      NSHELLmax = 500
+      NPRIMImax = 2000
+   NSHELLAUXmax = 1000
+   NPRIMIAUXmax = 1000
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
 !                            Read Namelist
@@ -229,7 +239,6 @@
 !     Use LIBCINT open source library for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(USELIB)THEN
-! - - - - - - - - - - - - - - - -
        ILIBCINT = 1
 !      Determine GTYP
        IF(GTYP==CART)THEN
@@ -240,8 +249,9 @@
         WRITE(6,7)
         CALL ABRT
        END IF
-! - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ELSE  ! HONDO Integrals
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ILIBCINT = 0
        IF(GTYP==CART)THEN
         IGTYP = 1
@@ -250,6 +260,7 @@
         CALL ABRT
        END IF
       ENDIF
+!
       LIBCINT = ILIBCINT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Hubbard Model
@@ -277,15 +288,15 @@
 !     Typ of ERIs used in calculations
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ERITYP==FULL)THEN
-        IERITYP = 1
+       IERITYP = 1
       ELSE IF(ERITYP==RI)THEN
-        IERITYP = 2
+       IERITYP = 2
       ELSE IF(ERITYP==MIX)THEN       
-        IERITYP = 3
-        MIXSTATE = 1                           ! 1 = RI, 2 = FULL
+       IERITYP = 3
+       MIXSTATE = 1  ! 1 = RI, 2 = FULL
       ELSE
-        WRITE(6,6) 
-        CALL ABRT
+       WRITE(6,6)
+       CALL ABRT
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Typ of RIs auxiliary basis
@@ -294,6 +305,8 @@
        IRITYP = 1
       ELSE IF(RITYP(1:3)=="GEN")THEN
        IRITYP = 2
+      ELSE IF(RITYP=="RIFIT")THEN
+       IRITYP = 3
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Determine Star in Auxiliary Basis if required
@@ -383,30 +396,6 @@
         WRITE(6,5)
         CALL ABRT
       END IF
-      IF(IECP>0 .and. NATmax>1001)THEN         ! due to COMMON/ECP2/
-        WRITE(6,9)
-        CALL ABRT
-      END IF
-      IF(IECP>0 .and. NSHELLmax>600)THEN      ! due to MAPSHL
-        WRITE(6,10)
-        CALL ABRT
-      END IF
-        IF(ILIBCINT==1 .and. NSHELLmax>600)THEN ! due to BASLIB
-        WRITE(6,11)
-        CALL ABRT
-      END IF
-      IF(IERITYP==2 .and. NSHELLmax>700)THEN  ! due to COMMON/NSHELaux/
-        WRITE(6,12)
-        CALL ABRT
-        END IF
-      IF(IERITYP==2 .and. NPRIMImax>2000)THEN ! due to COMMON/EXCaux/
-        WRITE(6,13)
-        CALL ABRT
-      END IF
-      IF(IRUNTYP==5 .and. NATmax>1001)THEN ! due to COMMON/INPDYN_FLAGS/
-        WRITE(6,14)
-        CALL ABRT
-      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ICH = ICHARG                                                      
       MUL = MULT
@@ -435,12 +424,6 @@
     6 FORMAT(/1X,'Stop: ERITYP must be FULL or RI',/)
     7 FORMAT(/1X,'Stop: GTYP must be CART or SPH',/) 
     8 FORMAT(/1X,'Stop: GTYP must be CART for USELIB=F',/)
-    9 FORMAT(/1X,'Stop: NATmax must be <= 1001 with ECP',/) 
-   10 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with ECP',/)
-   11 FORMAT(/1X,'Stop: NHELLmax must be <= 600 with USELIB = T',/)
-   12 FORMAT(/1X,'Stop: NHELLmax must be <= 700 with ERITYP = RI',/)
-   13 FORMAT(/1X,'Stop: NPRIMImax must be <= 2000 with ERITYP = RI',/)
-   14 FORMAT(/1X,'Stop: NATmax must be <= 1001 with RUNTYP = DYN',/)
 !-----------------------------------------------------------------------
       END
 
@@ -523,13 +506,13 @@
 !                               orbitals. The rest of fragment orbitals 
 !                               remain frozen
 !
-!.......... ISOFTMAX            Parameterization type for the ONs
-!                      = 0      Trigonometric
+!.......... ISOFTMAX            Use Softmax function for ON (Gamma) opt.
+!                      = 0      Trigonometric Parametrization for ON
 !                      = 1      Softmax function (Default)
 !
 !.......... IORBOPT             Select method for NO optimization
 !
-!                      = 1      Iterative diagonalization
+!                      = 1      Iterative diagonalization (OrbOptFMIUGr)
 !                      = 2      Adaptative Momentum (ADAM) (Default)
 !                      = 3      ADABelief
 !                      = 4      YOGI
@@ -551,6 +534,7 @@
 !.......... IRHF                Restricted Hartree-Fock Calculation
 !                      = 0      Not obtaining HF orbitals
 !                      = 1      Self Consistent Field (SCF) (Default)
+!                               (only works with EFIELDL=.FALSE.)
 !                      = 2      Orbital rotations through ADAM
 !                      = 3      Iterative Diagonalization (ID) Method
 !
@@ -591,18 +575,17 @@
 !.......... Imod                Select versions of GNOFx
 !                      = 0      GNOF (Default)
 !                      = 1      GNOFm
-!                      = 2      GNOFs
 !
 !.......... HighSpin            Spin-uncompensated calculation type
-!                      = F      Multiplet state (Ms=0) (Default) 
+!                      = F      (Default) Multiplet state (Ms=0)
 !                      = T      High-spin uncompensated state (Ms=S)
 !
 !.......... NCWO                Number of coupled weakly occupied MOs 
 !                               per strongly occupied = Nc -> PNOFi(Nc)
-!                      = 1,2,3,...
+!                      = 1      NCWO = 1
+!                      = 2,3,...
 !                      =-1      NCWO = NVIR/NDOC (Default)
-!                               NVIR: NVIR: Number of Hartre-Fock virtual 
-!                               molecular orbitals, now weakly occupied
+!                               NVIR: Number of HF virtual  MOs (OCC=0)
 !                               NDOC: Number of strongly occupied MOs
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1251,10 +1234,9 @@
       SUBROUTINE NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
        INTEGER :: nat,ngcf
-       CHARACTER(LEN=1) :: dflag,resflag,velflag,snapshot
+       CHARACTER(LEN=1) :: resflag,velflag,snapshot
        DOUBLE PRECISION :: dt,tmax,Vxyz
-       COMMON/INPDYN_FLAGS/dflag(3,1001)
-       COMMON/INPDYN_VELOCITY/Vxyz(3,1001)
+       COMMON/INPDYN_VELOCITY/Vxyz(3,100)
        COMMON/INPDYN_NSHOT/snapshot
 !----------------------------------------------------------------------!
 !                   --- DYNINP NAMELIST VARIABLES ---                  !
@@ -1283,15 +1265,13 @@
 !-----------------------------------------------------------------------
       NAMELIST/INPDYN/velflag,dt,tmax,ngcf,Vxyz,resflag,snapshot
 !-----------------------------------------------------------------------
-      dflag(1:3,1:nat) = 'T'  ! Flags for selective dynamics
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                      
 !     Preset values to namelist variables
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       velflag = 'F'
       dt = 1.0d0    
       tmax = 100.0d0  
       ngcf = 1 
-      Vxyz(1:3,1:nat) = 0.0d0
+      Vxyz = 0.0d0
       resflag = 'F'
       snapshot = 'F'
 !-----------------------------------------------------------------------
@@ -1308,7 +1288,7 @@
 !               Write NAMELIST parameters on the Output file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       WRITE(6,3)
-      if(velflag=='T')then
+      if(velflag == 'T')then
        WRITE(6,6)
       else
        WRITE(6,7)      
@@ -1316,17 +1296,19 @@
       WRITE(6,8)dt 
       WRITE(6,9)tmax 
       WRITE(6,10)ngcf
-      do i=1,nat
-       do j=1,3
-        if(Vxyz(j,i)/=0.0)WRITE(6,11)j,i,Vxyz(j,i)
+      if (resflag == 'F') then
+       do i=1,nat
+        do j=1,3
+         if(Vxyz(j,i)/=0.0)WRITE(6,11)j,i,Vxyz(j,i)
+        enddo
        enddo
-      enddo
-      if(resflag=='T')then
+      endif
+      if(resflag == 'T')then
        WRITE(6,4)
       else
        WRITE(6,5)      
       endif
-      if(snapshot=='T')then
+      if(snapshot == 'T')then
        WRITE(6,12)
       else
        WRITE(6,13)      

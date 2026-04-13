@@ -214,28 +214,25 @@
       SUBROUTINE JandKauxl(BUFP2,NINTEGtm,IDONTW,IPRINTOPT,NBF,         &
                            EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM, &
                            KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,    &
-                           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+                           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL SMCD
+      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/INTFIL/NINTMX
+      INTEGER :: CR,CM,timestarttwoE,timefinishtwoE
       INTEGER :: NINTEGtm,IDONTW,IPRINTOPT,NBF,NSHELL,NAT,IGTYP
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NINTEGtm) :: BUFP2
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Gaux
-      INTEGER :: CR, CM, timestarttwoE, timefinishtwoE
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       DOUBLE PRECISION :: RATE
-      LOGICAL SMCD
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: Gaux
 !     LIBCINT
       INTEGER :: SIZE_ENV,NBAS
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
-
-      COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-!-----------------------------------------------------------------------
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
 !-----------------------------------------------------------------------
 !     Initialization for system_clock
 !-----------------------------------------------------------------------
@@ -1918,13 +1915,16 @@
 !                                                                      !
 !----------------------------------------------------------------------!
 
-! AUXREADl
-      SUBROUTINE AUXREADl(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+! AUXREAD1
+      SUBROUTINE AUXREAD1(IGTYP,NAT,NATmax,NSHELLaux,NSHELLAUXmax,      &
+                          NPRIMIAUXmax,NBFaux,ANAM,KATOMaux,KTYPEaux,   &
+                          KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      COMMON/EXCaux/EXaux(2000),Caux(2000)
       COMMON/BASIS_FILE/BASIS_FILE
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux,KLOCaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KSTARTaux,KNGaux
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
+!
       LOGICAL :: FILE_EXISTS
       CHARACTER(80) :: BASIS_FILE,PREFIX,AUX_FILE,AUX_FILE_1
       CHARACTER(8),DIMENSION(NATmax) :: ANAM
@@ -1944,7 +1944,7 @@
                  'G       ','H       ','I       ','L       '/
       CHARACTER(8) :: BASIS
       INTEGER :: IGTYP
-
+!-----------------------------------------------------------------------
       PI = 2.0d0*DASIN(1.0d0)
       PI32 = PI*SQRT(PI)
       NGAUSS=0
@@ -1952,51 +1952,60 @@
 !     Open Basis Set file if exists
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CBASIS = BLANK
-      EXT_POS = SCAN(TRIM(ADJUSTL(BASIS_FILE)),".", BACK= .TRUE.)  !Look for extension position
-      AUX_FILE = TRIM(ADJUSTL(BASIS_FILE(1:EXT_POS-1))) !Remove extension
+!     Look for extension position
+      EXT_POS = SCAN(TRIM(ADJUSTL(BASIS_FILE)),".", BACK= .TRUE.)
+!     Remove extension
+      AUX_FILE = TRIM(ADJUSTL(BASIS_FILE(1:EXT_POS-1)))
       IF(LEN_TRIM(AUX_FILE)>0)THEN
        CALL GETENV( 'HOME', PREFIX )
-       AUX_FILE_1 = TRIM(PREFIX)//'/DoNOFsw/basis/'//                 &
-                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+       AUX_FILE_1 = TRIM(PREFIX)//'/DoNOFsw/basis/'//                   &
+                    TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
        INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
-       if(FILE_EXISTS)then                                ! in DoNOFsw
+!      in DoNOFsw
+       if(FILE_EXISTS)then
         AUX_FILE = AUX_FILE_1
-!      DoNOF
        else
-        AUX_FILE_1= TRIM(PREFIX)//'/DoNOF/basis/'//                   &
-                      TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
+        AUX_FILE_1 = TRIM(PREFIX)//'/DoNOF/basis/'//                    &
+                     TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
         INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
-        if(FILE_EXISTS)then                               ! in DoNOF
+!       in DoNOF
+        if(FILE_EXISTS)then
          AUX_FILE = AUX_FILE_1
         else
          CALL GETENV( 'PWD', PREFIX )
-         AUX_FILE_1 = TRIM(PREFIX)//"/"//                             &
+         AUX_FILE_1 = TRIM(PREFIX)//"/"//                               &
                         TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
          INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
-         if(FILE_EXISTS)then                              ! in pwd
+!        in PWD
+         if(FILE_EXISTS)then
           AUX_FILE = AUX_FILE_1
          else
           AUX_FILE_1 = TRIM(ADJUSTL(AUX_FILE))//"-jkfit.bas"
           INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
-          if(FILE_EXISTS)then                             ! in given path
+!         in given path
+          if(FILE_EXISTS)then
            AUX_FILE = AUX_FILE_1
-          else                             ! auxiliar basis set file not found
-           WRITE(6,*)"Basis File ",TRIM(AUX_FILE)//"-jkfit.bas"," does not exist"
-           WRITE(*,*) "Plese provide the file or use auxgen auxiliary basis"
+!         Auxiliar basis set file not found
+          else
+           WRITE(6,*)"Basis File ",TRIM(AUX_FILE)//                     &
+                     "-jkfit.bas"," does not exist"
+           WRITE(*,*)                                                   &
+            "Please provide the file or use auxgen auxiliary basis"
            CALL ABRT
           endif
          endif
         endif
        endif
-!      Open Auxiliar Basis Set File ( Unit = 50 )
-       CLOSE(50) !Close original Basis Set file
-       OPEN(50,FILE=AUX_FILE,STATUS='UNKNOWN',                        &
+!      Close original Basis Set file
+       CLOSE(50)
+!      Open Auxiliar Basis Set File
+       OPEN(50,FILE=AUX_FILE,STATUS='UNKNOWN',                          &
                FORM='FORMATTED',ACCESS='SEQUENTIAL')
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Read Auxilairy Basis from the basisname-jkfit.bas
+!     Read Auxilairy Basis from the basisname-jkfit.bas
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      NUMaux = 0
+      NBFaux = 0
       NSHELLaux = 0
       DO IAT=1,NAT
        if(LEN_TRIM(AUX_FILE)>0)then
@@ -2011,36 +2020,38 @@
        CALL GSTRNG(CBASIS,KSIZE)
        READ(UNIT=CBASIS,FMT='(A8)')BASIS
        IGAUSS = IFIND('NGAUSS  ',IERR)
-!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!!     Read shell information
-!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Read shell information
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(BASIS/=BLANK)THEN
-!!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         KTYP = 0
         DO I=1,7
          IF(BASIS==LABEL(I))KTYP=I
         ENDDO
-        IF(KTYP==0) THEN
-        WRITE(*,*) 'Stop: Illegal auxiliary basis function type ',BASIS
-        CALL ABRT
+        IF(KTYP==0)THEN
+         WRITE(*,*) 'Stop: Illegal auxiliary basis function type ',BASIS
+         CALL ABRT
         END IF
-!- - - - - - -
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         NSHELLaux = NSHELLaux + 1
         KSTARTaux(NSHELLaux) = NGAUSS+1
         KATOMaux(NSHELLaux) = IAT
         KTYPEaux(NSHELLaux) = KTYP
         KNGaux(NSHELLaux) = IGAUSS
-        KLOCaux(NSHELLaux) = NUMaux+1
+        KLOCaux(NSHELLaux) = NBFaux+1
         L = KTYP-1
         NGAUSS = NGAUSS + IGAUSS
         IF(IGTYP==1) THEN
-          NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+         NBFaux = NBFaux + (L + 1) * (L + 2) / 2
         ELSE IF(IGTYP==2) THEN
-          NUMaux = NUMaux + 2 * L + 1
+         NBFaux = NBFaux + 2 * L + 1
         END IF
         K1 = KSTARTaux(NSHELLaux)
         K2 = K1 + KNGaux(NSHELLaux) - 1
-        ! Read exponents and coefficients of primitives
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       Read exponents and coefficients of primitives
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         DO K = K1,K2
          C1 = 0.0D0
          IEOF = 0
@@ -2052,36 +2063,8 @@
          IF(IERR/=0) CALL ABRT
          C1 = RFIND('C1      ',IERR)
          IF(IERR/=0) CALL ABRT
-         !CALL NORMALIZE_AUXILIAR(EXaux(K),COEFICIENT,L)
-         Caux(K) = C1!*COEFICIENT
+         Caux(K) = C1
         END DO
-        ! Compute contracted normalization constant
-        !FACL = 0.0D0
-        !DO IG = K1,K2
-        ! DO JG = K1,IG
-        !  EE = EXaux(IG)+EXaux(JG)
-        !  FAC = EE*SQRT(EE)
-        !  IF(L==0) DUM = Caux(IG)*Caux(JG)/FAC
-        !  IF(L==1) DUM = 0.5D0*Caux(IG)*Caux(JG)/(EE*FAC)
-        !  IF(L==2) DUM = PT75  *Caux(IG)*Caux(JG)/(EE*EE*FAC)
-        !  IF(L==3) DUM = PT187 *Caux(IG)*Caux(JG)/(EE**3*FAC)
-        !  IF(L==4) DUM = PT6562*Caux(IG)*Caux(JG)/(EE**4*FAC)
-        !  IF(L==5) DUM = PT2953*Caux(IG)*Caux(JG)/(EE**5*FAC)
-        !  IF(L==6) DUM = PT1624*Caux(IG)*Caux(JG)/(EE**6*FAC)
-        !  IF(IG /= JG) THEN
-        !   DUM = DUM+DUM
-        !  END IF
-        !  FACL = FACL+DUM
-        ! END DO
-        !END DO
-        !IF(FACL < TM10) THEN
-        ! FACL = 0.0D0
-        !ELSE
-        ! FACL = 1.0D0/SQRT(FACL*PI32)
-        !END IF
-        !DO K = K1,K2
-        ! Caux(K) = Caux(K) * FACL
-        !END DO
         GOTO 2
        END IF
       END DO
@@ -2089,7 +2072,168 @@
 !     Open Basis Set File ( Unit = 50 )
       OPEN(50,FILE=BASIS_FILE,STATUS='UNKNOWN',                         &
               FORM='FORMATTED',ACCESS='SEQUENTIAL')
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      RETURN
+      END
 
+! AUXREAD3
+      SUBROUTINE AUXREAD3(IGTYP,NAT,NATmax,NSHELLaux,NSHELLAUXmax,      &
+                          NPRIMIAUXmax,NBFaux,ANAM,KATOMaux,KTYPEaux,   &
+                          KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/BASIS_FILE/BASIS_FILE
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux,KLOCaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KSTARTaux,KNGaux
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
+!
+      LOGICAL :: FILE_EXISTS
+      CHARACTER(80) :: BASIS_FILE,PREFIX,AUX_FILE,AUX_FILE_1
+      CHARACTER(8),DIMENSION(NATmax) :: ANAM
+      DOUBLE PRECISION :: COEFICIENT
+      INTEGER :: EXT_POS
+      DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
+      DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
+      DOUBLE PRECISION,PARAMETER :: PT75=0.75D0
+      DOUBLE PRECISION,PARAMETER :: PT187=1.875D0
+      DOUBLE PRECISION,PARAMETER :: TM10=1.0D-10
+      DOUBLE PRECISION,PARAMETER :: PT6562=6.5625D0
+      CHARACTER(8) :: BLANK
+      DATA BLANK /'        '/
+      CHARACTER(8) :: CBASIS
+      CHARACTER(8),DIMENSION(8) :: LABEL
+      DATA LABEL/'S       ','P       ','D       ','F       ',           &
+                 'G       ','H       ','I       ','L       '/
+      CHARACTER(8) :: BASIS
+      INTEGER :: IGTYP
+!-----------------------------------------------------------------------
+      PI = 2.0d0*DASIN(1.0d0)
+      PI32 = PI*SQRT(PI)
+      NGAUSS=0
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Open Basis Set file if exists
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      CBASIS = BLANK
+!     Look for extension position
+      EXT_POS = SCAN(TRIM(ADJUSTL(BASIS_FILE)),".", BACK= .TRUE.)
+!     Remove extension
+      AUX_FILE = TRIM(ADJUSTL(BASIS_FILE(1:EXT_POS-1)))
+      IF(LEN_TRIM(AUX_FILE)>0)THEN
+       CALL GETENV( 'HOME', PREFIX )
+       AUX_FILE_1 = TRIM(PREFIX)//'/DoNOFsw/basis/'//                   &
+                    TRIM(ADJUSTL(AUX_FILE))//"-rifit.bas"
+       INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+!      in DoNOFsw
+       if(FILE_EXISTS)then
+        AUX_FILE = AUX_FILE_1
+       else
+        AUX_FILE_1 = TRIM(PREFIX)//'/DoNOF/basis/'//                    &
+                     TRIM(ADJUSTL(AUX_FILE))//"-rifit.bas"
+        INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+!       in DoNOF
+        if(FILE_EXISTS)then
+         AUX_FILE = AUX_FILE_1
+        else
+         CALL GETENV( 'PWD', PREFIX )
+         AUX_FILE_1 = TRIM(PREFIX)//"/"//                               &
+                        TRIM(ADJUSTL(AUX_FILE))//"-rifit.bas"
+         INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+!        in PWD
+         if(FILE_EXISTS)then
+          AUX_FILE = AUX_FILE_1
+         else
+          AUX_FILE_1 = TRIM(ADJUSTL(AUX_FILE))//"-rifit.bas"
+          INQUIRE(FILE=AUX_FILE_1,EXIST=FILE_EXISTS)
+!         in given path
+          if(FILE_EXISTS)then
+           AUX_FILE = AUX_FILE_1
+!         Auxiliar basis set file not found
+          else
+           WRITE(6,*)"Basis File ",TRIM(AUX_FILE)//                     &
+                     "-rifit.bas"," does not exist"
+           WRITE(*,*)                                                   &
+            "Please provide the file or use auxgen auxiliary basis"
+           CALL ABRT
+          endif
+         endif
+        endif
+       endif
+!      Close original Basis Set file
+       CLOSE(50)
+!      Open Auxiliar Basis Set File
+       OPEN(50,FILE=AUX_FILE,STATUS='UNKNOWN',                          &
+               FORM='FORMATTED',ACCESS='SEQUENTIAL')
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Read Auxilairy Basis from the basisname-rifit.bas
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      NBFaux = 0
+      NSHELLaux = 0
+      DO IAT=1,NAT
+       if(LEN_TRIM(AUX_FILE)>0)then
+        REWIND(50)
+        CALL FNDATMBASIS(ANAM(IAT),IEOF)
+       endif
+    2  CONTINUE
+       IEOF = 0
+       IERR = 0
+       CALL RDCARD(50,'$DATA 6U',IEOF)
+       KSIZE = -8
+       CALL GSTRNG(CBASIS,KSIZE)
+       READ(UNIT=CBASIS,FMT='(A8)')BASIS
+       IGAUSS = IFIND('NGAUSS  ',IERR)
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Read shell information
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(BASIS/=BLANK)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        KTYP = 0
+        DO I=1,7
+         IF(BASIS==LABEL(I))KTYP=I
+        ENDDO
+        IF(KTYP==0)THEN
+         WRITE(*,*) 'Stop: Illegal auxiliary basis function type ',BASIS
+         CALL ABRT
+        END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        NSHELLaux = NSHELLaux + 1
+        KSTARTaux(NSHELLaux) = NGAUSS+1
+        KATOMaux(NSHELLaux) = IAT
+        KTYPEaux(NSHELLaux) = KTYP
+        KNGaux(NSHELLaux) = IGAUSS
+        KLOCaux(NSHELLaux) = NBFaux+1
+        L = KTYP-1
+        NGAUSS = NGAUSS + IGAUSS
+        IF(IGTYP==1) THEN
+         NBFaux = NBFaux + (L + 1) * (L + 2) / 2
+        ELSE IF(IGTYP==2) THEN
+         NBFaux = NBFaux + 2 * L + 1
+        END IF
+        K1 = KSTARTaux(NSHELLaux)
+        K2 = K1 + KNGaux(NSHELLaux) - 1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!       Read exponents and coefficients of primitives
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        DO K = K1,K2
+         C1 = 0.0D0
+         IEOF = 0
+         IERR = 0
+         CALL RDCARD(50,'$DATA 7U',IEOF)
+         IDUM = IFIND('IDUM    ',IERR)
+         IF(IERR/=0)CALL ABRT
+         EXaux(K) = RFIND('ZETA    ',IERR)
+         IF(IERR/=0) CALL ABRT
+         C1 = RFIND('C1      ',IERR)
+         IF(IERR/=0) CALL ABRT
+         Caux(K) = C1
+        END DO
+        GOTO 2
+       END IF
+      END DO
+      CLOSE(UNIT=50)
+!     Open Basis Set File ( Unit = 50 )
+      OPEN(50,FILE=BASIS_FILE,STATUS='UNKNOWN',                         &
+              FORM='FORMATTED',ACCESS='SEQUENTIAL')
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       RETURN
       END
 
@@ -2129,21 +2273,22 @@
 
 ! AUXGENl
       SUBROUTINE AUXGENl(IGTYP,NAT,NPRIMI,ITYP,IMIN,IMAX,NSHELLaux,     &
-                         NUMaux,EX,ZAN,Cxyz)
+                         NSHELLAUXmax,NPRIMIAUXmax,NBFaux,EX,ZAN,Cxyz,  &
+                         KATOMaux,KTYPEaux,KLOCaux,KNGaux,EXaux,Caux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !
-      INTEGER :: NPRIMI,NSHELLaux,NUMaux,IGTYP
+      INTEGER :: NPRIMI,NSHELLaux,NBFaux,IGTYP
       INTEGER,DIMENSION(NPRIMI) :: ITYP
       INTEGER,DIMENSION(NAT) :: IMIN,IMAX
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KLOCaux,KNGaux
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
 !
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      COMMON/EXCaux/EXaux(2000),Caux(2000)
 !
       INTEGER,DIMENSION(NAT)::LMAX
       DOUBLE PRECISION,DIMENSION(NAT)::EXMAX,EXMIN
@@ -2159,7 +2304,7 @@
        EXMIN(IAT) = MINVAL(EX(MINI:MAXI))
       end do
 !
-      NUMaux = 0
+      NBFaux = 0
       NSHELLaux = 0
       do IAT=1,NAT
        lbmax = LMAX(IAT)
@@ -2193,16 +2338,16 @@
           KATOMaux(NSHELLaux) = IAT
           KTYPEaux(NSHELLaux) = L+1
           KNGaux(NSHELLaux) = 1
-          KLOCaux(NSHELLaux) = NUMaux+1
+          KLOCaux(NSHELLaux) = NBFaux+1
           IF(IGTYP==1) THEN
-            NUMaux = NUMaux + (L + 1) * (L + 2) / 2
+           NBFaux = NBFaux + (L + 1) * (L + 2) / 2
           ELSE IF(IGTYP==2) THEN
-            NUMaux = NUMaux + 2 * L + 1
+           NBFaux = NBFaux + 2 * L + 1
           END IF
           EXaux(NSHELLaux) = TMPEXP
 !         avoiding warning
           Cxyz(1:3,IAT) = Cxyz(1:3,IAT)
-          !CALL NORMALIZE_AUXILIAR(TMPEXP,COEFICIENT,L)
+!         CALL NORMALIZE_AUXILIAR(TMPEXP,COEFICIENT,L)
           Caux(NSHELLaux) = 1.0D0
          end do
          if (ifa==1) TMPEXP = TMPEXP*r/(r+0.5*IGEN)
@@ -2214,12 +2359,12 @@
       END
 
 ! AuxERIl
-      SUBROUTINE AuxERIl(NINTEGtm, BUFP2, NBF, IPRINTOPT, NSHELL, NAT,  &
-                         SIZE_ENV, ENV, ATM, NBAS, BAS, IGTYP)
+      SUBROUTINE AuxERIl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,       &
+                         SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
-      INTEGER, INTENT(IN) :: IGTYP
+      INTEGER,INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT
+      INTEGER,INTENT(IN) :: SIZE_ENV, NBAS, IGTYP
       DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NINTEGtm)
       DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
       INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
@@ -2228,7 +2373,7 @@
       INTEGER(4) :: SHLS(4)
       INTEGER :: NBFaux, NSHELLaux
       INTEGER :: ISH, JSH, KSH
-      INTEGER :: LOC(NSHELL), LOCAUX(NSHELLaux)
+      INTEGER :: LOC(NSHELL), LOCaux(NSHELLaux)
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
@@ -2237,28 +2382,28 @@
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
 !-----------------------------------------------------------------------
-! LOC indicates the starting location of each shell in the AO basis
+!     LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
       IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
       IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
-        LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
-        Dcgto(ISH) = DI
+       LOC(ISH) = LOC(ISH-1) + DI
+       IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+       IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
+       Dcgto(ISH) = DI
       END DO
-
-      LOCAUX(1) = 1 
+!
+      LOCaux(1) = 1
       IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS)
       IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS)
       DAUXcgto(1) = DI
       DO ISH = 2,NSHELLaux
-        LOCAUX(ISH) = LOCAUX(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
-        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
-        DAUXcgto(ISH) = DI
+       LOCaux(ISH) = LOCaux(ISH-1) + DI
+       IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
+       IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
+       DAUXcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
       BUFP2 = 0.0D0
@@ -2267,8 +2412,8 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(GMAT(NBFaux,NBFaux))
       GMAT = 0.0D0
-      CALL METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,         &
-            DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
+      CALL METRICmatl(GMAT,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,DAUXcgto,      &
+                      LOCaux,NSHELL,NSHELLaux,NBFaux,IGTYP)
       CALL PDPT_msqrtl(GMAT,NBFaux,IPRINTOPT)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
@@ -2276,33 +2421,31 @@
       !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
       !$OMP DO SCHEDULE(DYNAMIC)
       DO ISH = 1,NSHELL
-        DI = Dcgto(ISH)
-        SHLS(1) = ISH - 1
-        DO JSH = 1,ISH
-          DJ = Dcgto(JSH)
-          SHLS(2) = JSH - 1
-          DO KSH = 1,NSHELLaux
-            DK = DAUXcgto(KSH)
-            SHLS(3) = KSH - 1 + NSHELL
+       DI = Dcgto(ISH)
+       SHLS(1) = ISH - 1
+       DO JSH = 1,ISH
+        DJ = Dcgto(JSH)
+        SHLS(2) = JSH - 1
+        DO KSH = 1,NSHELLaux
+         DK = DAUXcgto(KSH)
+         SHLS(3) = KSH - 1 + NSHELL
 !- - - - - - - - - - - - - - - - - - - - - - - - - -
-!           (II,JJ//KK)
-!           Compute 2e- Integrals (mn|k)
-!           Select integral code for ERI calculation
+!        (II,JJ//KK)
+!        Compute 2e- Integrals (mn|k)
+!        Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ALLOCATE(BLK(DI,DJ,DK))
-            IF(IGTYP==1)ERR = cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,     &
-                  NBAS, ENV, 0_8)
-            IF(IGTYP==2)ERR = cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,      &
-                  NBAS, ENV, 0_8)
+         ALLOCATE(BLK(DI,DJ,DK))
+         IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+         IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!           Contract to B tensor
+!        Contract to B tensor
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            CALL QOUT3Cl(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,     &
-                  ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLaux)
+         CALL QOUT3Cl(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,        &
+                      ISH, JSH, KSH, LOC, LOCaux, NSHELL, NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            DEALLOCATE(BLK)
-          END DO
-        END DO
+         DEALLOCATE(BLK)
+         END DO
+       END DO
       END DO
       !$OMP END DO
       !$OMP END PARALLEL
@@ -2316,10 +2459,10 @@
                                 NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER, INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT, SIZE_ENV, NBAS
-      INTEGER, INTENT(IN) :: IGTYP
-      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2,NBFaux)
-      DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
+      INTEGER,INTENT(IN)::NINTEGtm,NBF,IPRINTOPT,NSHELL,NAT,SIZE_ENV,NBAS
+      INTEGER,INTENT(IN)::IGTYP
+      DOUBLE PRECISION,INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2,NBFaux)
+      DOUBLE PRECISION,INTENT(IN) :: ENV(SIZE_ENV)
       INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
       INTEGER :: M,N,MN,I,J,K,INFO
 !
@@ -2327,7 +2470,7 @@
       INTEGER(4) :: SHLS(4)
       INTEGER :: NBFaux, NSHELLaux
       INTEGER :: ISH, JSH, KSH
-      INTEGER :: LOC(NSHELL), LOCAUX(NSHELLaux)
+      INTEGER :: LOC(NSHELL), LOCaux(NSHELLaux)
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       INTEGER :: ERR
       INTEGER,ALLOCATABLE :: IPIV(:)
@@ -2339,28 +2482,28 @@
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
 !-----------------------------------------------------------------------
-! LOC indicates the starting location of each shell in the AO basis
+!     LOC indicates the starting location of each shell in the AO basis
 !-----------------------------------------------------------------------
       LOC(1) = 1
       IF(IGTYP==1) DI = CINTcgto_cart(0, BAS)
       IF(IGTYP==2) DI = CINTcgto_spheric(0, BAS)
       Dcgto(1) = DI
       DO ISH = 2,NSHELL
-        LOC(ISH) = LOC(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
-        IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
-        Dcgto(ISH) = DI
+       LOC(ISH) = LOC(ISH-1) + DI
+       IF(IGTYP==1) DI = CINTcgto_cart(ISH-1, BAS)
+       IF(IGTYP==2) DI = CINTcgto_spheric(ISH-1, BAS)
+       Dcgto(ISH) = DI
       END DO
 
-      LOCAUX(1) = 1
+      LOCaux(1) = 1
       IF(IGTYP==1) DI = CINTcgto_cart(NSHELL, BAS)
       IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL, BAS)
       DAUXcgto(1) = DI
       DO ISH = 2,NSHELLaux
-        LOCAUX(ISH) = LOCAUX(ISH-1) + DI
-        IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
-        IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
-        DAUXcgto(ISH) = DI
+       LOCaux(ISH) = LOCaux(ISH-1) + DI
+       IF(IGTYP==1) DI = CINTcgto_cart(NSHELL+ISH-1, BAS)
+       IF(IGTYP==2) DI = CINTcgto_spheric(NSHELL+ISH-1, BAS)
+       DAUXcgto(ISH) = DI
       END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Evaluate G = (P|Q), G = PLDL^TP^T, ModChol and get P, L, D^1/2
@@ -2370,10 +2513,10 @@
       ALLOCATE(L(NBFaux,NBFaux),D(NBFaux,NBFaux),P(NBFaux,NBFaux))
       ALLOCATE(E(NBFaux),IPIV(NBFaux))
       GMAT = 0.0D0
-      CALL METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,         &
-            DAUXcgto, LOCaux, NSHELL, NSHELLaux, NBFaux, IGTYP)
+      CALL METRICmatl(GMAT,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,DAUXcgto,      &
+                      LOCaux,NSHELL,NSHELLaux,NBFaux,IGTYP)
       CALL LDLT(GMAT,IPIV,E,NBFaux)
-      CALL MODCHOL(NBFaux, GMAT, IPIV, E, 1D-10,IPRINTOPT)
+      CALL MODCHOL(NBFaux,GMAT,IPIV,E,1D-10,IPRINTOPT)
       CALL GET_PLD12(GMAT,IPIV,E,NBFaux,P,L,D)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
@@ -2381,33 +2524,31 @@
       !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
       !$OMP DO SCHEDULE(DYNAMIC)
       DO ISH = 1,NSHELL
-        DI = Dcgto(ISH)
-        SHLS(1) = ISH - 1
-        DO JSH = 1,ISH
-          DJ = Dcgto(JSH)
-          SHLS(2) = JSH - 1
-          DO KSH = 1,NSHELLaux
-            DK = DAUXcgto(KSH)
-            SHLS(3) = KSH - 1 + NSHELL
+       DI = Dcgto(ISH)
+       SHLS(1) = ISH - 1
+       DO JSH = 1,ISH
+        DJ = Dcgto(JSH)
+        SHLS(2) = JSH - 1
+        DO KSH = 1,NSHELLaux
+         DK = DAUXcgto(KSH)
+         SHLS(3) = KSH - 1 + NSHELL
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!           (II,JJ//KK)
-!           Compute 2e- Integrals (mn|k)
-!           Select integral code for ERI calculation
+!        (II,JJ//KK)
+!        Compute 2e- Integrals (mn|k)
+!        Select integral code for ERI calculation
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            ALLOCATE(BLK(DI,DJ,DK))
-            IF(IGTYP==1) ERR = cint3c2e_cart(BLK, SHLS, ATM, NAT, BAS,&
-                  NBAS, ENV, 0_8)
-            IF(IGTYP==2) ERR = cint3c2e_sph(BLK, SHLS, ATM, NAT, BAS, &
-                  NBAS, ENV, 0_8)
+         ALLOCATE(BLK(DI,DJ,DK))
+         IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+         IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!           Store 3 center ERIs (mn|k)
+!        Store 3 center ERIs (mn|k)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            CALL QOUT3CModCholl(BUFP,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH,  &
-                  JSH,KSH,LOC,LOCAUX,NSHELL,NSHELLaux)
+         CALL QOUT3CModCholl(BUFP,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH,     &
+                             JSH,KSH,LOC,LOCaux,NSHELL,NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-            DEALLOCATE(BLK)
-          END DO
+         DEALLOCATE(BLK)
         END DO
+       END DO
       END DO
       !$OMP END DO
       !$OMP END PARALLEL
@@ -2417,25 +2558,23 @@
       BUFP2 = 0.0D0
       !$OMP PARALLEL DO PRIVATE(I,J,K)
       DO I=1,NBF*(NBF+1)/2
-        DO J=1,NBFaux
-          DO K=1,NBFaux
-            BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
-          END DO
+       DO J=1,NBFaux
+        DO K=1,NBFaux
+         BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
         END DO
+       END DO
       END DO
       !$OMP END PARALLEL DO
       DEALLOCATE(BUFP)
       DO N=1,NBF
-        DO M=1,N
-          MN = M + N*(N-1)/2
-          CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux), &
-                NBFaux,INFO)
-          CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
-        END DO
+       DO M=1,N
+        MN = M + N*(N-1)/2
+        CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux),   &
+                    NBFaux,INFO)
+        CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
+       END DO
       END DO
-      DEALLOCATE(GMAT)
-      DEALLOCATE(L,D,P)
-      DEALLOCATE(E,IPIV)
+      DEALLOCATE(GMAT,L,D,P,E,IPIV)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -2523,7 +2662,6 @@
        write(6,*)"SMCD Warning - Number of values changed from metric:",&
              nchanged
       end if
-
 !-----------------------------------------------------------------------
       END
 
@@ -2608,19 +2746,20 @@
       END
 
 ! METRICmatl
-      SUBROUTINE METRICmatl(GMAT, SIZE_ENV, ENV, NAT, ATM, NBAS, BAS,   &
-      DAUXcgto, LOCAUX, NSHELL, NSHELLAUX, NBFaux, IGTYP)
+      SUBROUTINE METRICmatl(GMAT,SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,         &
+                            DAUXcgto,LOCaux,NSHELL,NSHELLaux,NBFaux,    &
+                            IGTYP)
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: SIZE_ENV, NAT, NBAS, NSHELLAUX, IGTYP, NBFaux
+      INTEGER, INTENT(IN) :: SIZE_ENV,NAT,NBAS,NSHELLaux,IGTYP,NBFaux
       DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
-      INTEGER, INTENT(IN) :: ATM(6, NAT), BAS(8, NBAS)
+      INTEGER, INTENT(IN) :: ATM(6,NAT), BAS(8,NBAS)
       DOUBLE PRECISION, INTENT(OUT) :: GMAT(NBFaux,NBFaux)
-      INTEGER, INTENT(IN) :: LOCAUX(NSHELLAUX)
+      INTEGER, INTENT(IN) :: LOCaux(NSHELLaux)
 !
       INTEGER :: DI, DK
       INTEGER :: SHLS(2)
       INTEGER :: NSHELL, ISH, KSH, ERR
-      INTEGER :: DAUXcgto(NSHELLAUX)
+      INTEGER :: DAUXcgto(NSHELLaux)
 
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:)
 
@@ -2632,7 +2771,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       !$OMP PARALLEL PRIVATE(ISH, KSH, BLK, DI, DK, ERR, SHLS)
       !$OMP DO SCHEDULE(DYNAMIC)
-      DO ISH = 1,NSHELLAUX                          ! II Shell
+      DO ISH = 1,NSHELLaux                          ! II Shell
         SHLS(1) = ISH-1 + NSHELL
         DI = DAUXcgto(ISH)
         DO KSH = 1,ISH                               ! KK Shell
@@ -2650,7 +2789,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !       Transfer integrals to G matrix
 !- - - - - - - - - - - - - - - - - - - - - - -
-          CALL QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
+          CALL QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCaux,NSHELLaux,ISH,KSH)
 !- - - - - - - - - - - - - - - - - - - - - - -
           DEALLOCATE(BLK)
         END DO
@@ -2702,36 +2841,34 @@
       END
 
 ! QOUT2Cl
-      SUBROUTINE QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCAUX,NSHELLAUX,ISH,KSH)
+      SUBROUTINE QOUT2Cl(GMAT,NBFaux,BLK,DI,DK,LOCaux,NSHELLaux,ISH,KSH)
       IMPLICIT NONE
 !
       INTEGER, INTENT(IN) :: DI, DK
-      INTEGER, INTENT(IN) :: NBFaux,  NSHELLAUX, ISH, KSH
-      INTEGER, INTENT(IN) :: LOCAUX(NSHELLAUX)
+      INTEGER, INTENT(IN) :: NBFaux,  NSHELLaux, ISH, KSH
+      INTEGER, INTENT(IN) :: LOCaux(NSHELLaux)
       DOUBLE PRECISION, INTENT(INOUT) :: GMAT(NBFaux, NBFaux)
       DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DK)
-
+!
       INTEGER :: I, K, I1, I3, LOCI, LOCK
       LOGICAL :: SAME
-
 !-----------------------------------------------------------------------
 !     Get Auxiliary Basis Info.
 !-----------------------------------------------------------------------
       SAME = (ISH == KSH)
-      LOCI = LOCAUX(ISH)
-      LOCK = LOCAUX(KSH)
-
+      LOCI = LOCaux(ISH)
+      LOCK = LOCaux(KSH)
 !-----------------------------------------------------------------------
 !     Store (k|l) ERIs in G matrix
 !-----------------------------------------------------------------------
       DO I = 1,DI
-        DO K = 1,DK
-          IF(SAME.and.K>I) CYCLE
-          I1 = LOCI + I - 1
-          I3 = LOCK + K - 1
-          GMAT(I1,I3) = BLK(I, K)
-          GMAT(I3,I1) = BLK(I, K)
-        END DO
+       DO K = 1,DK
+        IF(SAME.and.K>I) CYCLE
+        I1 = LOCI + I - 1
+        I3 = LOCK + K - 1
+        GMAT(I1,I3) = BLK(I, K)
+        GMAT(I3,I1) = BLK(I, K)
+       END DO
       END DO
 !-----------------------------------------------------------------------
       RETURN
@@ -2739,17 +2876,16 @@
 
 ! QOUT3Cl
       SUBROUTINE QOUT3Cl(BUFP2, GMAT, NBF, NBFAUX, BLK, DI, DJ, DK,     &
-                         ISH, JSH, KSH, LOC, LOCAUX, NSHELL, NSHELLAUX)
+                         ISH, JSH, KSH, LOC, LOCaux, NSHELL, NSHELLaux)
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: NBF, NBFAUX
-      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLAUX
+      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLaux
       INTEGER, INTENT(IN) :: DI, DJ, DK
-      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCAUX(NSHELLAUX)
+      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCaux(NSHELLaux)
       DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2, NBFAUX)
       DOUBLE PRECISION, INTENT(IN) :: GMAT(NBFAUX, NBFAUX)
       DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DJ, DK)
-
-
+!
       LOGICAL :: IANDJ
       INTEGER :: DJEFF, I
       INTEGER :: J, K, L, M, N, KK, MN, T
@@ -2761,8 +2897,7 @@
       IANDJ = ISH == JSH
       LOCI = LOC(ISH)
       LOCJ = LOC(JSH)
-      LOCK = LOCAUX(KSH)
-
+      LOCK = LOCaux(KSH)
 !-----------------------------------------------------------------------
 !     Build B tensor (Only Upper Triangular)
 !      b_mn^l = sum_k (mn|k) G^{-1/2}_{kl}
@@ -2771,22 +2906,19 @@
        DJEFF = MERGE(I, DJ, IANDJ)
        DO J = 1, DJEFF
         DO K = 1, DK
-          M = LOCI + I - 1
-          N = LOCJ + J - 1
-          KK = LOCK + K - 1
-          VAL = BLK(I, J, K)
-
-          IF (M > N) THEN
-            T = M
-            M = N
-            N = T
-          END IF
-          MN = M + N*(N-1)/2
-
-          DO L=1,NBFaux
-           BUFP2(MN, L) = BUFP2(MN, L) + VAL * GMAT(KK, L)
-          END DO
-
+         M = LOCI + I - 1
+         N = LOCJ + J - 1
+         KK = LOCK + K - 1
+         VAL = BLK(I, J, K)
+         IF (M > N) THEN
+          T = M
+          M = N
+          N = T
+         END IF
+         MN = M + N*(N-1)/2
+         DO L=1,NBFaux
+          BUFP2(MN, L) = BUFP2(MN, L) + VAL * GMAT(KK, L)
+         END DO
         END DO
        END DO
       END DO
@@ -2795,17 +2927,17 @@
       END SUBROUTINE
 
 ! QOUT3CModCholl
-      SUBROUTINE QOUT3CModCholl(BUFP2,GMAT,NBF,NBFAUX,BLK,DI,DJ,DK,ISH, &
-                                JSH,KSH,LOC,LOCAUX,NSHELL,NSHELLAUX)
+      SUBROUTINE QOUT3CModCholl(BUFP2,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH, &
+                                JSH,KSH,LOC,LOCaux,NSHELL,NSHELLaux)
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: NBF, NBFAUX
-      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLAUX
+      INTEGER, INTENT(IN) :: NBF, NBFaux
+      INTEGER, INTENT(IN) :: ISH, JSH, KSH, NSHELL, NSHELLaux
       INTEGER, INTENT(IN) :: DI, DJ, DK
-      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCAUX(NSHELLAUX)
-      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2, NBFAUX)
-      DOUBLE PRECISION, INTENT(IN) :: GMAT(NBFAUX, NBFAUX)
+      INTEGER, INTENT(IN) :: LOC(NSHELL), LOCaux(NSHELLaux)
+      DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2, NBFaux)
+      DOUBLE PRECISION, INTENT(IN) :: GMAT(NBFaux, NBFaux)
       DOUBLE PRECISION, INTENT(IN) :: BLK(DI, DJ, DK)
-
+!
       LOGICAL :: IANDJ
       INTEGER :: DJEFF, I
       INTEGER :: J, K, L, M, N, KK, MN, T
@@ -2817,8 +2949,7 @@
       IANDJ = ISH == JSH
       LOCI = LOC(ISH)
       LOCJ = LOC(JSH)
-      LOCK = LOCAUX(KSH)
-
+      LOCK = LOCaux(KSH)
 !-----------------------------------------------------------------------
 !     Build B tensor (Only Upper Triangular)
 !      b_mn^l = sum_k (mn|k) G^{-1/2}_{kl}
@@ -2831,16 +2962,13 @@
           N = LOCJ + J - 1
           KK = LOCK + K - 1
           VAL = BLK(I, J, K)
-
           IF (M > N) THEN
-            T = M
-            M = N
-            N = T
+           T = M
+           M = N
+           N = T
           END IF
           MN = M + N*(N-1)/2
-
           BUFP2(MN,KK) = VAL
-
         END DO
        END DO
       END DO

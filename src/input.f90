@@ -7,55 +7,64 @@
 
 ! START                                            
       SUBROUTINE START(IGTYP,NATOMS,NATmax,NBF,NBFaux,NUQMT,NELEC,      &
-                       NALP,NBET,NSHELL,NSHELLmax,NSHELLSaux,NPRIMI,    &
-                       NPRIMImax,NPRIMIaux,ZAN,Cxyz,IAN,IMIN,IMAX,      &
-                       ZMASS,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,     &
-                       INTIPO,ISHPIR,ITIPO,C1,C2,EX,CS,CP,CD,CF,CG,     &
-                       CH,CI,NPRIMIecp,NSHELLecp,SIZE_ENV,ENV,ATM,BAS)
+                       NALP,NBET,NSHELL,NSHELLmax,NSHELLAUX,            &
+                       NSHELLAUXmax,NPRIMI,NPRIMImax,NPRIMIaux,         &
+                       NPRIMIAUXmax,NPRIMIecp,NSHELLecp,ZAN,Cxyz,       &
+                       IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,          &
+                       KNG,KLOC,KMIN,KMAX,INTIPO,ISHPIR,ITIPO,          &
+                       KATOMaux,KTYPEaux,KLOCaux,KSTARTaux,KNGaux,      &
+                       C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,IZCORE,            &
+                       EXaux,Caux,SIZE_ENV,ENV,ATM,BAS)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       CHARACTER(4) :: ERITYP,GEN 
       CHARACTER(5) :: RITYP 
-      CHARACTER(8) :: UNITS
-      LOGICAL EFIELDL,LINEAR
 !
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
-      COMMON/INFOB/NUMaux,NSHELLaux
+      LOGICAL EFIELDL
       COMMON/INP_EFIELDL/EFX,EFY,EFZ,EFIELDL
       COMMON/ELPROP/IEMOM
+      CHARACTER(8) :: UNITS
       COMMON/CONTROL/UNITS  
+      LOGICAL LINEAR
       COMMON/ZMAT/LINEAR 
       COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/RUNTYPE/IRUNTYP
       COMMON/WRTGCF/IWRTGCF                                                  
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
+      INTEGER :: ILIBCINT
       COMMON/USELIBCINT/ILIBCINT
-      INTEGER :: ILIBCINT      
 !      
       INTEGER :: IGTYP
-      INTEGER,DIMENSION(NATmax) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NATmax) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
       INTEGER,DIMENSION(NSHELLmax) :: KLOC,KMIN,KMAX,INTIPO
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux,KLOCaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KSTARTaux,KNGaux
       INTEGER,DIMENSION(NPRIMImax) :: ISHPIR,ITIPO
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
       DOUBLE PRECISION,DIMENSION(NATmax) :: ZAN,ZMASS
       DOUBLE PRECISION,DIMENSION(3,NATmax) :: Cxyz
       DOUBLE PRECISION,DIMENSION(3) :: VMOI
-!
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COM
 !     LIBCINT
       INTEGER :: SIZE_ENV
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)
-      INTEGER :: NPRIMIecp,NSHELLecp      
+      INTEGER :: NPRIMIecp,NSHELLecp
+!
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: COM
 !-----------------------------------------------------------------------
 !     Read the Molecule and its normal basis set
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL MOLECULE(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,     &
-                    NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,     &
-                    KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,    &
-                    ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS)
+      CALL MOLECULE(IGTYP,NSHELL,NPRIMI,NSHELLAUX,NPRIMIaux,NATmax,     &
+                    NSHELLmax,NPRIMImax,NSHELLAUXmax,NPRIMIAUXmax,      &
+                    NBFaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,  &
+                    KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,          &
+                    ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS,         &
+                    KATOMaux,KTYPEaux,KLOCaux,KSTARTaux,KNGaux,         &
+                    EXaux,Caux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     True Nuclear Charges
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -91,7 +100,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IDX_ENV = 20 + 3*NAT + 2*NPRIMI + 2*NPRIMIaux !LIBCINT
       CALL ECPPAR(KTYPE,NSHELL,ZAN,Cxyz,BAS,ENV,SIZE_ENV,NSHELLmax,     &
-                  IDX_ENV,NSHELLaux,NPRIMIecp,NSHELLecp)
+                  IDX_ENV,NSHELLaux,NPRIMIecp,NSHELLecp,IZCORE)
 !     To update Z in libcint when ECP
       IF(ILIBCINT==1) THEN
        DO IAT=1,NAT
@@ -106,24 +115,33 @@
 !     ERITYP & GEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -    
       IF(IERITYP==1)THEN
+!- - - - - - - - - - - - - - - - - - - - - - -
        ERITYP = 'FULL'
        if(ISCHWZ==0)then
         WRITE(6,20)ERITYP
        else if(ISCHWZ==1)then
         WRITE(6,21)ERITYP,ISCHWZ,CUTOFF
        end if
-      ELSE IF(IERITYP==2 .OR. IERITYP==3)THEN
+!- - - - - - - - - - - - - - - - - - - - - - -
+      ELSE IF(IERITYP==2 .or. IERITYP==3)THEN
+!- - - - - - - - - - - - - - - - - - - - - - -
        IF(IERITYP==2) ERITYP = 'RI'
        IF(IERITYP==3) ERITYP = 'MIX'
+!
        IF(IRITYP==1) RITYP = 'JKFIT'
        IF(IRITYP==2) RITYP = 'GEN'
-       IF(IRITYP==1) THEN
+       IF(IRITYP==3) RITYP = 'RIFIT'
+!
+       IF(IRITYP==1.or.IRITYP==3) THEN
+!- - - - - - - - - - - - - - - - - - -
         if(ISCHWZ==0)then
          WRITE(6,30)ERITYP,RITYP
         else if(ISCHWZ==1)then
          WRITE(6,31)ERITYP,RITYP,ISCHWZ,CUTOFF
         end if
+!- - - - - - - - - - - - - - - - - - -
        ELSE IF(IRITYP==2) THEN
+!- - - - - - - - - - - - - - - - - - -
         IF(ISTAR==0)WRITE(GEN,'(A1,I1)')    'A',IGEN
         IF(ISTAR==1)WRITE(GEN,'(A1,I1,A1)') 'A',IGEN,'*'
         if(ISCHWZ==0)then
@@ -131,7 +149,9 @@
         else if(ISCHWZ==1)then
          WRITE(6,41)ERITYP,RITYP,GEN,ISCHWZ,CUTOFF
         end if
+!- - - - - - - - - - - - - - - - - - -
        END IF
+!- - - - - - - - - - - - - - - - - - - - - - -
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Abort Program if LMAXIMA > 5
@@ -150,9 +170,6 @@
       NELEC  = NE
       NALP   = NA
       NBET   = NB
-!     RI
-      NBFaux = NUMaux
-      NSHELLSaux = NSHELLaux
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DEALLOCATE(COM)
       RETURN                                                            
@@ -177,11 +194,13 @@
       END                                                               
 
 ! MOLECULE
-      SUBROUTINE MOLECULE(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,         &
-                         NPRIMImax,NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,&
-                         CI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMIN, &
-                         IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,ENV,&
-                         ATM,BAS)
+      SUBROUTINE MOLECULE(IGTYP,NSHELL,NPRIMI,NSHELLaux,NPRIMIaux,      &
+                          NATmax,NSHELLmax,NPRIMImax,NSHELLAUXmax,      &
+                          NPRIMIAUXmax,NBFaux,C1,C2,EX,CS,CP,CD,CF,     &
+                          CG,CH,CI,KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,    &
+                          KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,  &
+                          SIZE_ENV,ENV,ATM,BAS,KATOMaux,KTYPEaux,       &
+                          KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/FRAME /U1,U2,U3,V1,V2,V3,WW1,WW2,WW3,X0,Y0,Z0
       CHARACTER(80) :: TITLE, BASIS_FILE
@@ -189,8 +208,11 @@
       COMMON/BASIS_FILE/BASIS_FILE
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
       INTEGER,DIMENSION(NSHELLmax) :: KLOC,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux,KLOCaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KSTARTaux,KNGaux
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: C1,C2,EX,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
       DOUBLE PRECISION,DIMENSION(NATmax) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATmax) :: Cxyz
 !
@@ -225,9 +247,11 @@
 !     Read Atoms
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ATOMS(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,        &
-                 NPRIMIaux,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,  &
-                 KTYPE,KNG,KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,&
-                 ZAN,Cxyz,SIZE_ENV,ENV,ATM,BAS)
+                 NSHELLaux,NSHELLAUXmax,NPRIMIaux,NPRIMIAUXmax,NBFaux,  &
+                 C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,KSTART,KATOM,KTYPE,KNG,  &
+                 KLOC,KMIN,KMAX,IMIN,IMAX,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz, &
+                 SIZE_ENV,ENV,ATM,BAS,KATOMaux,KTYPEaux,KLOCaux,        &
+                 KSTARTaux,KNGaux,EXaux,Caux)
       CALL SETLAB(KATOM,KMIN,KMAX,NSHELL,ZAN)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       RETURN
@@ -239,10 +263,12 @@
 
 ! ATOMS                                            
       SUBROUTINE ATOMS(IGTYP,NSHELL,NPRIMI,NATmax,NSHELLmax,NPRIMImax,  &
-                       NPRIMIaux,C1PIR,C2PIR,EX,CS,CP,CD,CF,CG,CH,CI,   &
-                       KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,IMINPIR,   &
-                       IMAXPIR,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,SIZE_ENV,   &
-                       ENV,ATM,BAS)
+                       NSHELLaux,NSHELLAUXmax,NPRIMIaux,NPRIMIAUXmax,   &
+                       NBFaux,C1PIR,C2PIR,EX,CS,CP,CD,CF,CG,CH,CI,      &
+                       KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX,           &
+                       IMINPIR,IMAXPIR,INTIPO,ISHPIR,ITIPO,ZAN,Cxyz,    &
+                       SIZE_ENV,ENV,ATM,BAS,KATOMaux,KTYPEaux,KLOCaux,  &
+                       KSTARTaux,KNGaux,EXaux,Caux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DOUBLE PRECISION,PARAMETER :: PT2953=29.53125D0
       DOUBLE PRECISION,PARAMETER :: PT1624=162.421875D0
@@ -257,8 +283,6 @@
       COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB
       COMMON/CONV/ACURCY,EN,Etot,EHF,EHF0,DIFF,ITER,ICALP,ICBET                    
-      COMMON/INFOB/NUMaux,NSHELLaux
-      COMMON/MAPSHEL/MAPSHL(600,48),NT
       COMMON/TRANSF/XP,YP,ZP 
 !
       COMMON/USELIBCINT/ILIBCINT
@@ -267,8 +291,11 @@
 !
       INTEGER,DIMENSION(NSHELLmax) :: KSTART,KATOM,KTYPE,KNG
       INTEGER,DIMENSION(NSHELLmax) :: KLOC,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KATOMaux,KTYPEaux,KLOCaux
+      INTEGER,DIMENSION(NSHELLAUXmax) :: KSTARTaux,KNGaux
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: C1PIR,C2PIR
       DOUBLE PRECISION,DIMENSION(NPRIMImax) :: EX,CS,CP,CD,CF,CG,CH,CI
+      DOUBLE PRECISION,DIMENSION(NPRIMIAUXmax) :: EXaux,Caux
       DOUBLE PRECISION,DIMENSION(NATmax) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATmax) :: Cxyz
 !      
@@ -276,6 +303,7 @@
       INTEGER,DIMENSION(NSHELLmax) :: INTIPO
       INTEGER,DIMENSION(NPRIMImax) :: ISHPIR,ITIPO       
       INTEGER,DIMENSION(NATmax,48) :: MAPCTR
+      INTEGER,DIMENSION(NSHELLmax,48) :: MAPSHL
       CHARACTER(8),DIMENSION(NATmax) :: ANAM
       CHARACTER(2),DIMENSION(NATmax) :: BNAM
 !
@@ -313,12 +341,8 @@
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NATmax), BAS(8,NSHELLmax)
       DOUBLE PRECISION,EXTERNAL :: CINTgto_norm
-
-      COMMON/NSHELaux/KATOMaux(700),KTYPEaux(700),KLOCaux(700),         &
-                      KSTARTaux(700),KNGaux(700)
-      COMMON/EXCaux/EXaux(2000),Caux(2000)
 !-----------------------------------------------------------------------
-      ALLOCATE(INTYP(NPRIMImax),NS(NATmax),KS(NATmax))  
+      ALLOCATE(INTYP(NPRIMImax),NS(NATmax),KS(NATmax))
       ALLOCATE(EXX(6),CSS(6),CPP(6),CDD(6),SCFAC(4))
       ALLOCATE(CSINP(NPRIMImax),CPINP(NPRIMImax),CDINP(NPRIMImax))
       ALLOCATE(CFINP(NPRIMImax),CGINP(NPRIMImax))
@@ -416,9 +440,10 @@
       CALL READAT(ATOMNM,ZNUC,X,Y,Z)  
 !
       IF(ADJUSTL(ATOMNM)/=ADJUSTL(ENDWRD))THEN
-       NAT = NAT+1                                                       
-       IF(NAT+1>NATmax)THEN
-        WRITE(6,'(/,1X,A22,I6)')'Stop: NAT+1 > NATmax =',NAT                                 
+       NAT = NAT + 1
+       IF(NAT>NATmax)THEN
+        WRITE(6,'(1X,A27,I6,A16)')                                      &
+        'Stop: No more than NATmax (',NATmax,') atoms allowed'
         CALL ABRT                                                         
        ENDIF
        READ(UNIT=ATOMNM,FMT='(A8,A2)')ANAM(NAT),BNAM(NAT) 
@@ -602,9 +627,9 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -                                                                       
        NSHELL = NSHELL + 1
        if(IECP>0.or.ILIBCINT==1)then
-        IF(NSHELL>600)THEN
-         WRITE(6,'(1X,A30,I6,A16)')                                      &
-          'Stop: No more than NSHELLmax (',NSHELLmax,') shells allowed'
+        IF(NSHELL>NSHELLmax)THEN
+         WRITE(6,'(1X,A30,I6,A16)')                                     &
+         'Stop: No more than NSHELLmax (',NSHELLmax,') shells allowed'
          CALL ABRT
         ENDIF
        end if
@@ -820,34 +845,33 @@
        WRITE(6,'(32A)')'Stop: No basis functions defined' 
        CALL ABRT                                                      
       END IF
-
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Fill ENV, ATM and BAS for Libcint
 !     The specifications can be found in the LIBCINT documentation
 !     but are briefly summarized in the following.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     ENV
-!- - - - - - - - - - - - - - - -  
+!     ENV:
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     (0) X 20          : Free for internal use (do not fill)
 !     (X,Y,Z) X NAT     : Coordinates of each atom
 !     (Exps) + (Coeffs) : Exponents and Coefficients of the primitives
 !         X NSHELL        of a given shell
-!- - - - - - - - - - - - - - - -  
-!     ATM
-!- - - - - - - - - - - - - - - -  
-!     ATM(1, IAT)       : Nuclear Charge of I atom
-!     ATM(2, IAT)       : Index of the X coordinate of I atom in ENV
-!- - - - - - - - - - - - - - - -  
-!     BAS
-!- - - - - - - - - - - - - - - -  
-!     BAS(1, IBAS)      : Atom index where the shell is centered
-!     BAS(2, IBAS)      : Angular momentum of the shell
-!     BAS(3, IBAS)      : Number of primitives in the shell
-!     BAS(4, IBAS)      : Number of coefficientes per primitive
-!     BAS(6, IBAS)      : Index of the first exponent of the shell in ENV
-!     BAS(7, IBAS)      : Index of the first coeff of the shell in ENV
-!- - - - - - - - - - - - - - - -  
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ATM:
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     ATM(1, IAT)   : Nuclear Charge of I atom
+!     ATM(2, IAT)   : Index of the X coordinate of I atom in ENV
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     BAS:
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     BAS(1, IBAS)  : Atom index where the shell is centered
+!     BAS(2, IBAS)  : Angular momentum of the shell
+!     BAS(3, IBAS)  : Number of primitives in the shell
+!     BAS(4, IBAS)  : Number of coefficientes per primitive
+!     BAS(6, IBAS)  : Index of the first exponent of the shell in ENV
+!     BAS(7, IBAS)  : Index of the first coeff of the shell in ENV
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ILIBCINT==1) THEN
         LOC = 0
@@ -863,7 +887,6 @@
           ENV(OFF+1) = Cxyz(1,IAT)
           ENV(OFF+2) = Cxyz(2,IAT)
           ENV(OFF+3) = Cxyz(3,IAT)
-
           NS1 = KS(IAT)
           NS2 = NS1+NS(IAT)-1
           DO ISH = NS1,NS2
@@ -878,18 +901,18 @@
             I2 = I1+KNG(ISH)-1
             I0 = 0
             DO IG = I1,I2
-               I0 = I0 + 1
-               E = EX(IG)
-              ENV(OFF_PRIM + I0) = EX(IG)
-              ENV(OFF_PRIM + KNG(ISH) + I0) = CINP(IG) *                  &
-                      CINTgto_norm(BAS(2,ISH), ENV(BAS(6,ISH)+I0))
+             I0 = I0 + 1
+             E = EX(IG)
+             ENV(OFF_PRIM + I0) = EX(IG)
+             ENV(OFF_PRIM + KNG(ISH) + I0) = CINP(IG)                   &
+              * CINTgto_norm(BAS(2,ISH), ENV(BAS(6,ISH)+I0))
             END DO
             OFF_PRIM = OFF_PRIM + 2*KNG(ISH)
             L = BAS(2,ISH)
             IF(IGTYP==1) THEN
-              LOC = LOC + (L + 1) * (L + 2) / 2
+             LOC = LOC + (L + 1) * (L + 2) / 2
             ELSE IF(IGTYP==2) THEN
-              LOC = LOC + 2 * L + 1
+             LOC = LOC + 2 * L + 1
             END IF
           END DO
         END DO
@@ -1058,7 +1081,7 @@
 !-----------------------------------------------------------------------
    20  CONTINUE
       END DO
-!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --                                                          
+!-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !     NE: Number of Electrons
 !     NA: Number of Alpha Electrons
 !     NB: Number of Beta Electrons
@@ -1092,21 +1115,34 @@
       IF (IERITYP==2 .or. IERITYP==3) THEN
        if(ILIBCINT==0)then
 !HONDO  IF(IRITYP==1) THEN
-!HONDO    CALL AUXREAD(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+!HONDO    CALL AUXREAD(IGTYP,NAT,NSHELLaux,NBFaux,NATmax,ANAM)
 !HONDO  ELSE IF(IRITYP==2) THEN
 !HONDO    CALL AUXGEN(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,NSHELLaux, &
-!HONDO                NUMaux,IGEN,ISTAR,EX,ZAN)
+!HONDO                NBFaux,IGEN,ISTAR,EX,ZAN)
 !HONDO  END IF
        else if(ILIBCINT==1)then
         IF(IRITYP==1) THEN
-          CALL AUXREADl(IGTYP,NAT,NSHELLaux,NUMaux,NATmax,ANAM)
+          CALL AUXREAD1(IGTYP,NAT,NATmax,NSHELLaux,NSHELLAUXmax,        &
+                        NPRIMIAUXmax,NBFaux,ANAM,KATOMaux,KTYPEaux,     &
+                        KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)
         ELSE IF(IRITYP==2) THEN
           CALL AUXGENl(IGTYP,NAT,NPRIMI,ITIPO,IMINPIR,IMAXPIR,          &
-                       NSHELLaux,NUMaux,EX,ZAN,Cxyz)
+                       NSHELLaux,NSHELLAUXmax,NPRIMIAUXmax,NBFaux,      &
+                       EX,ZAN,Cxyz,KATOMaux,KTYPEaux,KLOCaux,KNGaux,    &
+                       EXaux,Caux)
+        ELSE IF(IRITYP==3) THEN
+          CALL AUXREAD3(IGTYP,NAT,NATmax,NSHELLaux,NSHELLAUXmax,        &
+                        NPRIMIAUXmax,NBFaux,ANAM,KATOMaux,KTYPEaux,     &
+                        KLOCaux,KSTARTaux,KNGaux,EXaux,Caux)
         END IF
        end if
-      IF(IGTYP==1) WRITE(6,550)NSHELLaux,NUMaux
-      IF(IGTYP==2) WRITE(6,551)NSHELLaux,NUMaux
+       IF(IGTYP==1) WRITE(6,550)NSHELLaux,NBFaux
+       IF(IGTYP==2) WRITE(6,551)NSHELLaux,NBFaux
+       IF(NSHELLaux>NSHELLAUXmax)THEN
+        WRITE(6,'(1X,A33,I6,A26)')'Stop: No more than NSHELLAUXmax (',  &
+                     NSHELLAUXmax,') auxiliary shells allowed'
+        CALL ABRT
+       END IF
       END IF
       WRITE(6,600)NE,ICH,MUL,NA,NB,NAT          
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1115,24 +1151,29 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ILIBCINT==1) THEN
-        I1 = 0
-        DO I=1,NSHELLaux
-          IBAS = NSHELL + I
-          BAS(1,IBAS) = KATOMaux(I) - 1
-          BAS(2,IBAS) = KTYPEaux(I) - 1
-          BAS(3,IBAS) = KNGaux(I)
-          BAS(4,IBAS) = 1
-          BAS(6,IBAS) = OFF_PRIM
-          BAS(7,IBAS) = OFF_PRIM + KNGaux(I)
-          DO I0=1,KNGaux(I)
-          I1 = I1 + 1
-          ENV(OFF_PRIM + I0) = EXaux(I1)
-          ENV(OFF_PRIM + KNGaux(I) + I0) = Caux(I1) *                   &
-           CINTgto_norm(BAS(2,IBAS), ENV(BAS(6,IBAS)+I0))
-          END DO
-          OFF_PRIM = OFF_PRIM + 2*KNGaux(I)
-        END DO
-        NPRIMIaux = I1 
+       I1 = 0
+       DO I=1,NSHELLaux
+         IBAS = NSHELL + I
+         BAS(1,IBAS) = KATOMaux(I) - 1
+         BAS(2,IBAS) = KTYPEaux(I) - 1
+         BAS(3,IBAS) = KNGaux(I)
+         BAS(4,IBAS) = 1
+         BAS(6,IBAS) = OFF_PRIM
+         BAS(7,IBAS) = OFF_PRIM + KNGaux(I)
+         DO I0=1,KNGaux(I)
+         I1 = I1 + 1
+         ENV(OFF_PRIM + I0) = EXaux(I1)
+         ENV(OFF_PRIM + KNGaux(I) + I0) = Caux(I1) *                   &
+          CINTgto_norm(BAS(2,IBAS), ENV(BAS(6,IBAS)+I0))
+         END DO
+         OFF_PRIM = OFF_PRIM + 2*KNGaux(I)
+       END DO
+       NPRIMIaux = I1
+       IF(NPRIMIaux>NPRIMIAUXmax)THEN
+        WRITE(6,'(1X,A33,I6,A29)')'Stop: No more than NPRIMIAUXmax (',  &
+                     NPRIMIAUXmax,') auxiliary Gaussians allowed'
+        CALL ABRT
+       END IF
       END IF 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Nuclear Energy with true nuclear charges
@@ -1172,7 +1213,7 @@
               1X,'Spin Multiplicity                            =',I5/   &
               1X,'Number of Occupied Orbitals (Alpha)          =',I5/   &
               1X,'Number of Occupied Orbitals (Beta )          =',I5/   &
-              1X,'Total Number of Atoms                        =',I5) 
+              1X,'Total Number of Atoms                        =',I5)
 !-----------------------------------------------------------------------  
       RETURN                                                            
       END                                                               
@@ -2090,13 +2131,12 @@
       END
 
 ! ECPPAR
-      SUBROUTINE ECPPAR(KTYPE,NSHELL,ZAN,Cxyz,BAS,ENV,SIZE_ENV,NSHELLmax,&
-                      IDX_ENV,NSHELLaux,NPRIMIecp,NSHELLecp)
+      SUBROUTINE ECPPAR(KTYPE,NSHELL,ZAN,Cxyz,BAS,ENV,SIZE_ENV,         &
+                        NSHELLmax,IDX_ENV,NSHELLaux,NPRIMIecp,          &
+                        NSHELLecp,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
       COMMON/INFOA/NAT,ICH,MUL,NUM,NQMT,NE,NA,NB                                    
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/ECPDIM/NCOEF1,NCOEF2,J1LEN,J2LEN,LLIM,NLIM,NTLIM,J4LEN      
       CHARACTER(80) ::  BASIS_FILE
       COMMON/BASIS_FILE/BASIS_FILE
@@ -2107,12 +2147,17 @@
       INTEGER, DIMENSION(NSHELL), INTENT(IN) :: KTYPE
       DOUBLE PRECISION, DIMENSION(NAT), INTENT(INOUT) :: ZAN
       DOUBLE PRECISION, DIMENSION(3, NAT), INTENT(IN) :: Cxyz
-  
+!
+      INTEGER, DIMENSION(NAT) :: LMAX,LPSKIP,IZCORE
+      INTEGER, DIMENSION(NAT,6) :: KFRST,KLAST
+      INTEGER, DIMENSION(400) :: NLP
+      DOUBLE PRECISION, DIMENSION(400) :: CLP,ZLP
+!
       INTEGER, DIMENSION(8, NSHELLmax), INTENT(INOUT) :: BAS
       DOUBLE PRECISION, DIMENSION(SIZE_ENV), INTENT(INOUT) :: ENV
       INTEGER, INTENT(INOUT) :: IDX_ENV
       INTEGER, INTENT(OUT) :: NPRIMIecp, NSHELLecp
-  
+!
       INTEGER :: I, K, L
       INTEGER :: NCNTR, ICNTR, JCNTR
       INTEGER :: NUCZ, IEOF, JEOF, IERR, KSIZE
@@ -2121,9 +2166,9 @@
       INTEGER :: NUMECP
       INTEGER :: MAXANG
       DOUBLE PRECISION :: Vnn
-   
+!
       LOGICAL :: FOUND
-
+!
       CHARACTER(8) :: PPNAME, PPTYPE, PTYPE
       CHARACTER(8), DIMENSION(100) :: TYPELP
       CHARACTER(8) :: ANONE,GEN,BLANK,ENDWRD

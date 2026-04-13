@@ -19,8 +19,8 @@
       SUBROUTINE OPTIMIZE(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,     &
                           ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN, &
                           KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI, &
-                          DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,GRADS,   &
-                          IRUNTYP,IHSSCAL,IPROJECT,ISIGMA)
+                          DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,  &
+                          GRADS,IRUNTYP,IHSSCAL,IPROJECT,ISIGMA,KTYPEaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL RESTART
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -33,9 +33,10 @@
       COMMON/ELPROP/IEMOM
 !
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
-      INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI)::C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
@@ -47,45 +48,50 @@
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
       EELEC_MIN = 1.0d20
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Generate an initial GCF if RESTART=F setting ICOEF=0
-      IF (RESTART .eqv. .FALSE.) THEN
-      ICOEFORI = ICOEF
-      ICOEF = 0
-!     Update coordinates of shells if use libint library for ERIs
-      CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,   &
-                    ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,     &
-                    INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,    &
-                    CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,    &
-                    NBAS,BAS,IGTYP,0,0)
-      RESTART = .TRUE.
-      ICOEF = ICOEFORI
-      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(RESTART .eqv. .FALSE.)THEN
+       ICOEFORI = ICOEF
+       ICOEF = 0
+!      Update coordinates of shells if use libint library for ERIs
+       CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
+                     ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
+                     INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
+                     CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,    &
+                     ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,0)
+       RESTART = .TRUE.
+       ICOEF = ICOEFORI
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Select CG Method
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ICGMETHOD==1)THEN
        CALL OPTSUMSL(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP, &
                      CD,CF,CG,CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,           &
-                     NBAS,BAS,IGTYP,GRADS,DIPS)
+                     NBAS,BAS,IGTYP,GRADS,DIPS,IZCORE,KTYPEaux,NSHELLaux)
       ELSE IF(ICGMETHOD==2)THEN                                         
        CALL OPTCGNAG(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,    &
-                     CP,CD,CF,CG,CH,CI,IRUNTYP,GRADS,DIPS)
-      ELSE IF(ICGMETHOD==3)THEN                                         
-!LBFGS CALL OPTLBFGS(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
-!LBFGS               ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
-!LBFGS               INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
-!LBFGS               CF,CG,CH,CI,IRUNTYP,GRADS,DIPS,NPRINT)
-      ENDIF                                                             
+                     CP,CD,CF,CG,CH,CI,IRUNTYP,GRADS,DIPS,IZCORE,       &
+                     KTYPEaux,NSHELLaux)
+      ELSE IF(ICGMETHOD==3)THEN
+       WRITE(6,*)'Stop: To be implemented'
+       Stop
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Compute Hessian from analytic gradients at stationary point
-      if(IHSSCAL==1)then                                                
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IHSSCAL==1)THEN
        CALL HESSCAL(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,     &
                     KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,    &
                     ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,           &
                     GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,     &
-                    NBAS,BAS,IGTYP)
-      end if
+                    NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
+      END IF
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -95,12 +101,14 @@
                           NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,   &
                           KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,     &
                           ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,   &
-                          SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,GRAD,DIPS)
+                          SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,GRAD,DIPS,    &
+                          IZCORE,KTYPEaux,NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       PARAMETER (BOHR = 0.52917724924D+00) 
-      INTEGER,DIMENSION(NAT)    :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT)    :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       INTEGER,INTENT(IN)        :: IRUNTYP
       DOUBLE PRECISION,DIMENSION(NAT)   :: ZAN,ZMASS
@@ -119,9 +127,9 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
 !
@@ -131,7 +139,7 @@
 !-----------------------------------------------------------------------
 !     Define Pointers of the USER array
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL POINTERSOPT(NAT,NSHELL,NPRIMI,SIZE_ENV,NBAS,IGTYP)
+      CALL POINTERSOPT(NAT,NSHELL,NPRIMI,SIZE_ENV,NBAS,IGTYP,NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Transfer working arrays to IUSER and USER
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -165,8 +173,10 @@
       IUSER(NIU26)         = NBAS
       IUSER(NIU27)         = SIZE_ENV
       IUSER(NIU28:NIU29-1) = ATM
-      IUSER(NIU29:NIULAST) = BAS
-
+      IUSER(NIU29:NIU30-1) = BAS
+      IUSER(NIU30:NIU31-1) = KTYPEaux
+      IUSER(NIU31)         = NSHELLaux
+      IUSER(NIU32:NIULAST-1) = IZCORE
 !
       USER(NU1 :NU2-1)     = ZAN
       USER(NU2 :NU3-1)     = ZMASS
@@ -181,7 +191,7 @@
       USER(NU11:NU12-1)    = CH
       USER(NU12:NU13-1)    = CI
       USER(NU13:NU14-1)    = DIPS
-      USER(NU14:NULAST)    = ENV
+      USER(NU14:NULAST-1)  = ENV
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Initial Coordinates on File CGGRAD (Unit=11)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -207,11 +217,31 @@
 !      
       ALLOCATE( D(NV),IV(LIV),V(LV) ) 
 !      
-      D(1:NV) = 1.0d0      
+      D(1:NV) = 1.0d0
       IV = 0
       EMINIMA = 1.0d6
 !
       CALL SUMSL(NV,D,Cxyz,CALCOPTE,CALCOPTG,IV,LIV,LV,V,IUSER,USER)
+
+!     iv(irc) is a return code having one of the following values
+!
+!        1 = switch models or try smaller step.
+!        2 = switch models or accept step.
+!        3 = accept step and determine v(radfac) by gradient
+!             tests.
+!        4 = accept step, v(radfac) has been determined.
+!        5 = recompute step (using the same model).
+!        6 = recompute step with radius = v(lmaxs) but do not
+!             evaulate the objective function.
+!        7 = x-convergence (see v(xctol)).
+!        8 = relative function convergence (see v(rfctol)).
+!        9 = both x- and relative function convergence.
+!       10 = absolute function convergence (see v(afctol)).
+!       11 = singular convergence (see v(lmaxs)).
+!       12 = false convergence (see v(xftol)).
+!       13 = iv(irc) was out of range on input.
+
+      write(6,'(/,A10,I3)')' IV(irc) =',IV(29)
 !      
       ENERGIA = EELEC + EN
       IF(EMINIMA>ENERGIA)EMINIMA = ENERGIA
@@ -224,12 +254,15 @@
       DO I=1,NAT
        WRITE(6,'(I5,3F15.4)')I,Cxyz(1,I),Cxyz(2,I),Cxyz(3,I)
       ENDDO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Update coordinates of shells if use libint library for ERIs
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO I=1,NAT
-        USER(NU14-1+20+3*(I-1)+1) = Cxyz(1,I)
-        USER(NU14-1+20+3*(I-1)+2) = Cxyz(2,I)
-        USER(NU14-1+20+3*(I-1)+3) = Cxyz(3,I)
+       USER(NU14-1+20+3*(I-1)+1) = Cxyz(1,I)
+       USER(NU14-1+20+3*(I-1)+2) = Cxyz(2,I)
+       USER(NU14-1+20+3*(I-1)+3) = Cxyz(3,I)
       END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
                     IUSER(NIU6),IUSER(NIU24),IUSER(NIU7),IUSER(NIU8),   &
                     USER(NU1),Cxyz,IUSER(NIU9),IUSER(NIU10),            &
@@ -238,9 +271,9 @@
                     IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
                     USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
                     USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRAD,    &
-                    IUSER(NIU22),USER(NU13),IUSER(NIU27),USER(NU14),    &
-                    IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),IUSER(NIU25),&
-                    0,0)
+                    IUSER(NIU22),USER(NU13),IUSER(NIU32),IUSER(NIU27),  &
+                    USER(NU14),IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),  &
+                    IUSER(NIU25),IUSER(NIU30),IUSER(NIU31),0,0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Final Coordinates on File CGGRAD (Unit=100)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -270,14 +303,15 @@
       END
 
 ! POINTERSOPT
-      SUBROUTINE POINTERSOPT(NAT,NSHELL,NPRIMI,SIZE_ENV,NBAS,IGTYP)
+      SUBROUTINE POINTERSOPT(NAT,NSHELL,NPRIMI,SIZE_ENV,NBAS,IGTYP,     &
+                             NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
       INTEGER :: SIZE_ENV,NBAS
 !-----------------------------------------------------------------------
 !     Define Pointers of the USER array
@@ -311,7 +345,10 @@
       NIU27 = NIU26 + 1                 ! SIZE_ENV
       NIU28 = NIU27 + 1                 ! ATM
       NIU29 = NIU28 + 6*NAT             ! BAS
-      NIULAST = NIU29 + 8*NBAS
+      NIU30 = NIU29 + 8*NBAS            ! KTYPEaux
+      NIU31 = NIU30 + NSHELLaux         ! NSHELLaux
+      NIU32 = NIU31 + 1                 ! IZCORE
+      NIULAST = NIU32 + NAT
 !
       NU1  = 1                          ! ZAN
       NU2  = NU1  + NAT                 ! ZMASS
@@ -342,11 +379,9 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
 !
       INTEGER,DIMENSION(NIULAST)         :: IUSER 
       DOUBLE PRECISION,DIMENSION(NV)     :: Cxyz
@@ -378,7 +413,7 @@
 !     Update coordinates of shells if use libint library for ERIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO I=1,NV
-        USER(NU14+20+I-1) = Cxyz(I)
+       USER(NU14+20+I-1) = Cxyz(I)
       END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ALLOCATE(GRAD(NV))
@@ -390,9 +425,9 @@
                     IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
                     USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
                     USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRAD,    &
-                    IUSER(NIU22),USER(NU13),IUSER(NIU27),USER(NU14),    &
-                    IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),IUSER(NIU25),&
-                    0,0)
+                    IUSER(NIU22),USER(NU13),IUSER(NIU32),IUSER(NIU27),  &
+                    USER(NU14),IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),  &
+                    IUSER(NIU25),IUSER(NIU30),IUSER(NIU31),0,0)
       DEALLOCATE(GRAD)
 !
       ENERGIA = EELEC + EN     
@@ -405,7 +440,7 @@
        write(18,'(I6,F20.10)')NF,ENERGIA
        do jat=1,nat
         j = (jat-1)*3
-        IZNUC = INT(USER(NU1+jat-1))+IZCORE(jat)                 
+        IZNUC = INT(USER(NU1+jat-1))+IUSER(NIU32+jat-1)
         write(18,'(1X,A4,3F15.4)')ATMLAB(IZNUC),                        &
         Cxyz(1+j)*BOHR,Cxyz(2+j)*BOHR,Cxyz(3+j)*BOHR
        enddo
@@ -421,9 +456,9 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
       INTEGER,DIMENSION(NIULAST)         :: IUSER 
       DOUBLE PRECISION,DIMENSION(NV)     :: Cxyz
       DOUBLE PRECISION,DIMENSION(NV)     :: GRAD      
@@ -436,7 +471,7 @@
 !     Update coordinates of shells if use libint library for ERIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       DO I=1,NV
-        USER(NU14+20+I-1) = Cxyz(I)
+       USER(NU14+20+I-1) = Cxyz(I)
       END DO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
@@ -447,9 +482,9 @@
                     IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
                     USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
                     USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRAD,    &
-                    IUSER(NIU22),USER(NU13),IUSER(NIU27),USER(NU14),    &
-                    IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),IUSER(NIU25),&
-                    0,0)
+                    IUSER(NIU22),USER(NU13),IUSER(NIU32),IUSER(NIU27),  &
+                    USER(NU14),IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),  &
+                    IUSER(NIU25),IUSER(NIU30),IUSER(NIU31),0,0)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -459,13 +494,14 @@
                           NPRIMI,ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,   &
                           KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,     &
                           ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,   &
-                          GRADIENT,DIPS)
+                          GRADIENT,DIPS,IZCORE,KTYPEaux,NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)      
       PARAMETER (BOHR = 0.52917724924D+00) 
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
-      INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT):: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI):: C1,C2,EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(3,NAT):: Cxyz
@@ -475,9 +511,9 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
 !                         
@@ -487,7 +523,7 @@
 !-----------------------------------------------------------------------
 !     Define Pointers of the user arrays
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL POINTERSOPT(NAT,NSHELL,NPRIMI)
+!     CALL POINTERSOPT(NAT,NSHELL,NPRIMI,SIZE_ENV,NBAS,IGTYP,NSHELLaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Transfer working arrays to IUSER and USER
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -516,7 +552,15 @@
       IUSER(NIU21:NIU22-1) = ITYP
       IUSER(NIU22)         = IRUNTYP
       IUSER(NIU23)         = 0             ! ITCG
-      IUSER(NIU24)         = NBFaux      
+      IUSER(NIU24)         = NBFaux
+      IUSER(NIU25)         = IGTYP
+      IUSER(NIU26)         = NBAS
+      IUSER(NIU27)         = SIZE_ENV
+      IUSER(NIU28:NIU29-1) = ATM
+      IUSER(NIU29:NIU30-1) = BAS
+      IUSER(NIU30:NIU31-1) = KTYPEaux
+      IUSER(NIU31)         = NSHELLaux
+      IUSER(NIU32:NIULAST-1) = IZCORE
 !
       USER(NU1 :NU2-1)     = ZAN
       USER(NU2 :NU3-1)     = ZMASS 
@@ -531,6 +575,7 @@
       USER(NU11:NU12-1)    = CH
       USER(NU12:NU13-1)    = CI
       USER(NU13:NULAST)    = DIPS
+      USER(NU14:NULAST-1)  = ENV
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Initial Coordinates on File CGGRAD (Unit=11)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -607,18 +652,19 @@
        WRITE(6,'(I5,3F15.4)')I,Cxyz(1,I),Cxyz(2,I),Cxyz(3,I)
       ENDDO
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!     Update coordinates of shells if use libint library for ERIs
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Update coordinates of shells if use libcint library for ERIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
-!      CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
-!                    IUSER(NIU6),IUSER(NIU24),IUSER(NIU7),IUSER(NIU8),   &
-!                    USER(NU1),Cxyz,IUSER(NIU9),IUSER(NIU10),            &
-!                    IUSER(NIU11),IUSER(NIU12),IUSER(NIU13),IUSER(NIU14),&
-!                    IUSER(NIU15),IUSER(NIU16),IUSER(NIU17),IUSER(NIU18),&
-!                    IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
-!                    USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
-!                    USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRADS,   &
-!                    IUSER(NIU22),USER(NU13),0,1)
+      CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
+                    IUSER(NIU6),IUSER(NIU24),IUSER(NIU7),IUSER(NIU8),   &
+                    USER(NU1),Cxyz,IUSER(NIU9),IUSER(NIU10),            &
+                    IUSER(NIU11),IUSER(NIU12),IUSER(NIU13),IUSER(NIU14),&
+                    IUSER(NIU15),IUSER(NIU16),IUSER(NIU17),IUSER(NIU18),&
+                    IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
+                    USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
+                    USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRADS,   &
+                    IUSER(NIU22),USER(NU13),IUSER(NIU32),IUSER(NIU27),  &
+                    USER(NU14),IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),  &
+                    IUSER(NIU25),IUSER(NIU30),IUSER(NIU31),0,0)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Write Final Coordinates on File CGGRAD (Unit=100)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -654,15 +700,13 @@
       COMMON/POINTERUSER/NIU1,NIU2,NIU3,NIU4,NIU5,NIU6,NIU7,NIU8,NIU9,  &
                          NIU10,NIU11,NIU12,NIU13,NIU14,NIU15,NIU16,     &
                          NIU17,NIU18,NIU19,NIU20,NIU21,NIU22,NIU23,     &
-                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIULAST,   &
-                         NU1,NU2,NU3,NU4,NU5,NU6,NU7,NU8,NU9,NU10,NU11, &
-                         NU12,NU13,NU14,NULAST
+                         NIU24,NIU25,NIU26,NIU27,NIU28,NIU29,NIU30,     &
+                         NIU31,NIU32,NIULAST,NU1,NU2,NU3,NU4,NU5,NU6,   &
+                         NU7,NU8,NU9,NU10,NU11,NU12,NU13,NU14,NULAST
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC_OLD,EELEC,DIF_EELEC,EELEC_MIN
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/GEOCONV/GEOMENERGY(200)
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
       INTEGER,DIMENSION(*) :: IUSER
       DOUBLE PRECISION,DIMENSION(*) :: USER
@@ -694,17 +738,18 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -      
 !     Update coordinates of shells if use libint library for ERIs
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
-!                    IUSER(NIU6),IUSER(NIU24),IUSER(NIU7),IUSER(NIU8),   &
-!                    USER(NU1),Cxyz,IUSER(NIU9),IUSER(NIU10),            &
-!                    IUSER(NIU11),IUSER(NIU12),IUSER(NIU13),IUSER(NIU14),&
-!                    IUSER(NIU15),IUSER(NIU16),IUSER(NIU17),IUSER(NIU18),&
-!                    IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
-!                    USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
-!                    USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRADS,   &
-!                    IUSER(NIU22),USER(NU13),0,0)
-      ENERGIA = EELEC + EN     
+      CALL ENERGRAD(IUSER(NIU1),IUSER(NIU2),IUSER(NIU4),IUSER(NIU5),    &
+                    IUSER(NIU6),IUSER(NIU24),IUSER(NIU7),IUSER(NIU8),   &
+                    USER(NU1),Cxyz,IUSER(NIU9),IUSER(NIU10),            &
+                    IUSER(NIU11),IUSER(NIU12),IUSER(NIU13),IUSER(NIU14),&
+                    IUSER(NIU15),IUSER(NIU16),IUSER(NIU17),IUSER(NIU18),&
+                    IUSER(NIU19),IUSER(NIU20),IUSER(NIU21),USER(NU3),   &
+                    USER(NU4),USER(NU5),USER(NU6),USER(NU7),USER(NU8),  &
+                    USER(NU9),USER(NU10),USER(NU11),USER(NU12),GRADS,   &
+                    IUSER(NIU22),USER(NU13),IUSER(NIU32),IUSER(NIU27),  &
+                    USER(NU14),IUSER(NIU28),IUSER(NIU26),IUSER(NIU29),  &
+                    IUSER(NIU25),IUSER(NIU30),IUSER(NIU31),0,0)
+      ENERGIA = EELEC + EN
       WRITE(6,'(8X,I3,16X,F20.10)')IUSER(NIU23),ENERGIA
       if(IUSER(NIU23)<=200)GEOMENERGY(IUSER(NIU23)) = ENERGIA
 !
@@ -714,7 +759,7 @@
        write(18,'(I6,F20.10)')IUSER(NIU23),ENERGIA
        do jat=1,nat
         j = (jat-1)*3
-        IZNUC = INT(USER(NU1+jat-1))+IZCORE(jat)                 
+        IZNUC = INT(USER(NU1+jat-1))+IUSER(NIU32+jat-1)
         write(18,'(1X,A4,3F15.4)')ATMLAB(IZNUC),                        &
         Cxyz(1+j)*BOHR,Cxyz(2+j)*BOHR,Cxyz(3+j)*BOHR
        enddo

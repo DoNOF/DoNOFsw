@@ -32,15 +32,19 @@
                  ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,     &
                  ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,DIPS,          &
                  GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,        &
-                 NBAS,BAS,IGTYP)
+                 NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      LOGICAL RESTART
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
+      COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
+      COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/WRTGCF/IWRTGCF
       COMMON/ELPROP/IEMOM
-      INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS
       DOUBLE PRECISION,DIMENSION(NPRIMI)::C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI
@@ -53,6 +57,8 @@
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
+      INPUTFMIUGORI = INPUTFMIUG
+      IF(IORBOPT/=1) INPUTFMIUG = 0
       IF (IRUNTYP==4) THEN
 !      Update coordinates of shells if use libint library for ERIs
        DO I=1,NAT
@@ -63,8 +69,8 @@
        CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,    &
                      INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,   &
-                     CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,   &
-                     NBAS,BAS,IGTYP,0,1)
+                     CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,    &
+                     ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux,0,1)
 !      Write Coordinates on File CGGRAD (Unit=11)
        WRITE(11,1)
        DO I=1,NAT
@@ -79,11 +85,13 @@
       CALL HSSNUMd(HESSIANO,3*NAT,Cxyz,GRADS,DIPS,DDM,NINTEG,IDONTW,    &
                    ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,     &
                    KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,     &
-                   CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+                   CH,CI,IRUNTYP,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,       &
+                   KTYPEaux,IZCORE)
 !     Carry out normal mode vibrational analysis
       CALL FGMTRXd(Cxyz,HESSIANO,GRADS,3*NAT,ZAN,ZMASS,DDM,IPROJECT,    &
-                   ISIGMA)
+                   ISIGMA,IZCORE)
       DEALLOCATE (HESSIANO,DDM)
+      INPUTFMIUG = INPUTFMIUGORI
       RETURN
 !-----------------------------------------------------------------------
 1     FORMAT(/1X,'Atom',16X,'Coordinates (Bohr)',/16X,                  &
@@ -96,8 +104,8 @@
       SUBROUTINE HSSNUMd(FCM,NC1,Cxyz,EG,DIP,DDM,NINTEG,IDONTW,         &
                          ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,          &
                          KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,       &
-                         EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,              &
-                         SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+                         EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,SIZE_ENV,     &
+                         ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL CONVGDELAG,FROZEN
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -108,8 +116,6 @@
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/ELPROP/IEMOM      
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !     ARGUMENTS
       INTEGER,INTENT(IN) :: NC1,NINTEG,IDONTW
       DOUBLE PRECISION,DIMENSION(NC1,NC1),INTENT(OUT) :: FCM
@@ -118,9 +124,11 @@
       DOUBLE PRECISION,DIMENSION(3),INTENT(INOUT) :: DIP
       DOUBLE PRECISION,DIMENSION(9,NC1/3),INTENT(OUT)::DDM
       DOUBLE PRECISION,DIMENSION(NC1/3),INTENT(IN) :: ZAN
-      INTEGER,DIMENSION(NC1/3),INTENT(IN):: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NATOMS),INTENT(IN) :: IZCORE
+      INTEGER,DIMENSION(NC1/3),INTENT(IN) :: IAN,IMIN,IMAX
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELL),INTENT(IN) :: INTYP,KNG,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux),INTENT(IN) :: KTYPEaux
       INTEGER,DIMENSION(NPRIMI),INTENT(IN) :: ISH,ITYP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::C1,C2,EX1,CS,CP
       DOUBLE PRECISION,DIMENSION(NPRIMI),INTENT(IN)::CD,CF,CG,CH,CI
@@ -227,8 +235,8 @@
                        NPRIMI,ZAN,CDISP,IAN,IMIN,IMAX,KSTART,KATOM,     &
                        KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,         &
                        C1,C2,EX1,CS,CP,CD,CF,CG,CH,CI,EGDISP,           &
-                       IRUNTYP,DIP,SIZE_ENV,ENV,ATM,                    &
-                       NBAS,BAS,IGTYP,NOPTCG,0)
+                       IRUNTYP,DIP,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,    &
+                       IGTYP,KTYPEaux,NSHELLaux,NOPTCG,0)
 !        PURIFY THE GRADIENT BY HOUSEHOLDER METHOD
          CALL GRADSPURIFY(EGDISP,NC1)
          ENERGY = EELEC + EN
@@ -457,7 +465,7 @@
 
 ! FGMTRXd
       SUBROUTINE FGMTRXd(Cxyz,HESS,GRAD,NC1,ZNUC,ZMASS,DDM,IPROJECT,    &
-                         ISIGMA)
+                         ISIGMA,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL EFIELDL,FROZEN
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -465,12 +473,11 @@
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPNOF_INICON/INICOND
       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200)
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !
       CHARACTER*8 LETI,IBLANK
       CHARACTER*4 CLAB(3)
       DOUBLE PRECISION :: LAB(9)
+      INTEGER,DIMENSION(NATOMS),INTENT(IN) :: IZCORE
       DOUBLE PRECISION,DIMENSION(NC1),INTENT(IN) :: Cxyz !NC1=3*NATOMS
       DOUBLE PRECISION,DIMENSION(NC1,NC1),INTENT(INOUT) :: HESS   
       DOUBLE PRECISION,DIMENSION(3,NATOMS),INTENT(IN) :: GRAD
@@ -736,132 +743,207 @@
       WRITE(11,9220)
       WRITE(11,9060)
       WRITE(11,9070)
-!
+!-----------------------------------------------------------------------
 !     Frequencies and corresponding normal coordinates for MOLDEN
-!
-       IF(MOLDEN==1)THEN
-        WRITE(18,'(A6)')'[FREQ]'
-        do j=1,nc1
-         write(18,'(F10.2)')FREQ(j)
-        enddo
-        WRITE(18,'(A5)')'[INT]'
-        do j=1,nc1
-         write(18,'(F10.5)')SCR(j,1)
-        enddo
-        WRITE(18,'(A10)')'[FR-COORD]'
-        do iat=1,NATOMS
-         IZNUC = INT(ZNUC(iat))+IZCORE(iat)      
+!-----------------------------------------------------------------------
+      IF(MOLDEN==1)THEN
+       WRITE(18,'(A6)')'[FREQ]'
+       do j=1,nc1
+        write(18,'(F10.2)')FREQ(j)
+       enddo
+       WRITE(18,'(A5)')'[INT]'
+       do j=1,nc1
+        write(18,'(F10.5)')SCR(j,1)
+       enddo
+       WRITE(18,'(A10)')'[FR-COORD]'
+       do iat=1,NATOMS
+        IZNUC = INT(ZNUC(iat))+IZCORE(iat)
+        io = 3*(iat-1)
+        WRITE(18,'(1X,A4,3F15.4)')ATMLAB(IZNUC),                       &
+                Cxyz(1+io),Cxyz(2+io),Cxyz(3+io)
+       enddo
+       WRITE(18,'(A15)')'[FR-NORM-COORD]'
+       do j=1,nc1
+        write(18,'(A9,1X,I5)')'vibration',j
+        do iat = 1,NATOMS
          io = 3*(iat-1)
-         WRITE(18,'(1X,A4,3F15.4)')ATMLAB(IZNUC),                       &
-                 Cxyz(1+io),Cxyz(2+io),Cxyz(3+io)         
+         write(18,'(3F12.8)')VEC(1+io,j),VEC(2+io,j),VEC(3+io,j)
         enddo
-        WRITE(18,'(A15)')'[FR-NORM-COORD]'
-        do j=1,nc1
-         write(18,'(A9,1X,I5)')'vibration',j
-         do iat = 1,NATOMS         
-          io = 3*(iat-1)
-          write(18,'(3F12.8)')VEC(1+io,j),VEC(2+io,j),VEC(3+io,j)
-         enddo 
-        enddo
-       ENDIF
+       enddo
+      ENDIF
+!-----------------------------------------------------------------------
+!     Initial Conditions according to normal modes
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(INICOND==1)THEN
+       if(NIMAG==0)then          ! No imaginary frequencies
+        nini = 7
+       else if(NIMAG==1)then     ! Transition State
+        nini = 8
+       end if
+       WRITE(11,9080)
+       ALLOCATE(VECt(NC1),FREQau(NC1))
+       OPEN(33,FILE='ini.xyz',STATUS='UNKNOWN',ACTION='WRITE',          &
+               FORM='FORMATTED',ACCESS='SEQUENTIAL')
 !
-!      Initial Conditions according to normal modes
+!      v = sqrt [(h/2*pi) * (w/m) ]
+!
+       FREQau = DSQRT(FREQ/AUtoCM1)
+       FREQau = FREQau * AUtoANG*FStoAU/DSQRT(AMUtoAU) !*0.512396293759
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Equilibrium Geometry & Zero Point Energy Velocities (Ang/fs)
-!
-       IF(INICOND==1)THEN
-        WRITE(11,9080)
-        ALLOCATE(VECt(NC1),FREQau(NC1))       
-        OPEN(33,FILE='ini.xyz',STATUS='UNKNOWN',ACTION='WRITE',         &
-                FORM='FORMATTED',ACCESS='SEQUENTIAL')
-!
-!       v = sqrt [(h/2*pi) * (w/m) ]
-!
-        FREQau = DSQRT(FREQ/AUtoCM1)
-        FREQau = FREQau * AUtoANG*FStoAU/DSQRT(AMUtoAU) !*0.512396293759
-!
-        VECt = 0.0d0
-
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       VECt = 0.0d0
+       IF(NATOMS>2)THEN
+        do iat = 1,NATOMS
+         io = 3*(iat-1)
+         do j = nini,nc1
+          VECt(1+io) = VECt(1+io) + VEC(1+io,j)*FREQau(j)
+          VECt(2+io) = VECt(2+io) + VEC(2+io,j)*FREQau(j)
+          VECt(3+io) = VECt(3+io) + VEC(3+io,j)*FREQau(j)
+         enddo
+        enddo
+       ELSE IF(NATOMS==2)THEN
+        do iat = 1,NATOMS
+         io = 3*(iat-1)
+         VECt(1+io) = VECt(1+io) + VEC(1+io,6)*FREQau(6)
+         VECt(2+io) = VECt(2+io) + VEC(2+io,6)*FREQau(6)
+         VECt(3+io) = VECt(3+io) + VEC(3+io,6)*FREQau(6)
+        enddo
+       END IF
+!      Zero Point Energy
+       ZPE = 0.0d0
+       write(33,*) NATOMS
+       write(33,'(f19.12)') 0.0
+       do iat=1,NATOMS
+        IZNUC = INT(ZNUC(iat))+IZCORE(iat)
+        io = 3*(iat-1)
+        write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                     &
+             Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,  &
+             VECt(1+io),VECt(2+io),VECt(3+io)
+        write(11,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                     &
+             Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,  &
+             VECt(1+io),VECt(2+io),VECt(3+io)
+        ZPE = ZPE + ZMASS(iat) * ( VECt(1+io)*VECt(1+io)                &
+                  + VECt(2+io)*VECt(2+io) + VECt(3+io)*VECt(3+io) )
+       enddo
+       ZPE = 0.5d0*AMUtoAU*ZPE/(AUtoANG*FStoAU*AUtoANG*FStoAU)
+       write(11,9090)CMASS(1)*AUtoANG,CMASS(2)*AUtoANG,CMASS(3)*AUtoANG
+       write(11,9091)ZPE,ZPE*AUtoKCAL,ZPE*AUtoCM1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      The excitation of a specific vibrational mode is obtained as
+!      Vj(k) = SUM_i {sqrt[(2k+1)*VEC^i_j(0)}
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       NKMAX = 2
+       DO K=1,NKMAX          ! K = Vibrational level
+        write(33,9097)K
+!       write(11,9092)K
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         IF(NATOMS>2)THEN
-         do iat = 1,NATOMS
-          io = 3*(iat-1)
-          do j=7,nc1
-           VECt(1+io) = VECt(1+io) + VEC(1+io,j)*FREQau(j)
-           VECt(2+io) = VECt(2+io) + VEC(2+io,j)*FREQau(j)
-           VECt(3+io) = VECt(3+io) + VEC(3+io,j)*FREQau(j)
+         DO jk=nini,nc1      ! Number of the excited mode
+          write(33,9093)jk
+!         write(11,9094)jk
+          VECt = 0.0d0
+          do iat = 1,NATOMS
+           io = 3*(iat-1)
+           do j=nini,nc1
+            if(j==jk)then    ! excited vibrational mode
+             VECt(1+io)=VECt(1+io)+VEC(1+io,j)*FREQau(j)*SQRT(2.0*K+1)
+             VECt(2+io)=VECt(2+io)+VEC(2+io,j)*FREQau(j)*SQRT(2.0*K+1)
+             VECt(3+io)=VECt(3+io)+VEC(3+io,j)*FREQau(j)*SQRT(2.0*K+1)
+            else             ! other vibrational modes
+             VECt(1+io)=VECt(1+io)+VEC(1+io,j)*FREQau(j) !*SQRT(1) K=0
+             VECt(2+io)=VECt(2+io)+VEC(2+io,j)*FREQau(j) !*SQRT(1) K=0
+             VECt(3+io)=VECt(3+io)+VEC(3+io,j)*FREQau(j) !*SQRT(1) K=0
+            endif
+           enddo
           enddo
-         enddo
+!         Vibrational Energy
+          VibE = 0.0d0
+          write(33,*) NATOMS
+          write(33,'(f19.12)') 0.0
+          do iat=1,NATOMS
+           IZNUC = INT(ZNUC(iat))+IZCORE(iat)
+           io = 3*(iat-1)
+           write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                 &
+           Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,   &
+           VECt(1+io),VECt(2+io),VECt(3+io)
+!          write(11,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                 &
+!          Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,   &
+!          VECt(1+io),VECt(2+io),VECt(3+io)
+           VibE = VibE + ZMASS(iat) * (VECt(1+io)*VECt(1+io)           &
+                       + VECt(2+io)*VECt(2+io) + VECt(3+io)*VECt(3+io))
+          enddo
+          VibE = 0.5d0*AMUtoAU*VibE/(AUtoANG*FStoAU*AUtoANG*FStoAU)
+!         write(11,9095)VibE,VibE*AUtoKCAL,VibE*AUtoCM1
+         END DO
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ELSE IF(NATOMS==2)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+         VECt = 0.0d0
          do iat = 1,NATOMS
           io = 3*(iat-1)
-          VECt(1+io) = VECt(1+io) + VEC(1+io,6)*FREQau(6)
-          VECt(2+io) = VECt(2+io) + VEC(2+io,6)*FREQau(6)
-          VECt(3+io) = VECt(3+io) + VEC(3+io,6)*FREQau(6)
+          VECt(1+io) = VECt(1+io) + VEC(1+io,6)*FREQau(6)*SQRT(2.0*K+1)
+          VECt(2+io) = VECt(2+io) + VEC(2+io,6)*FREQau(6)*SQRT(2.0*K+1)
+          VECt(3+io) = VECt(3+io) + VEC(3+io,6)*FREQau(6)*SQRT(2.0*K+1)
          enddo
+!        Vibrational Energy
+         VibE = 0.0d0
+         write(33,*) NATOMS
+         write(33,'(f19.12)') 0.0
+         do iat=1,NATOMS
+          IZNUC = INT(ZNUC(iat))+IZCORE(iat)
+          io = 3*(iat-1)
+          write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                   &
+           Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,    &
+           VECt(1+io),VECt(2+io),VECt(3+io)
+!         write(11,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                   &
+!          Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG,    &
+!          VECt(1+io),VECt(2+io),VECt(3+io)
+          VibE = VibE + ZMASS(iat) * ( VECt(1+io)*VECt(1+io)            &
+                      + VECt(2+io)*VECt(2+io) + VECt(3+io)*VECt(3+io) )
+         enddo
+         VibE = 0.5d0*AMUtoAU*VibE/(AUtoANG*FStoAU*AUtoANG*FStoAU)
+!        write(11,9095)VibE,VibE*AUtoKCAL,VibE*AUtoCM1
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         END IF
-!
-        ZPE = 0.0d0
-        write(33,*) NATOMS
-        write(33,'(f19.12)') 0.0
-        do iat=1,NATOMS
-         IZNUC = INT(ZNUC(iat))+IZCORE(iat)      
-         io = 3*(iat-1)         
-         write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                    &
-              Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG, &
-              VECt(1+io),VECt(2+io),VECt(3+io)
-         write(11,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                    &
-              Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG, &
-              VECt(1+io),VECt(2+io),VECt(3+io)
-         ZPE = ZPE + ZMASS(iat) * ( VECt(1+io)*VECt(1+io)               &
-                   + VECt(2+io)*VECt(2+io) + VECt(3+io)*VECt(3+io) )
-        enddo       
-        ZPE = 0.5d0*AMUtoAU*ZPE/(AUtoANG*FStoAU*AUtoANG*FStoAU)
-        write(11,9090)CMASS(1)*AUtoANG,CMASS(2)*AUtoANG,CMASS(3)*AUtoANG
-        write(11,9091)ZPE,ZPE*AUtoKCAL,ZPE*AUtoCM1        
-!        
-!       The excitation of a specific vibrational mode can be obtained as
-!       Vj(k) = SUM_i {sqrt[(2k+1)*VEC^i_j(0)}
-!
-!jk     jk = 7  ! number of the excited mode (7 <= jk <= nc1)
-!jk     VECt = 0.0d0
-!jk     do iat = 1,NATOMS         
-!jk      io = 3*(iat-1)
-!jk      do j=7,nc1
-!jk       if(j==jk)then 
-!jk        VECt(1+io) = VECt(1+io)+VEC(1+io,j)*FREQau(j)*SQRT(5.0) !K=2
-!jk        VECt(2+io) = VECt(2+io)+VEC(2+io,j)*FREQau(j)*SQRT(5.0) !K=2
-!jk        VECt(3+io) = VECt(3+io)+VEC(3+io,j)*FREQau(j)*SQRT(5.0) !K=2
-!jk       else
-!jk        VECt(1+io) = VECt(1+io)+VEC(1+io,j)*FREQau(j) !*SQRT(1)  K=0
-!jk        VECt(2+io) = VECt(2+io)+VEC(2+io,j)*FREQau(j) !*SQRT(1)  K=0
-!jk        VECt(3+io) = VECt(3+io)+VEC(3+io,j)*FREQau(j) !*SQRT(1)  K=0
-!jk       endif 
-!jk      enddo
-!jk     enddo
-!jk
-!jk     VibE = 0.0d0
-!jk     write(33,*) NATOMS
-!jk     write(33,'(f19.12)') 0.0
-!jk     do iat=1,NATOMS
-!jk      IZNUC = INT(ZNUC(iat))+IZCORE(iat)      
-!jk      io = 3*(iat-1)         
-!jk      write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                    &
-!jk           Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG, &
-!jk           VECt(1+io),VECt(2+io),VECt(3+io)
-!jk      write(11,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),                    &
-!jk           Cxyz(1+io)*AUtoANG,Cxyz(2+io)*AUtoANG,Cxyz(3+io)*AUtoANG, &
-!jk           VECt(1+io),VECt(2+io),VECt(3+io)
-!jk      VibE = VibE + ZMASS(iat) * ( VECt(1+io)*VECt(1+io)             &
-!jk                  + VECt(2+io)*VECt(2+io) + VECt(3+io)*VECt(3+io) )
-!jk     enddo       
-!jk     VibE = 0.5d0*AMUtoAU*VibE/(AUtoANG*FStoAU*AUtoANG*FStoAU)
-!jk     write(11,9092)VibE,VibE*AUtoKCAL,VibE*AUtoCM1        
-!
-        DEALLOCATE(VECt,FREQau)
-        CLOSE(33)
-       ENDIF       
-!
-!     ----- THERMOCHEMISTRY ANALYSIS ----- 
-!
+       END DO                ! K = Vibrational level
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Two initial conditions for a Transition State
+!      The real modes contribute to ZPE
+!      The imaginary mode is used to define two escape directions: ±v₀
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(NATOMS>2 .and. NIMAG==1)THEN
+        delta = 0.001d0      ! small geometric displacement
+        v0 = 0.02d0          ! Imaginary mode velocity amplitude
+        do idir = -1, 1, 2   ! -1 y +1
+         write(33,'(/1X,A,I2)') 'TS direction ', idir
+         write(33,*) NATOMS
+         write(33,'(f19.12)') 0.0
+         do iat=1,NATOMS
+          IZNUC = INT(ZNUC(iat))+IZCORE(iat)
+          io = 3*(iat-1)
+!         New coordinates with displacement delta
+          x = Cxyz(1+io)*AUtoANG + idir * delta * VEC(1+io,1)
+          y = Cxyz(2+io)*AUtoANG + idir * delta * VEC(2+io,1)
+          z = Cxyz(3+io)*AUtoANG + idir * delta * VEC(3+io,1)
+!         Total speed = ZPE (real modes) + imaginary mode contribution
+          vx = VECt(1+io) + idir * v0 * VEC(1+io,1)
+          vy = VECt(2+io) + idir * v0 * VEC(2+io,1)
+          vz = VECt(3+io) + idir * v0 * VEC(3+io,1)
+          write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),x,y,z,vx,vy,vz
+         enddo
+        enddo
+       END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       DEALLOCATE(VECt,FREQau)
+       WRITE(11,9096)
+       CLOSE(33)
+      ENDIF
+!-----------------------------------------------------------------------!
+!                                                                       !
+!                 ----- THERMOCHEMISTRY ANALYSIS -----                  !
+!                                                                       !
+!-----------------------------------------------------------------------!
       CALL INRTIA(Cxyz,COM,ZMASS,VMOI,NATOMS)
       WRITE(11,9300) (VMOI(I),I=1,3),ONE
       FACT1 = (CATOM*BOHR*BOHR)/(12.0D+03*AVOGAD)
@@ -926,15 +1008,20 @@
  9060 FORMAT(1X)                                                         
  9070 FORMAT(5X,'END OF NORMAL MODES',/)
  9080 FORMAT(/1X,'INITIAL CONDITIONS ACCORDING TO NORMAL MODES',        &
-             //17X,'Equilibrium Geometry (Ang)',                        &
-               13X,'Zero Point Energy Velocities (Ang/fs)',/)
+             /1X,44(1H-),//17X,'Equilibrium Geometry (Ang)',            &
+             21X,'Velocities (Ang/fs)',/)
  9090 FORMAT(/,'CM',2X,3(1x,f14.8))                                
  9091 FORMAT(/1X,'Zero Point Energy =',F10.4,' a.u. (',                 &
              F7.2,' kcal/mol,',F9.1,' cm-1 )'/)
- 9092 FORMAT(/1X,'Vibrational Energy =',F10.4,' a.u. (',                &
+ 9092 FORMAT(/1X,'Vibrational level =',I3,/1X,22(1H-),/)
+ 9093 FORMAT(/1X,'Excited vibrational mode =',I3,/)
+ 9094 FORMAT( 1X,'Excited vibrational mode =',I3,/)
+ 9095 FORMAT(/1X,'Vibrational Energy =',F10.4,' a.u. (',                &
              F7.2,' kcal/mol,',F9.1,' cm-1 )'/)
+ 9096 FORMAT(95(1H-)/)
+ 9097 FORMAT(/1X,'Vibrational level =',I3,/1X,22(1H-))
  9100 FORMAT(20X,9(4X,I3,5X))                                            
- 9110 FORMAT(1X,'      FREQUENCY:',3X,9(F10.2,A2))                       
+ 9110 FORMAT(1X,'      FREQUENCY:',3X,9(F10.2,A2))
  9115 FORMAT(1X,'   REDUCED MASS:',3X,9(F10.5,2X))                       
  9120 FORMAT(1X,'   IR INTENSITY:',3X,9(F10.5,2X))                       
  9150 FORMAT(I3,13X,A4,9F12.8)                                           

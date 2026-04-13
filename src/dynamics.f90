@@ -20,8 +20,8 @@
 SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
                   ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,KLOC, &
                   INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG, &
-                  CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
-                  IGTYP)
+                  CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,ATM,     &
+                  NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux)
 
  IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !-----------------------------------------------------------------------
@@ -29,9 +29,10 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
 !-----------------------------------------------------------------------
  LOGICAL EnergyFileExists
  INTEGER :: NINTEG,IDONTW,IEMOM,NAT,IRUNTYP,NBF,NBFaux,NSHELL,NPRIMI
- INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
  INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
  INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
  INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
  DOUBLE PRECISION,DIMENSION(NAT) :: ZAN,ZMASS 
  DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
@@ -39,15 +40,12 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
  DOUBLE PRECISION,DIMENSION(3):: DIPS
  DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
 !
- CHARACTER(LEN=1) :: dflag
- COMMON/INPDYN_FLAGS/dflag(3,1001)
+ CHARACTER(LEN=1),DIMENSION(3,NAT) :: dflag
  DOUBLE PRECISION :: Vxyz
- COMMON/INPDYN_VELOCITY/Vxyz(3,1001) 
+ COMMON/INPDYN_VELOCITY/Vxyz(3,100)
  COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
  COMMON/EHFEN/EHF,EN
  COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
- COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),               &
-             KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
 !LIBCINT
  INTEGER :: SIZE_ENV,NBAS,IGTYP
  DOUBLE PRECISION :: ENV(SIZE_ENV)
@@ -75,12 +73,20 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
 !-----------------------------------------------------------------------
 ! Welcome message
 !-----------------------------------------------------------------------
- write(6,'(/1X,32A)')' Molecular Dynamics Calculation ' 
- write(6,'(1X,32(1H*),/)')
+  write(6,'(/1X,32A)')' Molecular Dynamics Calculation '
+  write(6,'(1X,32(1H*),/)')
+  if(nat>100)then  ! due to COMMON/INPDYN_VELOCITY/Vxyz(3,100)
+   write(6,*)'Stop: Molecular Dynamics is not implemented for NAT>100'
+   STOP
+  endif
+!-----------------------------------------------------------------------
+! Flags for selective dynamics
+!-----------------------------------------------------------------------
+  dflag(1:3,1:nat) = 'T'
 !-----------------------------------------------------------------------
 ! read dynamics setup
 !-----------------------------------------------------------------------
- call NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
+  call NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
 !-----------------------------------------------------------------------
 ! restart molecular dynamics calculation (file 31)
 !-----------------------------------------------------------------------
@@ -141,8 +147,8 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
  call beever(init,NAT,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,   &
              NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN, &
              IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP, &
-             C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV, &
-             ENV,ATM,NBAS,BAS,IGTYP)
+             C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,   &
+             SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux)
  ICOEF = ICOEFORI             
 !-----------------------------------------------------------------------
 ! compute potential energy (au) in t + dt
@@ -195,8 +201,8 @@ SUBROUTINE MOLDYN(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,     &
   call beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,velflag,  &
               NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI,ZAN,IAN,IMIN,&
               IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,&
-              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,SIZE_ENV,&
-              ENV,ATM,NBAS,BAS,IGTYP)
+              C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,IZCORE,  &
+              SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux)
 !-----------------------------------------------------------------------
 !  compute potential energy (au)
 !-----------------------------------------------------------------------
@@ -268,7 +274,8 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
                   velflag,NINTEG,IDONTW,IEMOM,NBF,NBFaux,NSHELL,NPRIMI, &
                   ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
                   KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,     &
-                  GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)  
+                  GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,  &
+                  IGTYP,KTYPEaux,NSHELLaux)
 !-----------------------------------------------------------------------
 ! init: flag to init propagator (in)
 ! nat: number of atoms in the system (in)
@@ -289,9 +296,10 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 !-----------------------------------------------------------------------
  INTEGER, intent(in) :: init, nat, ngcf
  INTEGER :: NINTEG,IDONTW,IEMOM,IRUNTYP
- INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
  INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
  INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
  INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
  CHARACTER(LEN=1), dimension (3,nat), intent(in) :: dflag
  CHARACTER(LEN=1), intent(in) :: velflag
@@ -327,7 +335,7 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
    CALL PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
            r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
            ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,   &
-           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+           IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,NSHELLaux)
    forces=-GRADS
 
    if (dt == 0) then
@@ -355,8 +363,9 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 
    CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
             ZAN,r1,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,&
-        KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,&
-           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+            KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,  &
+            DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,       &
+            NSHELLaux)
    
    forces=-GRADS
 !-----------------------------------------------------------------------
@@ -425,10 +434,11 @@ subroutine beever(init,nat,mass,dt,t,r0,v0,a0,r1,v1,a1,ngcf,dflag,      &
 !-----------------------------------------------------------------------
 ! compute forces at r2 (position at t + dt) 
 !-----------------------------------------------------------------------
-   CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,&
-           r2,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,&
-           ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,DIPS,   &
-           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+   CALL PES(t+dt,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
+            ZAN,r2,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,&
+            KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,IRUNTYP,  &
+            DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,       &
+            NSHELLaux)
    
    forces=-GRADS
 !-----------------------------------------------------------------------
@@ -508,15 +518,17 @@ end
 subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
                ZAN,r0,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,  &
                KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,        &
-               GRADS,IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+               GRADS,IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,     &
+               IGTYP,KTYPEaux,NSHELLaux)
  IMPLICIT DOUBLE PRECISION (A-H,O-Z)
 !-----------------------------------------------------------------------
 ! interface
 !-----------------------------------------------------------------------
  INTEGER ::ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,IRUNTYP
- INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX
+ INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
  INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
  INTEGER,DIMENSION(NSHELL) :: INTYP,KNG,KMIN,KMAX
+ INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
  INTEGER,DIMENSION(NPRIMI) :: ISH,ITYP
  DOUBLE PRECISION, intent(in)  :: t 
  DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
@@ -566,7 +578,7 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
 !-----------------------------------------------------------------------
  do i=1,ngcf
   write (str,'(i2)') i
-!-----------------------------------------------------------------------    
+!-----------------------------------------------------------------------
 ! Save MLD file in snapshot-t.mld
 !-----------------------------------------------------------------------
   IF(snapshot=='T')THEN
@@ -603,7 +615,8 @@ subroutine PES(t,ngcf,NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI, &
   CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,ZAN,r0,&
                 IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,   &
                 KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,GRADS,      &
-                IRUNTYP,DIPS,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,0,1)
+                IRUNTYP,DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,    &
+                KTYPEaux,NSHELLaux,0,1)
                 ! ,0) short print on output file
 !-----------------------------------------------------------------------
 ! store temporal variables

@@ -11,8 +11,8 @@
                         CG,CH,CI,AHCORE,OVERLAP,CHF,EiHF,DIPN,QUADN,    &
                         OCTUN,NVAL,DQOInt,NINTMXn,NREC,IX2,BUFP2,       &
                         BUFP2aux,NINTEGt,NINTEGAUXtm,IDONTW,GRADS,      &
-                        IRUNTYP,DIPS,XINTS,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
-                        IGTYP,IPRINTOPT)
+                        IRUNTYP,DIPS,IZCORE,XINTS,SIZE_ENV,ENV,ATM,     &
+                        NBAS,BAS,IGTYP,IPRINTOPT)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL CONVGDELAG,RESTART,ERIACTIVATED,HighSpin
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -32,8 +32,6 @@
       LOGICAL SMCD
       COMMON/ERITYPE/IERITYP,IRITYP,IGEN,ISTAR,MIXSTATE,SMCD
       COMMON/ELPROP/IEMOM
-      COMMON/ECP2/CLP(4004),ZLP(4004),NLP(4004),KFRST(1001,6),          &
-                  KLAST(1001,6),LMAX(1001),LPSKIP(1001),IZCORE(1001)
       COMMON/PUNTEROSUSER/N1,N2,N3,N4,N5,N6,N7,N8,N9,N10,N11,N12,N13,   &
                           N14,N15,N16,N17,N18,N19,N20,N21,N22,N23,N24,  &
                           N25,N26,N27,N28,N29,N30,N31,N32,N33,N34,N35,  &
@@ -44,7 +42,7 @@
       INTEGER :: NINTEGt,NINTEGAUXtm,IDONTW,IRUNTYP,IPRINTOPT,IGTYP
       DOUBLE PRECISION,DIMENSION(NATOMSn):: ZAN
       DOUBLE PRECISION,DIMENSION(3,NATOMSn):: Cxyz
-      INTEGER,DIMENSION(NATOMSn):: IAN,IMIN,IMAX
+      INTEGER,DIMENSION(NATOMSn):: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELLn):: KSTART,KATOM,KTYPE,KLOC
       INTEGER,DIMENSION(NSHELLn):: INTYP,KNG,KMIN,KMAX
       INTEGER,DIMENSION(NPRIMIn):: ISH,ITYP
@@ -294,7 +292,7 @@
                     GRADS,ATMNAME,KATOM,KTYPE,KLOC,KMIN,KMAX,KSTART,KNG,&
                     XATOM,YATOM,ZATOM,ZAN,EX1,CS,CP,CD,CF,CG,XINTS,     &
                     SIZE_ENV,ENV,NATOMSn,ATM,NBAS,BAS,IGTYP,IPRINTOPT)
-       IF(IERITYP==3 .and. MIXSTATE==2) MIXSTATE = 1              ! MIX
+       IF(IERITYP==3 .and. MIXSTATE==2) MIXSTATE = 1   ! MIX
        IF(IPRINTOPT==1)WRITE(6,2)IT
        GOTO 10
       ENDIF
@@ -446,13 +444,13 @@
       DOUBLE PRECISION,DIMENSION(NSTORE):: XIJKL
       DOUBLE PRECISION,DIMENSION(NSTOREaux):: XIJKaux
       DOUBLE PRECISION,DIMENSION(NUSER) :: USER 
-      DOUBLE PRECISION,DIMENSION(3*NATOMS) :: GRADS      
-      CHARACTER*4 ATMNAME(NATOMS)
+      DOUBLE PRECISION,DIMENSION(3,NAT) :: GRADS
+      CHARACTER*4 ATMNAME(NAT)
       INTEGER,DIMENSION(NSHELL):: KATOM,KTYPE,KLOC,KMIN,KMAX,KSTART,KNG
-      DOUBLE PRECISION,DIMENSION(NATOMS) :: XATOM,YATOM,ZATOM,ZAN 
+      DOUBLE PRECISION,DIMENSION(NAT) :: XATOM,YATOM,ZATOM,ZAN
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX1,CS,CP,CD,CF,CG
       DOUBLE PRECISION,DIMENSION((NSHELL*NSHELL+NSHELL)/2) :: XINTS
-
+!
       INTEGER :: SIZE_ENV,NBAS,IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)  
@@ -528,7 +526,6 @@
        end if
 #endif                                             
       END IF
-
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Analytical Gradient Calculation for PNOF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1406,6 +1403,7 @@
       DOUBLE PRECISION,DIMENSION(NAT):: ZNUC
       DOUBLE PRECISION,DIMENSION(3,NAT):: C
       DOUBLE PRECISION,PARAMETER:: BOHR = 0.52917724924D+00
+      INTEGER :: IDUM1,IDUM2,IDUM3,IDUM4,IDUM5,IDUM6
 !-----------------------------------------------------------------------
 !     Read diagonal elements of the Gen Fock Operator (FMIUG)
 !-----------------------------------------------------------------------
@@ -1421,7 +1419,7 @@
        READ(3,'(I6,F30.16)')II,AA
       ENDDO
       READ(3,'(I6,F30.16)')IT,AA
-      READ(3,'(I6,F30.16)')IT,AA
+      READ(3,'(6I6)')IDUM1,IDUM2,IDUM3,IDUM4,IDUM5,IDUM6
       DO I = 1,NAT
        READ(3,'(I6,3F30.16)')IZNUC(I),C(1,I),C(2,I),C(3,I)
       ENDDO
@@ -1842,7 +1840,7 @@
         CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
                        EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,        &
                        CX0,CY0,CZ0,NATOMS,1) 
-        IF(EELEC<EELEC_MIN.and.IPRINTOPT==1)THEN                          
+        IF( EELEC+EN < EELEC_MIN+EN )THEN
          CALL WRITEGCFr(8,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,  &
                         EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,       &
                         CX0,CY0,CZ0,NATOMS,1)
@@ -2337,28 +2335,27 @@
       END
 
 ! QHMATm
-      SUBROUTINE QHMATm(C, QD, HCORE, AHCORE)
+      SUBROUTINE QHMATm(C,QD,HCORE,AHCORE)
       IMPLICIT NONE
-      COMMON/MAIN/NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NBF5/NBF5, NBFT5, NSQ5
-!
-      INTEGER :: NATOMS, ICH, MUL, NE, NA, NB, NSHELL, NPRIMI, NBF, NBFT, NSQ
-      INTEGER :: NBF5, NBFT5, NSQ5
+      INTEGER :: NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      INTEGER :: NBF5,NBFT5,NSQ5
       INTEGER :: J
-
-      DOUBLE PRECISION :: C(NBF, NBF), QD(NBF, NBF, NBF), HCORE(NBF5), AHCORE(NBF, NBF)
+      DOUBLE PRECISION :: C(NBF, NBF),QD(NBF,NBF,NBF),HCORE(NBF5)
+      DOUBLE PRECISION :: AHCORE(NBF, NBF)
 !-----------------------------------------------------------------------
 !     Calculate D matrix for each value J and keep in QD(J,:,:)
 !     Calculate molecular Hcore matrix (HCORE)
 !-----------------------------------------------------------------------
       !$OMP PARALLEL DO PRIVATE(J)
       DO J = 1, NBF
-        CALL DENMATj(J, QD(J, :, :), C, NBF)
+       CALL DENMATj(J, QD(J, :, :), C, NBF)
       END DO 
       !$OMP END PARALLEL DO 
       !$OMP PARALLEL DO PRIVATE(J)
       DO J = 1, NBF5
-        CALL TRACEm(HCORE(J), QD(J, :, :), AHCORE, NBF) 
+       CALL TRACEm(HCORE(J), QD(J, :, :), AHCORE, NBF)
       END DO
       !$OMP END PARALLEL DO
 !-----------------------------------------------------------------------
@@ -4122,6 +4119,8 @@
 !          ( Phys. Rev. Lett. 127, 233001, 2021 )                      !
 !          Define the coefficientes in front J,K,L integrals for GNOFm !
 !          ( Phys. Rev. Lett. 134, 206401, 2025 )                      !
+!          Define the coefficientes in front J,K,L integrals for GNOFs !
+!          ( In Progress                        )                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
 ! CJCKD3 = PNOF3 + pairing conditions
@@ -4869,7 +4868,7 @@
       RETURN
       END
 
-! CJCKD8 = GNOF(Imod=0) GNOFm(Imod=1) 
+! CJCKD8 = GNOF(Imod=0) GNOFm(Imod=1)
       SUBROUTINE CJCKD8(NV,RO,DR,BETA,DB,CJ12,CK12,DCJ12r,DCK12r)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       LOGICAL HighSpin
@@ -4890,9 +4889,7 @@
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !          Dynamic and Static Occupation Numbers (ROd,Rd,FIs)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(Imod==0 .OR. Imod==1)then           ! GNOFm
-       Hcutd = 0.02d0*DSQRT(2.0d0)
-      end if
+      Hcutd = 0.02d0*DSQRT(2.0d0)
       ROd  = 0.0d0
       DROd = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -4945,8 +4942,6 @@
       FIs = 0.0d0
       DFIs = 0.0d0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      if(Imod==0 .OR. Imod==1)then
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      FIs = (Np*Hp)^1/2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
        DO j=NO1+1,NBF5
@@ -4957,8 +4952,6 @@
          enddo
         endif
        ENDDO
-!- - - - - - - - - - - - - - - - - - - - - - - - - - -
-      end if
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !                  - Interpair Electron Correlation -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5590,7 +5583,7 @@
         WRITE(9,'(A5)')' $END'
 !       APSG Expansion Coefficients of the Generating PNOF5-wavefunction
         WRITE(9,'(A6)')' $APSG'
-        CALL PUNCHAPSG(NO1,NCWO,NA,NBF5,RO,SUMA,THAPSG)
+        CALL PUNCHAPSG(NO1,NDOC,NCWO,NA,NBF5,RO,SUMA,THAPSG)
         WRITE(9,'(A5)')' $END'
         WRITE(9,'(1X,A16,F15.10)')'EXP. COEF. SUM =',SUMA
        ENDIF
@@ -5922,30 +5915,6 @@
         endif                       
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Write information into formatted checkpoint file (FCHK) [Unit=19]
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(IFCHK==1.and.MSpin==0)THEN
-        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RON, &
-                     ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
-        else
-         CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RO,   &
-                     E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
-        endif
-       END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Write information into a file in Molden Format (MLD) [Unit=17]
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(MOLDEN==1.and.MSpin==0)THEN
-        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,RON,ELAGN,COEFN)               
-        else                           ! Natural Orbitals                
-         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,RO,E,COEF)        
-        endif
-       END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      APSG File for the APSG generating wavefunction of PNOF5(Nc)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(APSG .and. NSOC==0 .and. IPNOF==5)THEN
@@ -5956,7 +5925,7 @@
         WRITE(9,'(A5)')' $END'
 !       APSG Expansion Coefficients of the Generating PNOF5-wavefunction
         WRITE(9,'(A6)')' $APSG'
-        CALL PUNCHAPSG(NO1,NCWO,NA,NBF5,RO,SUMA,THAPSG)
+        CALL PUNCHAPSG(NO1,NDOC,NCWO,NA,NBF5,RO,SUMA,THAPSG)
         WRITE(9,'(A5)')' $END'
         WRITE(9,'(1X,A16,F15.10)')'EXP. COEF. SUM =',SUMA
        ENDIF
@@ -5972,9 +5941,39 @@
        IF(1<=NOUTRDM .and. NOUTRDM<=3 .and. MSpin==0)THEN
         CALL OUTPUTRDMrc(OVERLAP,RO,QD,CJ12,CK12)
        ENDIF
-!-----------------------------------------------------------------------       
-      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      END IF
+!-----------------------------------------------------------------------
+      IF(IPRINTOPT==1.or.IRUNTYP==3)THEN
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Write information into a file in Molden Format (MLD) [Unit=17]
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(MOLDEN==1.and.MSpin==0)THEN
+        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+         IF(IRUNTYP==5)CALL TRACKNOrc(COEFN,RON,OVERLAP) ! Reorder MOs
+         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
+                       ISH,ITYP,EX1,C1,C2,RON,ELAGN,COEFN)
+        else                           ! Natural Orbitals
+         IF(IRUNTYP==5)CALL TRACKNOrc(COEF,RO,OVERLAP)   ! Reorder MOs
+         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
+                       ISH,ITYP,EX1,C1,C2,RO,E,COEF)
+        endif
+       END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!      Write information into formatted checkpoint file (FCHK) [Unit=19]
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+       IF(IFCHK==1.and.MSpin==0)THEN
+        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+         CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RON, &
+                     ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
+        else
+         CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RO,   &
+                     E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
+        endif
+       END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      END IF
+!-----------------------------------------------------------------------
 !     Non-Dynamic Correction if OIMP2 or MBPT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(OIMP2.or.MBPT)CALL ECorrNonDyn(RO,QK,ECndl)

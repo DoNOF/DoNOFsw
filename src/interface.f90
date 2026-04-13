@@ -8,13 +8,7 @@
 !   AIMPACrc: Write information into a WFN file (7)                    !
 !   FCHKrc: Create a formatted checkpoint (FCHK) input file (19)       !
 !   MOLDENrc: Create an input file (MLD) in Molden Format (17)         !
-
-!   SQUARETRIAN2: Put square matrix (HF density matrix) into diagonal  !
-!              form without avoiding double counting of diagonal terms !                 
-!   SQUARETRIAN3: Put square matrix (PNOF density matrix) to diagonal  !
-!              form without avoiding double counting of diagonal terms !                                                    
-!   TRACEs: Calculate the trace of lagrangian and one-electron         !
-!           derivative integrals                                       !
+!   TRACNOrc: Reorder NOs according to Overlap and Diff of the ONs     !
 !                                                                      !
 !======================================================================!
 
@@ -585,4 +579,165 @@
    13 FORMAT('Occup=',F9.6)
    14 FORMAT(I6,1X,F12.6)
 !-----------------------------------------------------------------------
+      END
+
+! TRACKNOrc
+      SUBROUTINE TRACKNOrc(COEF,RO,OVERLAP)
+!     Reorders and phase aligns molecular orbitals between consecutive
+!     time steps using overlap and occupation continuity, while
+!     providing diagnostics of orbital mixing.
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
+      COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      DOUBLE PRECISION,DIMENSION(NBF5) :: RO
+      DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,OVERLAP
+      DOUBLE PRECISION, SAVE, ALLOCATABLE :: C_PREV(:,:), OCC_PREV(:)
+      LOGICAL, SAVE :: FIRST
+      DATA FIRST /.TRUE./
+!
+      DOUBLE PRECISION C(NBF,NBF), OCC(NBF)
+      DOUBLE PRECISION TMP(NBF,NBF), S_MO(NBF,NBF)
+      DOUBLE PRECISION CNEW(NBF,NBF), OCCNEW(NBF)
+      INTEGER IUSED(NBF), MATCH(NBF)
+!
+      DOUBLE PRECISION ALPHA, SCORE, BEST
+      DOUBLE PRECISION EPS_OCC, MAXOV, SUM_MAXOV, AVG_MAXOV
+      LOGICAL FOUND
+
+      INTEGER I,J,K
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      ALPHA   = 5.0D0
+      EPS_OCC = 0.10D0
+
+! ---- Build OCC vector ----
+      DO I=1,NBF5
+       OCC(I) = 2.0D0*RO(I)
+      ENDDO
+      DO I=NBF5+1,NBF
+       OCC(I) = 0.0D0
+      ENDDO
+
+      C = COEF
+
+! ---- First step ----
+      IF (FIRST) THEN
+       ALLOCATE(C_PREV(NBF,NBF),OCC_PREV(NBF))
+       C_PREV = C
+       OCC_PREV = OCC
+       FIRST = .FALSE.
+       RETURN
+      ENDIF
+
+! ---- TMP = OVERLAP * C ----
+      DO J=1,NBF
+       DO I=1,NBF
+        TMP(I,J)=0.0D0
+        DO K=1,NBF
+         TMP(I,J)=TMP(I,J)+OVERLAP(I,K)*C(K,J)
+        ENDDO
+       ENDDO
+      ENDDO
+
+! ---- S_MO = C_prev^T * TMP ----
+      DO I=1,NBF
+       DO J=1,NBF
+        S_MO(I,J)=0.0D0
+        DO K=1,NBF
+         S_MO(I,J)=S_MO(I,J)+C_PREV(K,I)*TMP(K,J)
+        ENDDO
+       ENDDO
+      ENDDO
+
+! ---- Matching ----
+      DO J=1,NBF
+       IUSED(J)=0
+      ENDDO
+
+      SUM_MAXOV = 0.0D0
+
+      DO I=1,NBF
+
+! ---- Strong mixing diagnostic ----
+       MAXOV = 0.0D0
+       DO J=1,NBF
+        IF (ABS(S_MO(I,J))>MAXOV) MAXOV = ABS(S_MO(I,J))
+       ENDDO
+
+       SUM_MAXOV = SUM_MAXOV + MAXOV
+
+       IF(MAXOV<0.7D0) WRITE(6,*) 'Warning: strong mixing orbital ',I,  &
+                                  ' max overlap = ',MAXOV
+       BEST = -1.0D10
+       MATCH(I) = -1
+       FOUND = .FALSE.
+
+! ---- First pass: enforce occupation similarity ----
+       DO J=1,NBF
+        IF (IUSED(J)==0) THEN
+         IF (ABS(OCC_PREV(I)-OCC(J))<EPS_OCC) THEN
+          FOUND = .TRUE.
+          SCORE = ABS(S_MO(I,J)) - ALPHA*ABS(OCC_PREV(I)-OCC(J))
+          IF (SCORE>BEST) THEN
+           BEST = SCORE
+           MATCH(I) = J
+          ENDIF
+         ENDIF
+        ENDIF
+       ENDDO
+
+! ---- Fallback: no match within epsilon ----
+       IF (.NOT.FOUND) THEN
+        DO J=1,NBF
+         IF (IUSED(J)==0) THEN
+          SCORE = ABS(S_MO(I,J))
+          IF (SCORE>BEST) THEN
+           BEST = SCORE
+           MATCH(I) = J
+          ENDIF
+         ENDIF
+        ENDDO
+       ENDIF
+
+       IUSED(MATCH(I)) = 1
+
+      ENDDO
+
+!   ---- Global mixing indicator ----
+!        ~ 1.0 very smooth evolution
+!        0.8–0.9 mild mixing
+!        < 0.7 strong mixing regime
+
+      AVG_MAXOV = SUM_MAXOV / DBLE(NBF)
+
+      WRITE(6,'(A35,F11.6)')'Global mixing indicator <max|S|> =',       &
+                             AVG_MAXOV
+
+! ---- Reorder + phase ----
+      DO I=1,NBF
+       DO K=1,NBF
+        CNEW(K,I) = C(K,MATCH(I))
+       ENDDO
+
+       OCCNEW(I) = OCC(MATCH(I))
+
+       IF (S_MO(I,MATCH(I))<0.0D0) THEN
+        DO K=1,NBF
+         CNEW(K,I) = -CNEW(K,I)
+        ENDDO
+       ENDIF
+      ENDDO
+
+! ---- Copy back ----
+      COEF = CNEW
+
+! ---- Update RO ----
+      DO I=1,NBF5
+       RO(I) = OCCNEW(I)/2.0D0
+      ENDDO
+
+! ---- Update previous ----
+      C_PREV = CNEW
+      OCC_PREV = OCCNEW
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      RETURN
       END

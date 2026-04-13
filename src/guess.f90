@@ -16,7 +16,7 @@
                              NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm,     &
                              NINTEGt,NREC,XINTS,NSH2,IDONTW,INPUTC,     &
                              IPRINTOPT,ZAN,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
-                             IGTYP)
+                             IGTYP,KTYPEaux,NSHELLaux)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)                                
 !
       COMMON/USELIBCINT/ILIBCINT
@@ -29,9 +29,10 @@
       COMMON/INTOPT/CUTOFF,ISCHWZ,IECP,NECP
 !      
       INTEGER :: NPRIMI,NSHELL,NAT,NBF,NSQ,NBFT,NINTEGtm,NINTEGAUXtm
-      INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT
+      INTEGER :: NINTEGt,NREC,IDONTW,INPUTC,IPRINTOPT,NSHELLaux
       INTEGER(8),DIMENSION(NINTEGtm) :: IXInteg      
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KNG,KLOC,KMIN,KMAX
+      INTEGER,DIMENSION(NSHELLaux) :: KTYPEaux
       DOUBLE PRECISION,DIMENSION(NPRIMI) :: EX,CS,CP,CD,CF,CG,CH,CI
       DOUBLE PRECISION,DIMENSION(NAT) :: ZAN
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz                                                         
@@ -112,7 +113,7 @@
         CALL JandKauxl(XIntegaux,NINTEGAUXtm,IDONTW,IPRINTOPT,NBF,      &
                        EX,CS,CP,CD,CF,CG,CH,CI,NPRIMI,KSTART,KATOM,     &
                        KTYPE,KNG,KLOC,KMIN,KMAX,NSHELL,Cxyz,NAT,        &
-                       SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+                       SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux)
        end if
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
