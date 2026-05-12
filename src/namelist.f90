@@ -33,9 +33,9 @@
       COMMON/USEHUBBARD/IHUB
       LOGICAL DONTW,USELIB,USEHUB,HSSCAL,PROJECT
       DOUBLE PRECISION,DIMENSION(3) :: EVEC
-      CHARACTER(6) :: RUNTYP,ENERGY,GRAD,OPTGEO,HESS,DYN
+      CHARACTER(6) :: RUNTYP,ENERGY,GRAD,OPTGEO,HESS,DYN,TSOPT
       DATA ENERGY,GRAD,OPTGEO/'ENERGY','GRAD  ','OPTGEO'/
-      DATA HESS,DYN/'HESS  ','DYN   '/
+      DATA HESS,DYN,TSOPT/'HESS  ','DYN   ','TSOPT '/
       CHARACTER(8) :: ANGS,BOHR
       DATA ANGS, BOHR /'ANGS    ','BOHR    '/
       CHARACTER(4) :: ERITYP,FULL,RI,MIX
@@ -55,7 +55,8 @@
 !       = GRAD     2)energy + gradients with respect to nuclear coord
 !       = OPTGEO   3)optimize the molecular geometry
 !       = HESS     4)compute numerical hessian from analytic gradients
-!       = DYN      5)run Born-Oppenheimer on-the-fly molecular dynamics
+!       = DYN      6)run Born-Oppenheimer on-the-fly molecular dynamics
+!       = TSOPT    5)search a first-order saddle point (transition state)
 !
 ! MULT             Multiplicity of the electronic state
 !       = 1        singlet (Default)
@@ -232,6 +233,8 @@
       ELSE IF(RUNTYP==HESS)THEN
         IRUNTYP = 4
       ELSE IF(RUNTYP==DYN)THEN
+        IRUNTYP = 6
+      ELSE IF(RUNTYP==TSOPT)THEN
         IRUNTYP = 5
       END IF
       ITYPRUN = IRUNTYP
@@ -392,10 +395,6 @@
         WRITE(6,42)NLOP
         CALL ABRT
       END IF
-      IF(IERITYP==2 .and. IDONTW==0)THEN   ! IDONTW=1 with ERITYP=RI
-        WRITE(6,5)
-        CALL ABRT
-      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ICH = ICHARG                                                      
       MUL = MULT
@@ -456,6 +455,7 @@
       COMMON/INPNOF_EINI/IEINI
       COMMON/INPNOF_EKT/IEKT
       COMMON/INPNOF_MOLDEN/MOLDEN
+      COMMON/INPNOF_MOLDENGEO/MOLDENGEO
       COMMON/INPNOF_INICON/INICOND
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM      
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK      
@@ -606,7 +606,7 @@
 !
 !.......... NTHRESHEN           Convergence of the total energy (OccOpt)
 !                               THRESHEN=10.0**(-NTHRESHEN)
-!                      = 10     (Default)
+!                      = 8      (Default)
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ! Options for the Orbital Optimization Program (ID Method)
@@ -792,6 +792,12 @@
 !                      = 0      Don't write 
 !                      = 1      Write into MLD file (Default)
 !
+!.......... MOLDENGEO           Save one Molden snapshot per geometry
+!                               visited in OPTGEO/TSOPT as
+!                               snapshot-####.mld
+!                      = 0      Don't write (Default)
+!                      = 1      Write snapshots
+!
 !.......... INICOND             Create initial conditions file (UNIT 33)
 !                               according to normal modes with equil.
 !                               geometry & ZPE velocities in Ang/fs
@@ -893,7 +899,8 @@
                       EXTRAP,ERPA,OIMP2,NO1PT2,SC2MCPT,NEX,             &
                       RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,NPRINT,      &
                       INPUTCXYZ,IWRITEC,IMULPOP,MBPT,PRINTLAG,DIAGLAG,  &
-                      IEKT,IAIMPAC,IFCHK,MOLDEN,INICOND,NOUTRDM,        &
+                      IEKT,IAIMPAC,IFCHK,MOLDEN,MOLDENGEO,INICOND,      &
+                      NOUTRDM,                                          &
                       NTHRESHDM,NSQT,NOUTCJK,NTHRESHCJK,NOUTTijab,      &
                       NTHRESHTijab,APSG,NTHAPSG,ORTHO,CHKORTHO,FROZEN,  &
                       IFROZEN,ICGMETHOD,NESt,OMEGA1,LR,FACT,BETA1,BETA2
@@ -930,7 +937,7 @@
       NTHRESHL=4
       NTHRESHE=8
       NTHRESHEC=8
-      NTHRESHEN=10
+      NTHRESHEN=8
       MAXLOOP=10                  ! ADAM Method (IRHF=2)
 !     MAXLOOP=30                  ! ID Method   (IRHF=3)
 
@@ -976,6 +983,7 @@
       IAIMPAC=0
       IFCHK=1
       MOLDEN=1
+      MOLDENGEO=0
       INICOND=1
 !
       NOUTRDM=0
@@ -1040,7 +1048,7 @@
             NZEROSm = NTHRESHL + 2
           end if
         ELSE                  ! RESTART=F
-          if(IRUNTYP/=5)then
+          if(IRUNTYP/=6)then
             if(NTHRESHL>3)then
               NTHRESHL=3
               WRITE(6,'(/1X,79A/)')'Beware of high NTHRESHL with RESTART=F, NTHRESHL has been reduced to 3 !!!'
@@ -1065,6 +1073,15 @@
        NTHRESHEC = 8
        WRITE(6,'(/1X,57A/)')                                            &
         'NTHRESHEC is very small so it has been increased to 8 !!!'
+      END IF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     In dynamics, use a tighter electronic energy threshold by default
+!     but do not override an explicit user choice.
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IRUNTYP==6 .AND. NTHRESHE==8)THEN
+       NTHRESHE = 10
+       WRITE(6,'(/1X,68A/)')                                            &
+        '!DYN: Default NTHRESHE has been increased to 10 for dynamics'
       END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Convergence Criteria
@@ -1101,6 +1118,18 @@
         NOUTTijab = 0
         WRITE(6,'(/,1X,38A,/)')'!OPTGEO: OIMP2 has been set equal FALSE'
        end if
+       if(MOLDENGEO==1 .and. MOLDEN==0)then
+        MOLDEN = 1
+        WRITE(6,'(/,1X,52A,/)')                                      &
+        '!OPTGEO: MOLDEN has been set equal 1 because MOLDENGEO=1'
+       end if
+      ENDIF
+      IF(IRUNTYP==5)THEN
+       if(MOLDENGEO==1 .and. MOLDEN==0)then
+        MOLDEN = 1
+        WRITE(6,'(/,1X,51A,/)')                                      &
+        '!TSOPT: MOLDEN has been set equal 1 because MOLDENGEO=1'
+       end if
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Mandatory Options with RUNTYP=HESS
@@ -1114,7 +1143,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Mandatory Options with RUNTYP=DYN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      IF(IRUNTYP==5)THEN
+      IF(IRUNTYP==6)THEN
        if(IRHF>0)then
         IRHF = 0
         WRITE(6,'(/,1X,33A,/)')'!DYN: IRHF has been set equal 0'
@@ -1134,6 +1163,7 @@
        WRITE(6,'(  1X,38A,/)')'!INPUTGAMMA=1, INPUTC=1'
        IAIMPAC=0
        MOLDEN=0
+       MOLDENGEO=0
        INICOND=0
        IFCHK=0
       ENDIF
@@ -1194,6 +1224,15 @@
         ENDIF
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     STOP if Imod /= 0,1 for GNOF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IPNOF==8)THEN
+        IF(.not.(Imod==0 .or. Imod==1))THEN
+          WRITE(6,*)'STOP: Imod must be 0 or 1 for GNOF'
+          CALL ABRT
+        ENDIF
+      ENDIF
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Forced options if Hubbard model is used
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(IHUB==1)THEN
@@ -1231,13 +1270,16 @@
       END
 
 ! NAMELIST_DYNINP                                                     
-      SUBROUTINE NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,ngcf)
+      SUBROUTINE NAMELIST_DYNINP(nat,resflag,velflag,dt,tmax,integrator)
        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-       INTEGER :: nat,ngcf
-       CHARACTER(LEN=1) :: resflag,velflag,snapshot
-       DOUBLE PRECISION :: dt,tmax,Vxyz
+       INTEGER :: nat
+       CHARACTER(LEN=1) :: resflag,velflag,snapshot,energybound
+       CHARACTER(LEN=6) :: integrator
+       DOUBLE PRECISION :: dt,tmax,Vxyz,jumptol
        COMMON/INPDYN_VELOCITY/Vxyz(3,100)
        COMMON/INPDYN_NSHOT/snapshot
+       COMMON/INPDYN_EVENTTOL/jumptol
+       COMMON/INPDYN_ENERGYBOUND/energybound
 !----------------------------------------------------------------------!
 !                   --- DYNINP NAMELIST VARIABLES ---                  !
 !----------------------------------------------------------------------!
@@ -1251,9 +1293,6 @@
 !...... tmax                  Propagation time in fs
 !                      = 100  (Default)
 !                             
-!...... ngcf                  number of GCF files to use in calculation
-!                      = 1    (Default)
-!
 !...... Vxyz           = 0.0  Initial velocities per atom
 !
 !...... resflag               Restart MD calculation
@@ -1261,19 +1300,34 @@
 !
 !...... snapshot              Save MLD file in snapshot-t.mld
 !                      = F    (Default)
-!                             
+!
+!...... jumptol               Minimum potential-energy jump treated as
+!                             a real event requiring velocity rescaling
+!                   = 1.0d-4 (Default)
+!
+!...... energybound           Enable velocity rescaling / event guard
+!                      = T    (Default)
+!                      = F
+!
+!...... integrator            Integrator used in BO-MD propagation
+!                   = BEEVER  (Default)
+!                   = VERLET
+!
 !-----------------------------------------------------------------------
-      NAMELIST/INPDYN/velflag,dt,tmax,ngcf,Vxyz,resflag,snapshot
+      NAMELIST/INPDYN/velflag,dt,tmax,Vxyz,resflag,snapshot,            &
+                      jumptol,energybound,integrator
 !-----------------------------------------------------------------------
 !     Preset values to namelist variables
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       velflag = 'F'
       dt = 1.0d0    
       tmax = 100.0d0  
-      ngcf = 1 
       Vxyz = 0.0d0
       resflag = 'F'
       snapshot = 'F'
+      jumptol = 1.0d-4
+      energybound = 'T'
+      integrator = 'BEEVER'
 !-----------------------------------------------------------------------
 !                            Read Namelist
 !-----------------------------------------------------------------------
@@ -1284,6 +1338,25 @@
       REWIND(5)
 #endif
       READ(5,INPDYN,ERR=1,END=1)
+      if(energybound == 't') energybound = 'T'
+      if(energybound == 'f') energybound = 'F'
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!     Validate integrator option
+!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      SELECT CASE(energybound)
+      CASE('T','F')
+       CONTINUE
+      CASE DEFAULT
+       WRITE(6,18)energybound
+       STOP
+      END SELECT
+      SELECT CASE(integrator)
+      CASE('BEEVER','VERLET')
+       CONTINUE
+      CASE DEFAULT
+       WRITE(6,19)integrator
+       STOP
+      END SELECT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !               Write NAMELIST parameters on the Output file
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1295,7 +1368,6 @@
       endif
       WRITE(6,8)dt 
       WRITE(6,9)tmax 
-      WRITE(6,10)ngcf
       if (resflag == 'F') then
        do i=1,nat
         do j=1,3
@@ -1313,6 +1385,13 @@
       else
        WRITE(6,13)      
       endif
+      WRITE(6,14)jumptol
+      if(energybound == 'T')then
+       WRITE(6,15)
+      else
+       WRITE(6,16)
+      endif
+      WRITE(6,17)integrator
 !      
       RETURN
 !-----------------------------------------------------------------------
@@ -1334,13 +1413,27 @@
     5 FORMAT( ' Restart MD calculation:               (resflag)',9X,'F')    
     6 FORMAT( ' Flag constant velocity dynamics:      (velflag)',9X,'T')
     7 FORMAT( ' Flag constant velocity dynamics:      (velflag)',9X,'F') 
-    8 FORMAT( ' Time step in fs:                           (dt)',5X,F5.2) 
+    8 FORMAT( ' Time step in fs:                           (dt)',5X,    &
+                                                                   F5.2)
     9 FORMAT( ' Propagation time in fs:                  (tmax)',F10.2)    
-   10 FORMAT( ' Number of GCF files in calculation:      (ngcf)',5X,I5)    
    11 FORMAT( ' Initial velocities per atom:',8X,'Vxyz(',I2,',',I2,')', &
                                                              4X,F6.3)
    12 FORMAT( ' Save MLD file in snapshot-t.mld:     (snapshot)',9X,'T')
    13 FORMAT( ' Save MLD file in snapshot-t.mld:     (snapshot)',9X,'F')
+   14 FORMAT( ' Real-event jump threshold:            (jumptol)',ES10.1)
+   15 FORMAT( ' Enforce energy bound:             (energybound)',9X,'T')
+   16 FORMAT( ' Enforce energy bound:             (energybound)',9X,'F')
+   17 FORMAT( ' Integrator for BO-MD:              (integrator)',4X,A6)
+   18 FORMAT(/2X,'**********************************************'       &
+             /2X,'*                                            *'       &
+             /2X,'* SORRY, UNKNOWN ENERGYBOUND FLAG = ',A1,'         *' &
+             /2X,'*                                            *'       &
+             /2X,'**********************************************')
+   19 FORMAT(/2X,'**********************************************'       &
+             /2X,'*                                            *'       &
+             /2X,'* SORRY, UNKNOWN DYN INTEGRATOR = ',A6,' *'           &
+             /2X,'*                                            *'       &
+             /2X,'**********************************************')
 !-----------------------------------------------------------------------
       END
 

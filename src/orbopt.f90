@@ -125,7 +125,7 @@
 !     First Call to OrbOptFMIUGr
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(ITCALL==1)THEN
-       IF(IRUNTYP==3.or.IRUNTYP==4.or.IRUNTYP==5)NZEROS=NZEROSr
+       IF(IRUNTYP==3.or.IRUNTYP==4.or.IRUNTYP==6)NZEROS=NZEROSr
        IF(IPRINTOPT==1)WRITE(6,1)
        EELEC_OLD  = EELEC
        SUMDIF_OLD = 0.0d0

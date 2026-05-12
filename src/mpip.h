@@ -23,7 +23,7 @@
 !                                                                      !
 !                        Date: December 2020                           !
 !                                                                      !
-!            04/26/13 MPI module developed by Eduard Matito            !
+!             04/26/13 MPI module base by Eduard Matito                !
 !                                                                      !
 !======================================================================*
 

@@ -26,6 +26,7 @@
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/INPNOF_COEFOPT/MAXLOOP
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
@@ -153,7 +154,11 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       NINTMX = NINTMXn
       NIJKL  = NINTEGt
-      NIJKaux  = NINTEGAUXtm
+      IF(IDONTW==0 .and. (IERITYP==2 .or. IERITYP==3))THEN
+       NIJKaux = NBFT*NBFaux
+      ELSE
+       NIJKaux = NINTEGAUXtm
+      END IF
       CALL DISTRIBUTION(IPRINTOPT,IDONTW)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Read two-electron Repulsion Integrals in AO basis (ERI)
@@ -162,7 +167,7 @@
       IF(IERITYP==1) THEN
        CALL READERIs(IJKL,XIJKL,IX2,BUFP2,NINTEGt,IDONTW,NREC)
       ELSE IF(IERITYP==2 .or. IERITYP==3) THEN
-       CALL READERIsAUX(XIJKaux,BUFP2aux,NINTEGAUXtm)
+       CALL READERIsAUX(XIJKaux,BUFP2aux,NINTEGAUXtm,IDONTW)
       END IF   
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Allocate User array
@@ -375,7 +380,7 @@
 !     STOP PROGRAM, DEALLOCATE MEMORY, GIVES ELAPSED TIME if IT > MAXIT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    10 CONTINUE 
-      IF(IRUNTYP==5.and.ICOEFori==21)ICOEF=21
+      IF(IRUNTYP==6.and.ICOEFori==21)ICOEF=21
       DEALLOCATE(COEF,ATMNAME,LIMLOW,LIMSUP,XATOM,YATOM,ZATOM)
       DEALLOCATE(GAMMA,FMIUG0,ELAG,ELAGN,RON,USER,COEFN)
       DEALLOCATE(IJKL,XIJKL,XIJKaux)
@@ -1138,7 +1143,7 @@
       END
 
 ! READERIsAUX
-      SUBROUTINE READERIsAUX(ERIaux,BUFP2aux,NINTEGAUXtm)
+      SUBROUTINE READERIsAUX(ERIaux,BUFP2aux,NINTEGAUXtm,IDONTW)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
       LOGICAL ERIACTIVATED       
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -1147,8 +1152,14 @@
       COMMON/INPFILE_NIJKL/NINTMX,NIJKL,NINTCR,NSTORE
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
 #include "mpip.h"
+      INTEGER :: IDONTW
       DOUBLE PRECISION,DIMENSION(NINTEGAUXtm) :: BUFP2aux
       DOUBLE PRECISION,DIMENSION(NSTOREaux) :: ERIaux
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ERIAUXFULL
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: BLOCKBUF
+      INTEGER,ALLOCATABLE,DIMENSION(:) :: ROWIDX
+      INTEGER :: NROWS,ROW,K,JJ,NSIZE,L_PER_PROC,IEXTRAS
+      INTEGER, PARAMETER :: RIUNIT = 1
 !-----------------------------------------------------------------------
 !     NINTMX: Total Number of 2e-integrals per record (15000)
 !     NIJKL:  Total Number of 2e-integrals
@@ -1157,6 +1168,28 @@
 !     NINTCR: Dimension of ERIs in Slaves
 !-----------------------------------------------------------------------
       INTTYPE = 2
+      IF(IDONTW==0)THEN
+       ALLOCATE(ERIAUXFULL(NIJKaux))
+       ERIAUXFULL = 0.0D0
+       OPEN(RIUNIT,FILE='ERI',STATUS='OLD',FORM='UNFORMATTED',          &
+            ACCESS='SEQUENTIAL')
+       REWIND(RIUNIT)
+   10  CONTINUE
+       READ(RIUNIT)NROWS
+       IF(NROWS==0)GOTO 20
+       ALLOCATE(ROWIDX(NROWS),BLOCKBUF(NBFaux,NROWS))
+       READ(RIUNIT)ROWIDX
+       READ(RIUNIT)BLOCKBUF
+       DO ROW=1,NROWS
+        DO K=1,NBFaux
+         ERIAUXFULL(ROWIDX(ROW)+(K-1)*NBFT) = BLOCKBUF(K,ROW)
+        END DO
+       END DO
+       DEALLOCATE(ROWIDX,BLOCKBUF)
+       GOTO 10
+   20  CONTINUE
+       CLOSE(RIUNIT)
+      END IF
 #ifdef MPI
       IF(ERIACTIVATED) THEN
         DO I=1,NPROCS-1
@@ -1190,14 +1223,29 @@
          IEXTRAS = IEXTRAS - 1
         END IF
         NINTCRaux = NSIZE*NBF*(NBF+1)/2
-        CALL MPI_SEND(BUFP2aux(JJ),NINTCRaux,MPI_REAL8,I,I,             &
-                      MPI_COMM_WORLD,IERR)
+        IF(IDONTW==0)THEN
+         CALL MPI_SEND(ERIAUXFULL(JJ),NINTCRaux,MPI_REAL8,I,I,          &
+                       MPI_COMM_WORLD,IERR)
+        ELSE
+         CALL MPI_SEND(BUFP2aux(JJ),NINTCRaux,MPI_REAL8,I,I,            &
+                       MPI_COMM_WORLD,IERR)
+        END IF
         JJ = JJ + NINTCRaux
       END DO
-      ERIaux = BUFP2aux(JJ:)
+      IF(IDONTW==0)THEN
+       ERIaux = ERIAUXFULL(JJ:)
+       DEALLOCATE(ERIAUXFULL)
+      ELSE
+       ERIaux = BUFP2aux(JJ:)
+      END IF
       ERIACTIVATED = .TRUE.       
 #else
-      ERIaux = BUFP2aux
+      IF(IDONTW==0)THEN
+       ERIaux = ERIAUXFULL
+       DEALLOCATE(ERIAUXFULL)
+      ELSE
+       ERIaux = BUFP2aux
+      END IF
 #endif
 !-----------------------------------------------------------------------
       RETURN
@@ -1833,10 +1881,18 @@
                    USER(N16),USER(N17),1) 
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!     Write RO,COEF,E,FMIUG0 on GCF file
+!     Write RO,COEF,E,FMIUG0 on restart files.
+!     For TSOPT (IRUNTYP=5), GCFe stores the last accepted point and
+!     is promoted to GCF at the end of the optimization.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if(IWRTGCF==1)then
-       IF(IRUNTYP<5)THEN
+       IF(IRUNTYP==5)THEN
+        IF(CONVGDELAG.and.ICOEF/=0)THEN
+         CALL WRITEGCFr(8,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,  &
+                        EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,       &
+                        CX0,CY0,CZ0,NATOMS,1)
+        END IF
+       ELSE IF(IRUNTYP/=6)THEN
         CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
                        EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,        &
                        CX0,CY0,CZ0,NATOMS,1) 
@@ -1846,11 +1902,10 @@
                         CX0,CY0,CZ0,NATOMS,1)
          EELEC_MIN = EELEC
         ENDIF
-       ELSE IF(IRUNTYP==5)THEN
-        CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
+       ELSE IF(IRUNTYP==6)THEN
+       CALL WRITEGCFr(3,USER(N1),SUMS,COEF,E,FMIUG0,NSQ,NBF,NBF5,IT,   &
                        EELEC,EN,NO1,NDOC,NSOC,NCWO,NAC,NO0,ZNUC,        &
-                       CX0,CY0,CZ0,NATOMS,1)                        
-!                      CX0,CY0,CZ0,NATOMS,0) !Don't write RO on GCF file
+                       CX0,CY0,CZ0,NATOMS,1)
        END IF
       end if
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -4119,8 +4174,6 @@
 !          ( Phys. Rev. Lett. 127, 233001, 2021 )                      !
 !          Define the coefficientes in front J,K,L integrals for GNOFm !
 !          ( Phys. Rev. Lett. 134, 206401, 2025 )                      !
-!          Define the coefficientes in front J,K,L integrals for GNOFs !
-!          ( In Progress                        )                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - !
 
 ! CJCKD3 = PNOF3 + pairing conditions
@@ -4944,14 +4997,14 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      FIs = (Np*Hp)^1/2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - -
-       DO j=NO1+1,NBF5
-        FIs(j) = DSQRT( RO(j)*(1.0d0-RO(j)) )
-        if(FIs(j)>0.0d0)then
-         do k=1,nv
-          DFIs(j,k) = (0.5d0-RO(j))*DR(j,k)/FIs(j)
-         enddo
-        endif
-       ENDDO
+      DO j=NO1+1,NBF5
+       FIs(j) = DSQRT( RO(j)*(1.0d0-RO(j)) )
+       if(FIs(j)>0.0d0)then
+        do k=1,nv
+         DFIs(j,k) = (0.5d0-RO(j))*DR(j,k)/FIs(j)
+        enddo
+       endif
+      ENDDO
 !-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 !                  - Interpair Electron Correlation -
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -5662,7 +5715,7 @@
       DOUBLE PRECISION,PARAMETER::BOHR = 0.52917724924D+00
 !-----------------------------------------------------------------------
       REWIND(NFILE)
-      if(IWRTRO==0)then  ! Don't write RO if RUNTYP=DYN (IRUNTYP==5)
+      if(IWRTRO==0)then  ! Don't write RO if RUNTYP=DYN (IRUNTYP==6)
        DO I=1,NBF5
         READ(NFILE,'(I6,F30.16)')II,RRII
        ENDDO
@@ -5693,6 +5746,7 @@
        WRITE(NFILE,'(I6,3F30.16)')INT(ZNUC(I)),                         &
                                   BOHR*CX0(I),BOHR*CY0(I),BOHR*CZ0(I)
       ENDDO
+      FLUSH(NFILE)
 !-----------------------------------------------------------------------
       RETURN
       END
@@ -5769,9 +5823,12 @@
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyyz,AOCTxzz
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::AOCTyzz,AOCTxyz
       DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEFN,AHCORE
+      DOUBLE PRECISION,DIMENSION(NBF,NBF)::COEFMOLD,COEFNMOLD
       DOUBLE PRECISION,DIMENSION(NBF,NBF,NBF)::QD
       DOUBLE PRECISION,DIMENSION(NIJKL)::XIJKL
       DOUBLE PRECISION,DIMENSION(3):: DIPS
+      DOUBLE PRECISION,DIMENSION(NBF5)::ROMOLD
+      DOUBLE PRECISION,DIMENSION(NBF)::RONMOLD
 !      
       DOUBLE PRECISION,PARAMETER::DFAC=2.54174D0    ! Debye
       DOUBLE PRECISION,PARAMETER::QFAC=1.345044D0   ! Buckinham
@@ -5944,19 +6001,25 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END IF
 !-----------------------------------------------------------------------
-      IF(IPRINTOPT==1.or.IRUNTYP==3)THEN
+      IF(IPRINTOPT==1.or.IRUNTYP==3.or.IRUNTYP==5)THEN
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      Write information into a file in Molden Format (MLD) [Unit=17]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(MOLDEN==1.and.MSpin==0)THEN
         if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         IF(IRUNTYP==5)CALL TRACKNOrc(COEFN,RON,OVERLAP) ! Reorder MOs
+         COEFNMOLD = COEFN
+         RONMOLD = RON
+         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)                      &
+     &      CALL TRACKNOrc(COEFNMOLD,RONMOLD,OVERLAP) ! Visual tracking only
          CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,RON,ELAGN,COEFN)
+                       ISH,ITYP,EX1,C1,C2,RONMOLD,ELAGN,COEFNMOLD)
         else                           ! Natural Orbitals
-         IF(IRUNTYP==5)CALL TRACKNOrc(COEF,RO,OVERLAP)   ! Reorder MOs
+         COEFMOLD = COEF
+         ROMOLD = RO
+         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)                      &
+     &      CALL TRACKNOrc(COEFMOLD,ROMOLD,OVERLAP) ! Visual tracking only
          CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,RO,E,COEF)
+                       ISH,ITYP,EX1,C1,C2,ROMOLD,E,COEFMOLD)
         endif
        END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
