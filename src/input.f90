@@ -711,7 +711,7 @@
          CG(K) = CGINP(K)                                               
          CH(K) = CHINP(K)                                               
          CI(K) = CIINP(K)
-!        Store unnormalized coefficients for libint
+!        Store unnormalized coefficients for libcint
          IF(ILIBCINT==1) CINP(K) = C1
         END DO
        END IF

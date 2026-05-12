@@ -2,10 +2,8 @@
 !                                                                      !
 !                    E R P A   S U B R O U T I N E S                   !
 !                                                                      !
-!             2024  Module implemented by J.F.H. Lew-Yee,              !
-!          I.A. Bonfil-Rivera, M. Piris, J. Martin del Campo           !
-!                                                                      !
-!            J. Chem. Theory Comput. 20(5), 2140–2151 (2024)           !
+! 2024  Module base by J.F.H. Lew-Yee, I.A. Bonfil-Rivera, J.M. Campo  !
+!       ( J. Chem. Theory Comput. 20, 2140, 2024 )                     !
 !                                                                      !
 !======================================================================!
 !                                                                      !
@@ -630,7 +628,7 @@
 
       IF(IPNOF.NE.5 .AND. IPNOF.NE.7 .AND. IPNOF.NE.8) THEN
         WRITE(*,*) "ERROR in ERPA: Compute_2RDM Subroutine has been     &
-                coded only for PNOF5, PNOF7, GNOF, GNOFm and GNOFs"
+                coded only for PNOF5, PNOF7, GNOF and GNOFm"
       END IF
 
       Daa(1:NBF5,1:NBF5,1:NBF5,1:NBF5) = 0.0D0
@@ -894,4 +892,3 @@
 !----------------------------------------------------------------------!
 
       END
-

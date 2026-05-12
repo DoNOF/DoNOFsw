@@ -184,7 +184,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Debut
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
+      CALL Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT,1)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Schwarz inequality
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -247,7 +247,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Debut
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      CALL Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
+      CALL Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT,2)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e integrals
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -258,11 +258,11 @@
 !
       ALLOCATE(Gaux(MAXG))
       IF(.NOT.SMCD) THEN
-       CALL AuxERIl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,            &
+       CALL AuxERIl(NINTEGtm,BUFP2,NBF,IDONTW,IPRINTOPT,NSHELL,NAT,     &
                     SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       ELSE IF(SMCD) THEN
-       CALL AuxERIModCholl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,     &
-                           SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+       CALL AuxERIModCholl(NINTEGtm,BUFP2,NBF,IDONTW,IPRINTOPT,NSHELL,  &
+                           NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       END IF
       DEALLOCATE(Gaux)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -276,10 +276,11 @@
       END
 
 ! Debutl
-      SUBROUTINE Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT)
+      SUBROUTINE Debutl(IDONTW,IPRINTOPT,KATOM,NSHELL,Cxyz,NINTMX,NAT,   &
+                        ISTORAGE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER :: NINTMX, NAT
-      INTEGER :: IDONTW,IPRINTOPT,NSHELL,I,NBYTES,ICC
+      INTEGER :: IDONTW,IPRINTOPT,NSHELL,I,NBYTES,ICC,ISTORAGE
       INTEGER,DIMENSION(NSHELL) :: KATOM
       DOUBLE PRECISION,DIMENSION(3,NAT) :: Cxyz
       DOUBLE PRECISION,DIMENSION(NSHELL,3) :: CO
@@ -289,9 +290,15 @@
       IF(IPRINTOPT==1)WRITE(6,10)
       NBYTES = 16
       IF(IDONTW==1)THEN
-       IF(IPRINTOPT==1)WRITE(6,20)
+       IF(IPRINTOPT==1)THEN
+        IF(ISTORAGE==1)WRITE(6,20)
+        IF(ISTORAGE==2)WRITE(6,21)
+       END IF
       ELSE
-       IF(IPRINTOPT==1)WRITE(6,30)NINTMX,NBYTES
+       IF(IPRINTOPT==1)THEN
+        IF(ISTORAGE==1)WRITE(6,30)NINTMX,NBYTES
+        IF(ISTORAGE==2)WRITE(6,31)
+       END IF
        REWIND(1)
       END IF
       DO I=1,NSHELL
@@ -305,8 +312,10 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    10 FORMAT(/1X,'2e- integrals'/1X,13(1H-))
    20 FORMAT(' DONTW option skips storage 2e- integrals on Unit 1')
+   21 FORMAT(' DONTW option skips storage RI b tensor on Unit 1')
    30 FORMAT(' Storing',I8,' integrals/record on disk, using',I3,       &
              ' Bytes/integral')
+   31 FORMAT(' Storing RI b tensor blocks on disk, using Unit 1')
 !-----------------------------------------------------------------------
       RETURN
       END SUBROUTINE
@@ -331,9 +340,9 @@
 !      2013 Four-index transformation of the electron repulsion        !
 !           integrals was parallelized by Eduard Matito                !
 !                                                                      !
-!          04/26/2013 module developed by Eduard Matito                !
+!          04/26/2013 module base by Eduard Matito                     !
 !          06/28/2017 module modified by Ion Mitxelena                 !
-!          11/15/2020 module modified by Juan Felipe Huan Lew Yee      !                    
+!          11/15/2020 module modified by J. F. H. Lew-Yee              !
 !                                                                      !
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 !                                                                      !
@@ -1140,9 +1149,8 @@
 
 !----------------------------------------------------------------------!
 !                                                                      !
-!       2025 Use LIBCINT open source library for ERI calculation       !
-!                                                                      !
-!  implemented by Juan Felipe Huan Lew Yee and Jorge Martin del Campo  !
+!       2025 Module base by J. F. H. Lew-Yee and J. M. del Campo       !
+!            Use LIBCINT open source library for ERI calculation       !
 !                                                                      !
 !----------------------------------------------------------------------!
 
@@ -1908,10 +1916,8 @@
 
 !----------------------------------------------------------------------!
 !                                                                      !
-!       2020  RI Approximation for ERIs implemented by                 !
-!             Juan Felipe Huan Lew Yee and Jorge Martin del Campo      !
-!                                                                      !
-!             ( J. Chem. Phys. 154, 064102, 2021 )                     !
+!       2020 Module base by J. F. H. Lew-Yee and J. M. del Campo       !
+!            (RI Approximation for ERIs, JCP 154, 064102, 2021)        !
 !                                                                      !
 !----------------------------------------------------------------------!
 
@@ -2359,11 +2365,11 @@
       END
 
 ! AuxERIl
-      SUBROUTINE AuxERIl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,NAT,       &
+      SUBROUTINE AuxERIl(NINTEGtm,BUFP2,NBF,IDONTW,IPRINTOPT,NSHELL,NAT,&
                          SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
       IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER,INTENT(IN) :: NINTEGtm, NBF, IPRINTOPT, NSHELL, NAT
+      INTEGER,INTENT(IN) :: NINTEGtm, NBF, IDONTW, IPRINTOPT, NSHELL, NAT
       INTEGER,INTENT(IN) :: SIZE_ENV, NBAS, IGTYP
       DOUBLE PRECISION, INTENT(INOUT) :: BUFP2(NINTEGtm)
       DOUBLE PRECISION, INTENT(IN) :: ENV(SIZE_ENV)
@@ -2372,12 +2378,17 @@
       INTEGER :: DI,DJ,DK
       INTEGER(4) :: SHLS(4)
       INTEGER :: NBFaux, NSHELLaux
-      INTEGER :: ISH, JSH, KSH
+      INTEGER :: ISH, JSH, KSH, DJEFF
       INTEGER :: LOC(NSHELL), LOCaux(NSHELLaux)
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: BLOCKBUF(:,:)
+      INTEGER, ALLOCATABLE :: ROWIDX(:)
       INTEGER :: ERR
+      INTEGER :: I, J, K, L, M, N, KK, MN, T, ROW, NROWS
+      INTEGER, PARAMETER :: RIUNIT = 1
+      LOGICAL :: IANDJ
         
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
@@ -2406,7 +2417,7 @@
        DAUXcgto(ISH) = DI
       END DO
 !-----------------------------------------------------------------------
-      BUFP2 = 0.0D0
+      IF(IDONTW==1) BUFP2 = 0.0D0
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Evaluate G = (P|Q) and G^{-1/2}
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2418,48 +2429,105 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
-      !$OMP DO SCHEDULE(DYNAMIC)
-      DO ISH = 1,NSHELL
-       DI = Dcgto(ISH)
-       SHLS(1) = ISH - 1
-       DO JSH = 1,ISH
-        DJ = Dcgto(JSH)
-        SHLS(2) = JSH - 1
-        DO KSH = 1,NSHELLaux
-         DK = DAUXcgto(KSH)
-         SHLS(3) = KSH - 1 + NSHELL
-!- - - - - - - - - - - - - - - - - - - - - - - - - -
-!        (II,JJ//KK)
-!        Compute 2e- Integrals (mn|k)
-!        Select integral code for ERI calculation
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ALLOCATE(BLK(DI,DJ,DK))
-         IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
-         IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        Contract to B tensor
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         CALL QOUT3Cl(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,        &
-                      ISH, JSH, KSH, LOC, LOCaux, NSHELL, NSHELLaux)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         DEALLOCATE(BLK)
+      IF(IDONTW==1)THEN
+       !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
+       !$OMP DO SCHEDULE(DYNAMIC)
+       DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+         DJ = Dcgto(JSH)
+         SHLS(2) = JSH - 1
+         DO KSH = 1,NSHELLaux
+          DK = DAUXcgto(KSH)
+          SHLS(3) = KSH - 1 + NSHELL
+          ALLOCATE(BLK(DI,DJ,DK))
+          IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          CALL QOUT3Cl(BUFP2, GMAT, NBF, NBFaux, BLK, DI, DJ, DK,       &
+                       ISH, JSH, KSH, LOC, LOCaux, NSHELL, NSHELLaux)
+          DEALLOCATE(BLK)
          END DO
+        END DO
        END DO
-      END DO
-      !$OMP END DO
-      !$OMP END PARALLEL
+       !$OMP END DO
+       !$OMP END PARALLEL
+      ELSE
+       OPEN(RIUNIT,FILE='ERI',STATUS='UNKNOWN',FORM='UNFORMATTED',      &
+            ACCESS='SEQUENTIAL')
+       REWIND(RIUNIT)
+       DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+         DJ = Dcgto(JSH)
+         SHLS(2) = JSH - 1
+         IANDJ = ISH == JSH
+         IF(IANDJ)THEN
+          NROWS = DI*(DI+1)/2
+         ELSE
+          NROWS = DI*DJ
+         END IF
+         ALLOCATE(BLOCKBUF(NBFaux,NROWS),ROWIDX(NROWS))
+         BLOCKBUF = 0.0D0
+         ROW = 0
+         DO I = 1,DI
+          DJEFF = MERGE(I,DJ,IANDJ)
+          DO J = 1,DJEFF
+           ROW = ROW + 1
+           M = LOC(ISH) + I - 1
+           N = LOC(JSH) + J - 1
+           IF (M > N) THEN
+            T = M
+            M = N
+            N = T
+           END IF
+           ROWIDX(ROW) = M + N*(N-1)/2
+          END DO
+         END DO
+         DO KSH = 1,NSHELLaux
+          DK = DAUXcgto(KSH)
+          SHLS(3) = KSH - 1 + NSHELL
+          ALLOCATE(BLK(DI,DJ,DK))
+          IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          KK = LOCaux(KSH)
+          ROW = 0
+          DO I = 1,DI
+           DJEFF = MERGE(I,DJ,IANDJ)
+           DO J = 1,DJEFF
+            ROW = ROW + 1
+            DO K = 1,DK
+             DO L = 1,NBFaux
+              BLOCKBUF(L,ROW)=BLOCKBUF(L,ROW)+BLK(I,J,K)*GMAT(KK+K-1,L)
+             END DO
+            END DO
+           END DO
+          END DO
+          DEALLOCATE(BLK)
+         END DO
+         WRITE(RIUNIT)NROWS
+         WRITE(RIUNIT)ROWIDX
+         WRITE(RIUNIT)BLOCKBUF
+         DEALLOCATE(BLOCKBUF,ROWIDX)
+        END DO
+       END DO
+       WRITE(RIUNIT)0
+       CLOSE(RIUNIT)
+      END IF
       DEALLOCATE(GMAT)
 !-----------------------------------------------------------------------
       RETURN
       END
 
 ! AuxERIModCholl
-      SUBROUTINE AuxERIModCholl(NINTEGtm,BUFP2,NBF,IPRINTOPT,NSHELL,    &
-                                NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP)
+      SUBROUTINE AuxERIModCholl(NINTEGtm,BUFP2,NBF,IDONTW,IPRINTOPT,    &
+                                NSHELL,NAT,SIZE_ENV,ENV,ATM,NBAS,BAS,   &
+                                IGTYP)
       IMPLICIT NONE
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
-      INTEGER,INTENT(IN)::NINTEGtm,NBF,IPRINTOPT,NSHELL,NAT,SIZE_ENV,NBAS
+      INTEGER,INTENT(IN)::NINTEGtm,NBF,IDONTW,IPRINTOPT,NSHELL,NAT
+      INTEGER,INTENT(IN)::SIZE_ENV,NBAS
       INTEGER,INTENT(IN)::IGTYP
       DOUBLE PRECISION,INTENT(INOUT) :: BUFP2(NBF*(NBF+1)/2,NBFaux)
       DOUBLE PRECISION,INTENT(IN) :: ENV(SIZE_ENV)
@@ -2474,10 +2542,15 @@
       INTEGER :: Dcgto(NSHELL), DAUXcgto(NSHELLaux)
       INTEGER :: ERR
       INTEGER,ALLOCATABLE :: IPIV(:)
+      INTEGER,ALLOCATABLE :: ROWIDX(:)
       DOUBLE PRECISION,ALLOCATABLE :: E(:)
       DOUBLE PRECISION, ALLOCATABLE :: GMAT(:,:), BUFP(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: L(:,:), D(:,:), P(:,:)
       DOUBLE PRECISION, ALLOCATABLE :: BLK(:,:,:)
+      DOUBLE PRECISION, ALLOCATABLE :: RAWBUF(:,:), BLOCKBUF(:,:)
+      INTEGER :: DJEFF, NROWS, ROW, T, KK
+      INTEGER, PARAMETER :: RIUNIT = 1
+      LOGICAL :: IANDJ
 
       INTEGER, EXTERNAL :: CINTcgto_spheric, cint3c2e_sph
       INTEGER, EXTERNAL :: CINTcgto_cart, cint3c2e_cart
@@ -2508,7 +2581,6 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     Evaluate G = (P|Q), G = PLDL^TP^T, ModChol and get P, L, D^1/2
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      ALLOCATE(BUFP(NBF*(NBF+1)/2,NBFaux))
       ALLOCATE(GMAT(NBFaux,NBFaux))
       ALLOCATE(L(NBFaux,NBFaux),D(NBFaux,NBFaux),P(NBFaux,NBFaux))
       ALLOCATE(E(NBFaux),IPIV(NBFaux))
@@ -2521,59 +2593,122 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !     2e- Integrals (S,P,D,F,G & L Shells)
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
-      !$OMP DO SCHEDULE(DYNAMIC)
-      DO ISH = 1,NSHELL
-       DI = Dcgto(ISH)
-       SHLS(1) = ISH - 1
-       DO JSH = 1,ISH
-        DJ = Dcgto(JSH)
-        SHLS(2) = JSH - 1
-        DO KSH = 1,NSHELLaux
-         DK = DAUXcgto(KSH)
-         SHLS(3) = KSH - 1 + NSHELL
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        (II,JJ//KK)
-!        Compute 2e- Integrals (mn|k)
-!        Select integral code for ERI calculation
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         ALLOCATE(BLK(DI,DJ,DK))
-         IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
-         IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!        Store 3 center ERIs (mn|k)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         CALL QOUT3CModCholl(BUFP,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH,     &
-                             JSH,KSH,LOC,LOCaux,NSHELL,NSHELLaux)
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-         DEALLOCATE(BLK)
+      IF(IDONTW==1)THEN
+       ALLOCATE(BUFP(NBF*(NBF+1)/2,NBFaux))
+       !$OMP PARALLEL PRIVATE(ISH, JSH, KSH, DI, DJ, DK, SHLS, ERR, BLK)
+       !$OMP DO SCHEDULE(DYNAMIC)
+       DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+         DJ = Dcgto(JSH)
+         SHLS(2) = JSH - 1
+         DO KSH = 1,NSHELLaux
+          DK = DAUXcgto(KSH)
+          SHLS(3) = KSH - 1 + NSHELL
+          ALLOCATE(BLK(DI,DJ,DK))
+          IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          CALL QOUT3CModCholl(BUFP,GMAT,NBF,NBFaux,BLK,DI,DJ,DK,ISH,    &
+                              JSH,KSH,LOC,LOCaux,NSHELL,NSHELLaux)
+          DEALLOCATE(BLK)
+         END DO
         END DO
        END DO
-      END DO
-      !$OMP END DO
-      !$OMP END PARALLEL
-!-----------------------------------------------------------------------
-!     Build b tensor, solve linear equation system LD^1/2 b = P^T(k|mn)
-!-----------------------------------------------------------------------
-      BUFP2 = 0.0D0
-      !$OMP PARALLEL DO PRIVATE(I,J,K)
-      DO I=1,NBF*(NBF+1)/2
-       DO J=1,NBFaux
-        DO K=1,NBFaux
-         BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
+       !$OMP END DO
+       !$OMP END PARALLEL
+       BUFP2 = 0.0D0
+       !$OMP PARALLEL DO PRIVATE(I,J,K)
+       DO I=1,NBF*(NBF+1)/2
+        DO J=1,NBFaux
+         DO K=1,NBFaux
+          BUFP2(I,K) = BUFP2(I,K) + BUFP(I,J) * P(J,K)
+         END DO
         END DO
        END DO
-      END DO
-      !$OMP END PARALLEL DO
-      DEALLOCATE(BUFP)
-      DO N=1,NBF
-       DO M=1,N
-        MN = M + N*(N-1)/2
-        CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux),   &
-                    NBFaux,INFO)
-        CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
+       !$OMP END PARALLEL DO
+       DEALLOCATE(BUFP)
+       DO N=1,NBF
+        DO M=1,N
+         MN = M + N*(N-1)/2
+         CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BUFP2(MN,1:NBFaux),  &
+                     NBFaux,INFO)
+         CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BUFP2(MN,1:NBFaux),E)
+        END DO
        END DO
-      END DO
+      ELSE
+       OPEN(RIUNIT,FILE='ERI',STATUS='UNKNOWN',FORM='UNFORMATTED',      &
+            ACCESS='SEQUENTIAL')
+       REWIND(RIUNIT)
+       DO ISH = 1,NSHELL
+        DI = Dcgto(ISH)
+        SHLS(1) = ISH - 1
+        DO JSH = 1,ISH
+         DJ = Dcgto(JSH)
+         SHLS(2) = JSH - 1
+         IANDJ = ISH == JSH
+         IF(IANDJ)THEN
+          NROWS = DI*(DI+1)/2
+         ELSE
+          NROWS = DI*DJ
+         END IF
+         ALLOCATE(RAWBUF(NBFaux,NROWS),BLOCKBUF(NBFaux,NROWS),          &
+                  ROWIDX(NROWS))
+         RAWBUF = 0.0D0
+         BLOCKBUF = 0.0D0
+         ROW = 0
+         DO I = 1,DI
+          DJEFF = MERGE(I,DJ,IANDJ)
+          DO J = 1,DJEFF
+           ROW = ROW + 1
+           M = LOC(ISH) + I - 1
+           N = LOC(JSH) + J - 1
+           IF (M > N) THEN
+            T = M
+            M = N
+            N = T
+           END IF
+           ROWIDX(ROW) = M + N*(N-1)/2
+          END DO
+         END DO
+         DO KSH = 1,NSHELLaux
+          DK = DAUXcgto(KSH)
+          SHLS(3) = KSH - 1 + NSHELL
+          ALLOCATE(BLK(DI,DJ,DK))
+          IF(IGTYP==1)ERR=cint3c2e_cart(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          IF(IGTYP==2)ERR=cint3c2e_sph(BLK,SHLS,ATM,NAT,BAS,NBAS,ENV,0_8)
+          KK = LOCaux(KSH)
+          ROW = 0
+          DO I = 1,DI
+           DJEFF = MERGE(I,DJ,IANDJ)
+           DO J = 1,DJEFF
+            ROW = ROW + 1
+            DO K = 1,DK
+             RAWBUF(KK+K-1,ROW) = BLK(I,J,K)
+            END DO
+           END DO
+          END DO
+          DEALLOCATE(BLK)
+         END DO
+         DO ROW = 1,NROWS
+          DO J = 1,NBFaux
+           DO K = 1,NBFaux
+            BLOCKBUF(K,ROW) = BLOCKBUF(K,ROW) + RAWBUF(J,ROW) * P(J,K)
+           END DO
+          END DO
+          CALL DTRTRS('L','N','U',NBFaux,1,L,NBFaux,BLOCKBUF(1,ROW),    &
+                      NBFaux,INFO)
+          CALL SOLVE_BLOCK_SYSTEM(NBFaux,GMAT,BLOCKBUF(1,ROW),E)
+         END DO
+         WRITE(RIUNIT)NROWS
+         WRITE(RIUNIT)ROWIDX
+         WRITE(RIUNIT)BLOCKBUF
+         DEALLOCATE(RAWBUF,BLOCKBUF,ROWIDX)
+        END DO
+       END DO
+       WRITE(RIUNIT)0
+       CLOSE(RIUNIT)
+      END IF
       DEALLOCATE(GMAT,L,D,P,E,IPIV)
 !-----------------------------------------------------------------------
       RETURN

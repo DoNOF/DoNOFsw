@@ -1,0 +1,9 @@
+ &INPRUN RUNTYP='OPTGEO' MULT=1 ICHARG=0 /
+ $DATA
+ Title: Geometry Optimization of HCN with GNOF
+ cc-pVDZ
+ H  1.0  0.000  0.000   1.064
+ C  6.0  0.000  0.000   0.000
+ N  7.0  0.000  0.000  -1.156
+ $END
+ &NOFINP IPNOF=8 RESTART=T /

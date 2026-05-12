@@ -2,20 +2,22 @@
 !                                                                      !
 !           N O F   G R A D I E N T   S U B R O U T I N E S            !
 !                                                                      !
-!             2017  Module implemented by Ion Mitxelena                !
+!         2017 Module base by Ion Mitxelena, further enhanced          !
+!                 ( J. Chem. Phys. 146, 014102, 2017 )                 !
 !                                                                      !
-!                ( J. Chem. Phys. 146, 014102, 2017 )                  !
+!         2025 Module base by J. F. H. Lew Yee and J.M. del Campo      !
+!              LIBCINT library for gradient calculations               !
 !                                                                      !
 !======================================================================!
 !                                                                      !
 !   PNOFGRAD:  Main driver to compute PNOF gradient at one geometry    !
 !   STVDERNOF: Main driver to compute one-electron PNOF gradient       !
 !   VNNDERNOF: Nuclear repulsion contribution                          !
-!   AOLAGRAN: Calculate PNOF lagrangian in AO basis                    !
+!   AOLAGRAN:  Calculate PNOF lagrangian in AO basis                   !
 !                                                                      !
-!   SDERNOFl: Density force contribution                               !
-!   JKDERNOFl: Main driver to compute two-electron HF gradient         !
-!   JKDATMNOF: Select centers for derivatives                          !
+!   SDERNOFl:   Density force contribution                             !
+!   JKDERNOFl:  Main driver to compute two-electron HF gradient        !
+!   JKDATMNOF:  Select centers for derivatives                         !
 !   JKDSHLNOFl: Select indices for shell block                         !
 !   JKDNDXNOFl: Select indices for shell block                         !
 !   DABNOF2PRE: Contract CJ12 and CK12 with density matrix to later    !
@@ -311,13 +313,11 @@
       RETURN
       END
 
-!----------------------------------------------------------------------!
-!                                                                      !
-!       2025 Use LIBCINT open source library for ERI calculation       !
-!                                                                      !
-!  implemented by Juan Felipe Huan Lew Yee and Jorge Martin del Campo  !
-!                                                                      !
-!----------------------------------------------------------------------!
+!-----------------------------------------------------------------------!
+!                                                                       !
+!          Use LIBCINT open source library for ERI calculation          !
+!                                                                       !
+!-----------------------------------------------------------------------!
 
 ! SDERNOFl
       SUBROUTINE SDERNOFl(NSHELL,NBF,NBFT,EPS,SIZE_ENV,ENV,             &
@@ -2540,7 +2540,7 @@
       END
 
 ! MetricDeriv1l
-      SUBROUTINE MetricDeriv1l(IATOM,D2X,D2Y,D2Z,LOCaux,DAUXcgto,      &
+      SUBROUTINE MetricDeriv1l(IATOM,D2X,D2Y,D2Z,LOCaux,DAUXcgto,       &
                                SIZE_ENV,ENV,NAT,ATM,NBAS,BAS,IGTYP)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
@@ -2647,3 +2647,5 @@
 !-----------------------------------------------------------------------
       RETURN
       END
+
+!-----------------------------------------------------------------------!

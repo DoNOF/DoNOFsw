@@ -224,9 +224,9 @@
       INTEGER,ALLOCATABLE,DIMENSION(:) :: NUMPRIMi,IZNUC,ISHELLTYP
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: DMs
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: DM
-      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: TMP !Fix: JFHLewYee
-      CHARACTER(6),DIMENSION(4) :: RUNTYP
-      DATA RUNTYP/'ENERGY','GRAD  ','OPTGEO','HESS  '/
+      DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:) :: TMP
+      CHARACTER(6),DIMENSION(6) :: RUNTYP
+      DATA RUNTYP/'ENERGY','GRAD  ','OPTGEO','HESS  ','DYN   ','TSOPT '/
       INTEGER,DIMENSION(10) :: FORD
       DATA FORD / 1,2,3,6,4,5,8,9,7,10/                 
       INTEGER,DIMENSION(15) :: GORD
@@ -313,7 +313,6 @@
       WRITE(19,17)(ISHELLTYP(i),i=1,NSHELL)
 
       IF (IGTYP.EQ.1) THEN
-        !Start - block fix JFHLewYee
         ALLOCATE(TMP(NBF,NBF))
         TMP = COEF
         LOC = 0
@@ -364,7 +363,6 @@
          LOC = LOC + (ISHELLTYP(i)+1)*(ISHELLTYP(i)+2)/2 
         END DO
         DEALLOCATE(TMP)
-        !End - block fix JFHLewYee
       END IF
 
       DEALLOCATE(ISHELLTYP)
@@ -589,10 +587,14 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/RUNTYPE/IRUNTYP
+      COMMON/TRACKINFO/AVG_MAXOV_LAST
+      COMMON/TRACKFLAGS/TRACK_VALID
       DOUBLE PRECISION,DIMENSION(NBF5) :: RO
       DOUBLE PRECISION,DIMENSION(NBF,NBF) :: COEF,OVERLAP
       DOUBLE PRECISION, SAVE, ALLOCATABLE :: C_PREV(:,:), OCC_PREV(:)
       LOGICAL, SAVE :: FIRST
+      LOGICAL TRACK_VALID
       DATA FIRST /.TRUE./
 !
       DOUBLE PRECISION C(NBF,NBF), OCC(NBF)
@@ -624,6 +626,7 @@
        ALLOCATE(C_PREV(NBF,NBF),OCC_PREV(NBF))
        C_PREV = C
        OCC_PREV = OCC
+       TRACK_VALID = .FALSE.
        FIRST = .FALSE.
        RETURN
       ENDIF
@@ -665,8 +668,10 @@
 
        SUM_MAXOV = SUM_MAXOV + MAXOV
 
-       IF(MAXOV<0.7D0) WRITE(6,*) 'Warning: strong mixing orbital ',I,  &
-                                  ' max overlap = ',MAXOV
+       IF(IRUNTYP/=3 .AND. IRUNTYP/=5) THEN
+        IF(MAXOV<0.7D0) WRITE(6,*) 'Warning: strong mixing orbital ',I, &
+     &                             ' max overlap = ',MAXOV
+       ENDIF
        BEST = -1.0D10
        MATCH(I) = -1
        FOUND = .FALSE.
@@ -708,9 +713,13 @@
 !        < 0.7 strong mixing regime
 
       AVG_MAXOV = SUM_MAXOV / DBLE(NBF)
+      AVG_MAXOV_LAST = AVG_MAXOV
+      TRACK_VALID = .TRUE.
 
-      WRITE(6,'(A35,F11.6)')'Global mixing indicator <max|S|> =',       &
-                             AVG_MAXOV
+      IF(IRUNTYP/=3 .AND. IRUNTYP/=5) THEN
+       WRITE(6,'(A35,F11.6)')'Global mixing indicator <max|S|> =',      &
+     &                        AVG_MAXOV
+      ENDIF
 
 ! ---- Reorder + phase ----
       DO I=1,NBF

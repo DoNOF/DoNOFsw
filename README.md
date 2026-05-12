@@ -1,103 +1,53 @@
-# ![Donostia Natural Orbital Functional Software](https://github.com/DoNOF/DoNOF-Documentation/blob/master/docs/Logo-DoNOF.jpeg)
+# DoNOF
 
-|📫 **Contact us:**    | DoNOFsw@gmail.com                         |
-|:------------------|-------------------------------------------|
-|📖 **Documentation:** | https://donof-documentation.readthedocs.io|
+DoNOF is a computational chemistry code based on Natural Orbital Functional Theory (NOFT). The original code started on January 21, 2009 as PNOFID.
 
-**DoNOF** is a computational chemistry software program that stands for **Donostia Natural Orbital Functionals**. The original code started on January 21, 2009 as PNOFID. It will run on essentially any machine with a FORTRAN 90 compiler for 64 bit processing.
+Current functionality includes:
+- PNOF5, PNOF6, PNOF7, and GNOF
+- Single-point energies, gradients, geometry optimization, numerical Hessians, transition-state optimization, and molecular dynamics
+- ERPA, post-NOF corrections, and nonlinear optical properties
 
-DoNOF can perform computational chemistry calculations based on the Natural Orbital Functional Theory (NOFT), including PNOF5, PNOF6, PNOF7 and GNOF. Correlation corrections after PNOF calculations can be estimated by second order perturbation theories. The total spin is conserved, not just the spin projection.
+## Build
 
-The solution is established optimizing the energy functional with respect to the occupation numbers (ONs) and to the natural orbitals (NOs), separately. The constrained nonlinear programming problem for the ONs is treated under pairing restrictions as an unconstrained minimization, while the orbital optimization is carried out by a self-consistent procedure which yields the NOs automatically orthogonal. To achieve convergence, the direct inversion of the iterative subspace (DIIS) extrapolation technique is used, and a variable scale factor balances the symmetric matrix subject to the iterative diagonalizations.
+Requirements:
+- A Fortran compiler compatible with the current `Makefile`
+- `libcint`
+- OpenMPI, if MPI execution is needed
 
-## Installation
+Library source:
+- <https://github.com/sunqm/libcint>
 
-**Requisites.** You need a FORTRAN compiler, either gfortran or ifort. Optionally, you may want to install OpenMPI for parallel execution.
+Build targets:
 
-0. Install ![libcint](https://github.com/sunqm/libcint). The following instructions are provided as example.
-~~~ bash
-git clone http://github.com/sunqm/libcint.git
-cd libcint
-mkdir build; cd build
-cmake ..
-sudo make install
-~~~
+```bash
+make serialg   # exe/DoNOFg.x
+make ompg      # exe/DoNOFompg.x
+make mpig      # exe/DoNOFmpig.x
+```
 
-1. Clone the code with
-~~~ bash
-git clone https://github.com/DoNOF/DoNOFsw
-~~~
+## Run
 
-2. Go inside the DoNOFsw folder (`cd DoNOFsw`) and compile with `make [option]`. For example:
-~~~ bash
-make serialg # gfortran serial -> /exe/DoNOFg.x
-~~~
+Example inputs are available in `examples/`.
 
-The possible options are:
-~~~ bash
-make serialg # gfortran Serial      -> /exe/DoNOFg.x
-make ompg    # gfortran OpenMP      -> /exe/DoNOFompg.x
-make mpig    # gfortran MPI         -> /exe/DoNOFmpig.x
-make hybridg # gfortran OpenMP+MPI  -> /exe/DoNOFhybridg.x
-make serial  # ifort Serial         -> /exe/DoNOF.x
-make omp     # ifort OpenMP         -> /exe/DoNOFomp.x
-make mpi     # ifort MPI            -> /exe/DoNOFmpi.x
-make hybrid  # ifort OpenMP+MPI     -> /exe/DoNOFhybrid.x
-~~~
+Available wrapper scripts:
 
-3. The executable will be placed inside /exe
+```bash
+./run_donofg filename
+./run_donofompg filename
+./run_donofmpig filename
+./run_donofg_dyn filename
+./run_donofompg_dyn filename
+./run_donofmpig_dyn filename
+```
 
-## Execution
+Input is controlled mainly through `&INPRUN` and `&NOFINP`. Molecular-dynamics jobs also use `&INPDYN`.
 
-Several input files can be found inside /examples. A basic single point calculation with the GNOF functional looks like the following:
-~~~
- &INPRUN RUNTYP='ENERGY' MULT=1 ICHARG=0 ERITYP='FULL' /
- $DATA
- Water (H2O)
- cc-pVDZ
-O  8.0  0.0000     0.0000    0.1173
-H  1.0  0.0000     0.7572   -0.4692
-H  1.0  0.0000    -0.7572   -0.4692
- $END
- &NOFINP IPNOF=8 /
-~~~
+## Documentation
 
-If the input is placed in a file called filename.inp, it can be executed with
-~~~ bash
-./run_donofg filename     # gfortran serial
-~~~
-the output will be placed in filename.out.
+- Online documentation: <https://donof-documentation.readthedocs.io>
+- Local namelist reference: [doc/namelist.md](doc/namelist.md)
+- Local PDF version: [doc/namelist.pdf](doc/namelist.pdf)
 
-The possible options are:
-~~~ bash
-./run_donofg filename     # gfortran serial
-./run_donofompg filename  # gfortran omp
-./run_donofmpig filename  # gfortran mpi
-./run_donof filename      # ifort serial
-./run_donofomp filename   # ifort omp
-./run_donofmpi filename   # ifort mpi
-~~~
+## Contact
 
-## Capabilities
-
-The &INPRUN and &NOFINP namelists specify the input and output, and the fundamental job options.
-
-> [!NOTE] 
-> The functional is controlled through **IPNOF=N** in &NOFINP, with N the number of the functional. For example:
-> - **GNOFm**: IPNOF=8 lmod=1
-> - **GNOF**: IPNOF=8 (default)
-> - **PNOF7**: IPNOF=7
-> - **PNOF6**: IPNOF=6
-> - **PNOF5**: IPNOF=5
-
-Current capabilities include:
-- **RUNTYP = ENERGY** - Single-point Energy (Default)
-- **RUNTYP = GRAD** - Energy + Gradients with respect to nuclear coord
-- **RUNTYP = OPTGEO** - Geometry Optimization
-- **RUNTYP = HESS** - Numerical Hessian
-- **RUNTYP = DYN** - Born-Oppenheimer on-the-fly molecular dynamics
-
-Other common options include excited states calculation (**ERPA=T**) and NOF-MBPT calculations (**MBPT=T**).
-
-> [!TIP]
-> See the ![documentation](https://donof-documentation.readthedocs.io) for a complete list of the available options.
+`DoNOFsw@gmail.com`

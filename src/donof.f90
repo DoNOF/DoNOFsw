@@ -67,6 +67,7 @@
 !
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: GRADS      
       DOUBLE PRECISION,DIMENSION(3) :: DIPS
+      LOGICAL :: WRTHSSNOTE
       INTEGER :: INTTYPE
       INTEGER :: CR, CM, TIMESTART, TIMEFINISH
       DOUBLE PRECISION :: RATE
@@ -76,7 +77,8 @@
       INTEGER,ALLOCATABLE,DIMENSION(:,:) :: ATM0, BAS0
       DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:) :: ENV
       INTEGER,ALLOCATABLE,DIMENSION(:,:) :: ATM, BAS
-      INTEGER :: NPRIMIecp,NSHELLecp      
+      INTEGER :: NPRIMIecp,NSHELLecp
+      COMMON/HSSNOTE/WRTHSSNOTE
 !-----------------------------------------------------------------------
 !     MPI initialization
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -183,6 +185,10 @@
        IF(NAT==1.and.IRUNTYP==3)THEN
         WRITE(6,5)
         IRUNTYP = 2
+       ELSE IF(NAT==1.and.IRUNTYP==5)THEN
+        WRITE(6,'(/,1X,49A,/)')                                        &
+               'Only GRAD is possible for atoms, not TSOPT'
+        IRUNTYP = 2
        END IF
 !      
        allocate(IAN(NAT),IMIN(NAT),IMAX(NAT),ZAN(NAT),ZMASS(NAT))
@@ -279,12 +285,14 @@
        CALL RUNNOFHEADER(NAT,ICH,MUL,NBF,NBFaux,NQMT,NE,NA,NB,EFX,EFY,  &
                          EFZ,NSHELL,NSHELLaux,NPRIMI,IAN,IEMOM,IECP,    &
                          IRUNTYP,Cxyz,ZAN,IZCORE,SIZE_ENV,ENV)
+       WRTHSSNOTE = .TRUE.
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !      If RUNTYP = 1) ENERGY  : single-point energy
 !                  2) GRADIENT: single-point energy + gradients
 !                  3) OPTIMIZE: optimize the molecular geometry
 !                  4) HESS    : compute numerical hessian 
-!                  5) DYN     : run Born-Oppenheimer molecular dynamics
+!                  5) TSOPT   : optimize a first-order saddle point
+!                  6) DYN     : run Born-Oppenheimer molecular dynamics
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        ALLOCATE(GRADS(3*NAT))
        IF(IRUNTYP==1)THEN
@@ -321,6 +329,13 @@
                      IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,          &
                      NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
        ELSE IF(IRUNTYP==5)THEN
+        CALL OPTIMIZETS(NINTEG,IDONTW,NAT,ZAN,Cxyz,IAN,IMIN,IMAX,       &
+                        ZMASS,KSTART,KATOM,KTYPE,KLOC,INTYP,KNG,KMIN,   &
+                        KMAX,ISH,ITYP,C1,C2,EX,CS,CP,CD,CF,CG,CH,CI,    &
+                        DIPS,IZCORE,SIZE_ENV,ENV,ATM,NBAS,BAS,IGTYP,    &
+                        GRADS,IRUNTYP,IHSSCAL,IPROJECT,ISIGMA,          &
+                        KTYPEaux)
+       ELSE IF(IRUNTYP==6)THEN
         CALL MOLDYN (NINTEG,IDONTW,IEMOM,NAT,NBF,NBFaux,NSHELL,NPRIMI,  &
                      ZAN,Cxyz,IAN,IMIN,IMAX,ZMASS,KSTART,KATOM,KTYPE,   &
                      KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX,CS,CP,  &
@@ -566,6 +581,7 @@
       COMMON/INPNOF_HFID/KOOPMANS
       COMMON/INPNOF_EKT/IEKT
       COMMON/INPNOF_MOLDEN/MOLDEN
+      COMMON/INPNOF_MOLDENGEO/MOLDENGEO
       COMMON/INPNOF_INICON/INICOND
       COMMON/INPNOF_ARDM/THRESHDM,NOUTRDM,NSQT,NTHRESHDM
       COMMON/INPNOF_CJK/NOUTCJK,NTHRESHCJK,THRESHCJK
@@ -724,7 +740,8 @@
         ENDIF
       ENDIF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      WRITE(6,11)NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK,MOLDEN,INICOND,IEKT
+      WRITE(6,11)NPRINT,IWRITEC,IMULPOP,IAIMPAC,IFCHK,MOLDEN,MOLDENGEO, &
+                 INICOND,IEKT
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(APSG)THEN
         WRITE(6,*)                                                      &
@@ -830,6 +847,7 @@
       /1X,'Write Information into a WFN file:      (IAIMPAC)   ',I5,    &
       /1X,'Write Information into a FCHK file:     (IFCHK)     ',I5,    &
       /1X,'Write Information into a MLP file:      (MOLDEN)    ',I5,    &
+      /1X,'Write Geom. Opt. Molden snapshots:      (MOLDENGEO) ',I5,    &
       /1X,'Create Ini. Cond. (ini.xyz) file:       (INICOND)   ',I5,    &
       /1X,'Calculate IPs using Ext. Koopmans Theo: (IEKT)      ',I5)
    12 FORMAT(                                                           &
@@ -900,19 +918,19 @@
 !-----------------------------------------------------------------------
       OPEN(2,FILE='CGM',STATUS='UNKNOWN',FORM='FORMATTED',              &
       ACCESS='SEQUENTIAL')
-      IF(IRUNTYP<5)OPEN(3,FILE='GCF',STATUS='UNKNOWN',                  &
+      IF(IRUNTYP/=6)OPEN(3,FILE='GCF',STATUS='UNKNOWN',                 &
        FORM='FORMATTED',ACCESS='SEQUENTIAL')
       OPEN(4,FILE='BFST',STATUS='UNKNOWN',FORM='FORMATTED',             &
       ACCESS='SEQUENTIAL')
       IF(IAIMPAC==1)OPEN(7,FILE='WFN',STATUS='UNKNOWN',                 &
         FORM='FORMATTED',ACCESS='SEQUENTIAL')
-      IF(IRUNTYP<5)OPEN(8,FILE='GCFe',STATUS='UNKNOWN',                 &
+      IF(IRUNTYP/=6)OPEN(8,FILE='GCFe',STATUS='UNKNOWN',                &
        FORM='FORMATTED',ACCESS='SEQUENTIAL')
       IF(APSG)OPEN(9,FILE='APSG' ,STATUS='UNKNOWN',                     &
       FORM='FORMATTED',ACCESS='SEQUENTIAL')
       IF(ICOEF==3)OPEN(10,FILE='FRAG' ,STATUS='OLD',                    &
        FORM='FORMATTED',ACCESS='SEQUENTIAL')
-      IF(IRUNTYP==3.or.IRUNTYP==4)OPEN(11,FILE='CGGRAD',                &
+      IF(IRUNTYP==3.or.IRUNTYP==4.or.IRUNTYP==5)OPEN(11,FILE='CGGRAD', &
       STATUS='UNKNOWN',FORM='FORMATTED',ACCESS='SEQUENTIAL')
       IF(NOUTCJK==1)OPEN(12,FILE='CJK',STATUS='UNKNOWN',                &
          FORM='UNFORMATTED')
@@ -1311,7 +1329,11 @@
         end if
       ELSE
         NINTEGtm = NINTEG
-        NINTEGAUXtm = 0
+        if(IERITYP==2 .or. IERITYP==3)then
+          NINTEGAUXtm = 1
+        else
+          NINTEGAUXtm = 0
+        end if
       ENDIF
       ALLOCATE(BUF(NINTEGtm),IBUF(NINTEGtm),BUFaux(NINTEGAUXtm))
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

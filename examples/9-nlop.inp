@@ -1,7 +1,7 @@
 &INPRUN RUNTYP='ENERGY' NLOP=-1 ERITYP='FULL' /
 $DATA
 Title: H2 Nonlinear Optical Properties
-aug-cc-pVQZ
+aug-cc-pVDZ
 H  1.0  0.0000  0.0000  -0.3707
 H  1.0  0.0000  0.0000   0.3707
 $END

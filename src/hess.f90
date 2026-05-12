@@ -4,7 +4,7 @@
 !                                                                      !
 !      Computation of Hessian numerically from analytic gradients      !
 !                                                                      !
-!              2018  Module implemented by Ion Mitxelena               !
+!         2018 Module base by Ion Mitxelena, further enhanced          !
 !                                                                      !
 !======================================================================!
 !                                                                      !
@@ -34,12 +34,14 @@
                  GRADS,IRUNTYP,IPROJECT,ISIGMA,SIZE_ENV,ENV,ATM,        &
                  NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      LOGICAL RESTART
+      LOGICAL RESTART,WRTHSSCGO,WRXYZHDR
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
       COMMON/INPNOF_RSTRT/RESTART,INPUTGAMMA,INPUTC,INPUTFMIUG,INPUTCXYZ
       COMMON/INPNOF_GENERALINF/ICOEF,ISOFTMAX,IORBOPT,MAXIT,MAXIT21
       COMMON/WRTGCF/IWRTGCF
+      COMMON/HSSCGO/WRTHSSCGO
+      COMMON/XYZHDR/WRXYZHDR
       COMMON/ELPROP/IEMOM
       INTEGER,DIMENSION(NAT) :: IAN,IMIN,IMAX,IZCORE
       INTEGER,DIMENSION(NSHELL) :: KSTART,KATOM,KTYPE,KLOC
@@ -52,15 +54,16 @@
       DOUBLE PRECISION,DIMENSION(3*NAT):: GRADS
       DOUBLE PRECISION,DIMENSION(:,:),ALLOCATABLE:: HESSIANO,DDM
       DOUBLE PRECISION,DIMENSION(3):: DIPS
-
+! LIBCINT
       INTEGER :: SIZE_ENV,NBAS,IGTYP
       DOUBLE PRECISION :: ENV(SIZE_ENV)
       INTEGER :: ATM(6,NAT), BAS(8,NBAS)
 !-----------------------------------------------------------------------
       INPUTFMIUGORI = INPUTFMIUG
       IF(IORBOPT/=1) INPUTFMIUG = 0
+      IF(IRUNTYP==4)WRXYZHDR = .FALSE.
       IF (IRUNTYP==4) THEN
-!      Update coordinates of shells if use libint library for ERIs
+!      Update coordinates of shells if use libcint library for ERIs
        DO I=1,NAT
         ENV(20+3*(I-1)+1) = Cxyz(1,I)
         ENV(20+3*(I-1)+2) = Cxyz(2,I)
@@ -82,6 +85,7 @@
 !     Compute Hessian from analytic gradients at stationary point
       IWRTGCF = 0
       ALLOCATE (HESSIANO(3*NAT,3*NAT),DDM(9,NAT))
+      WRTHSSCGO = .TRUE.
       CALL HSSNUMd(HESSIANO,3*NAT,Cxyz,GRADS,DIPS,DDM,NINTEG,IDONTW,    &
                    ZAN,IAN,IMIN,IMAX,KSTART,KATOM,KTYPE,KLOC,INTYP,     &
                    KNG,KMIN,KMAX,ISH,ITYP,C1,C2,EX1,CS,CP,CD,CF,CG,     &
@@ -107,12 +111,15 @@
                          EX1,CS,CP,CD,CF,CG,CH,CI,IRUNTYP,SIZE_ENV,     &
                          ENV,ATM,NBAS,BAS,IGTYP,KTYPEaux,IZCORE)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z) 
-      LOGICAL CONVGDELAG,FROZEN
+      LOGICAL CONVGDELAG,FROZEN,WRTHSSNOTE,WRTHSSCGO,WRXYZHDR
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/CONVERGENCE/DUMEL,PCONV,CONVGDELAG      
       COMMON/INPNOF_FROZEN/FROZEN,IFROZEN(200)
       COMMON/INPNOF_MOLDEN/MOLDEN
       COMMON/INPFILE_Naux/NBFaux,NSHELLaux
+      COMMON/HSSNOTE/WRTHSSNOTE
+      COMMON/HSSCGO/WRTHSSCGO
+      COMMON/XYZHDR/WRXYZHDR
       COMMON/EHFEN/EHF,EN
       COMMON/ENERGIAS/EELEC,EELEC_OLD,DIF_EELEC,EELEC_MIN
       COMMON/ELPROP/IEMOM      
@@ -168,10 +175,12 @@
 !              direction for force field computation.C
 !     VIBSIZ = Displacement size in Bohrs. Default=0.01     
 !-----------------------------------------------------------------------
-      WRITE(11,1)
-      WRITE(6,'(/,72(1H-),/)')
-      WRITE(6,*)'Note: Numerical Hessian and Frequencies in CGO file !!'
-      WRITE(6,'(/,72(1H-),/)')
+      IF(WRTHSSCGO)WRITE(11,1)
+      IF(WRTHSSNOTE)THEN
+       WRITE(6,'(/,72(1H-),/)')
+       WRITE(6,*)'Note: Numerical Hessian and Frequencies in CGO file !!'
+       WRITE(6,'(/,72(1H-),/)')
+      END IF
       VIBSIZ = 0.01D+00
       NVIB = 2
       D(1) =  VIBSIZ
@@ -181,21 +190,24 @@
       CDISP = Cxyz
 !     Purify Gradients by Householder method
       CALL GRADSPURIFY(EG,NC1)
-      WRITE(11,3)
+      IF(WRTHSSCGO)WRITE(11,3)
       EGDISP = EG
 !     Print Energy & Convergence achieved by ELag
-      WRITE(11,4)EELEC+EN,DUMEL
+      IF(WRTHSSCGO)WRITE(11,4)EELEC+EN,DUMEL
 !     Print Gradients
-      WRITE(11,5)
-      DO I = 1,NATOMS
-      WRITE(11,'(I4,3F15.4)')I,EG(1+(I-1)*3),EG(2+(I-1)*3),EG(3+(I-1)*3)
-      ENDDO
-      WRITE(11,*)      
+      IF(WRTHSSCGO)THEN
+       WRITE(11,5)
+       DO I = 1,NATOMS
+        WRITE(11,'(I4,3F15.4)')I,EG(1+(I-1)*3),EG(2+(I-1)*3),          &
+                                EG(3+(I-1)*3)
+       ENDDO
+       WRITE(11,*)
+      END IF
       CALL SETDDMd(DDM,DIP,DEL,DEQ,0,NVIB,NC1,NVIB)
       CALL SETFCMd(FCM,NC1,NC1,EG,0)
 !     IDENTIFY FROZEN ATOMS
       IF(FROZEN) THEN
-       WRITE(11,40)
+       IF(WRTHSSCGO)WRITE(11,40)
        DO I = 1,200,2
         IF(IFROZEN(I).EQ.0) EXIT
         SKIP(IFROZEN(I+1)) = .TRUE.
@@ -213,10 +225,11 @@
       NDISPL=0
       NOPTCG=0
       III=0
-      WRITE(11,6)
-      IF(MOLDEN==1)THEN
+      IF(WRTHSSCGO)WRITE(11,6)
+      IF(MOLDEN==1 .AND. .NOT.WRXYZHDR)THEN
        WRITE(18,7)
-      ENDIF 
+       WRXYZHDR = .TRUE.
+      ENDIF
       DO IVIB = 1,NVIB
        DO IAT = 1,NATOMS
         IF(SKIP(IAT)) CYCLE
@@ -230,7 +243,7 @@
          END DO
 !        ENERGY AND GRADIENT AT DISPLACED GEOM 
          IF(IVIB==NVIB.AND.IAT==NMAXSKIP.AND.ICOORD==3)NOPTCG=1
-!        Update coordinates of shells if use libint library for ERIs
+!        Update coordinates of shells if use libcint library for ERIs
          CALL ENERGRAD(NINTEG,IDONTW,IEMOM,NATOMS,NBF,NBFaux,NSHELL,    &
                        NPRIMI,ZAN,CDISP,IAN,IMIN,IMAX,KSTART,KATOM,     &
                        KTYPE,KLOC,INTYP,KNG,KMIN,KMAX,ISH,ITYP,         &
@@ -254,7 +267,7 @@
 !        MOVE THIS DISPLACED ATOM BACK TO WHERE IT CAME FROM
          CDISP(NV) = CDISP(NV)-D(IVIB)
 !        CHECK ENERGY
-         WRITE(11,15)III,ENERGY
+         IF(WRTHSSCGO)WRITE(11,15)III,ENERGY
 !        COMPUTE CORRESPONDING HESSIAN AND DIPOLE DERIVATIVES
          CALL SETFCMd(FCM,NC1,NV,EGDISP,IVIB)
          CALL SETDDMd(DDM,DIP,DEL,DEQ,NV,IVIB,NC1,NVIB)
@@ -281,19 +294,21 @@
       ENDDO
       ENDIF
 !     PRINT OUT TOTAL PNOF HESSIAN
-      WRITE(11,20)
-      DO I=1,NATOMS
-       DO J=1,I
-        WRITE(11,30)'X',I,J,FCM(1+(I-1)*3,1+(J-1)*3),                   &
-                    FCM(2+(I-1)*3,1+(J-1)*3),FCM(3+(I-1)*3,1+(J-1)*3)    
-        WRITE(11,30)'Y',I,J,FCM(1+(I-1)*3,2+(J-1)*3),                   &
-                    FCM(2+(I-1)*3,2+(J-1)*3),FCM(3+(I-1)*3,2+(J-1)*3)    
-        WRITE(11,30)'Z',I,J,FCM(1+(I-1)*3,3+(J-1)*3),                   &
-                    FCM(2+(I-1)*3,3+(J-1)*3),FCM(3+(I-1)*3,3+(J-1)*3)
+      IF(WRTHSSCGO)THEN
+       WRITE(11,20)
+       DO I=1,NATOMS
+        DO J=1,I
+         WRITE(11,30)'X',I,J,FCM(1+(I-1)*3,1+(J-1)*3),                 &
+                     FCM(2+(I-1)*3,1+(J-1)*3),FCM(3+(I-1)*3,1+(J-1)*3)
+         WRITE(11,30)'Y',I,J,FCM(1+(I-1)*3,2+(J-1)*3),                 &
+                     FCM(2+(I-1)*3,2+(J-1)*3),FCM(3+(I-1)*3,2+(J-1)*3)
+         WRITE(11,30)'Z',I,J,FCM(1+(I-1)*3,3+(J-1)*3),                 &
+                     FCM(2+(I-1)*3,3+(J-1)*3),FCM(3+(I-1)*3,3+(J-1)*3)
+        ENDDO
        ENDDO
-      ENDDO
+      END IF
 !     END HESSIAN CALCULATION
-      WRITE(11,2)
+      IF(WRTHSSCGO)WRITE(11,2)
       RETURN
 !-----------------------------------------------------------------------
     1 FORMAT(/4X,'- START NUMERICAL HESSIAN CALCULATION -')
@@ -833,7 +848,7 @@
 !      The excitation of a specific vibrational mode is obtained as
 !      Vj(k) = SUM_i {sqrt[(2k+1)*VEC^i_j(0)}
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       NKMAX = 2
+       NKMAX = 1
        DO K=1,NKMAX          ! K = Vibrational level
         write(33,9097)K
 !       write(11,9092)K
@@ -914,7 +929,7 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
        IF(NATOMS>2 .and. NIMAG==1)THEN
         delta = 0.001d0      ! small geometric displacement
-        v0 = 0.02d0          ! Imaginary mode velocity amplitude
+        v0 = 0.02d0           ! Imaginary mode velocity amplitude
         do idir = -1, 1, 2   ! -1 y +1
          write(33,'(/1X,A,I2)') 'TS direction ', idir
          write(33,*) NATOMS
@@ -926,10 +941,14 @@
           x = Cxyz(1+io)*AUtoANG + idir * delta * VEC(1+io,1)
           y = Cxyz(2+io)*AUtoANG + idir * delta * VEC(2+io,1)
           z = Cxyz(3+io)*AUtoANG + idir * delta * VEC(3+io,1)
+!         Total speed = imaginary mode contribution
+          vx = idir * v0 * VEC(1+io,1)
+          vy = idir * v0 * VEC(2+io,1)
+          vz = idir * v0 * VEC(3+io,1)
 !         Total speed = ZPE (real modes) + imaginary mode contribution
-          vx = VECt(1+io) + idir * v0 * VEC(1+io,1)
-          vy = VECt(2+io) + idir * v0 * VEC(2+io,1)
-          vz = VECt(3+io) + idir * v0 * VEC(3+io,1)
+!         vx = VECt(1+io) + vx
+!         vy = VECt(2+io) + vy
+!         vz = VECt(3+io) + vz
           write(33,'(a4, 6(1x,f14.8))')ATMLAB(IZNUC),x,y,z,vx,vy,vz
          enddo
         enddo
