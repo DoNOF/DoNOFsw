@@ -6001,40 +6001,38 @@
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       END IF
 !-----------------------------------------------------------------------
-      IF(IPRINTOPT==1.or.IRUNTYP==3.or.IRUNTYP==5)THEN
+!     Write information into a file in Molden Format (MLD) [Unit=17]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Write information into a file in Molden Format (MLD) [Unit=17]
+      IF(MOLDEN==1.and.MSpin==0)THEN
+       if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+        COEFNMOLD = COEFN
+        RONMOLD = RON
+        IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)THEN
+         CALL TRACKNOrc(COEFNMOLD,RONMOLD,OVERLAP) ! Visual tracking
+        END IF
+        CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,        &
+                      ISH,ITYP,EX1,C1,C2,RONMOLD,ELAGN,COEFNMOLD)
+       else                           ! Natural Orbitals
+        COEFMOLD = COEF
+        ROMOLD = RO
+        IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)THEN
+         CALL TRACKNOrc(COEFMOLD,ROMOLD,OVERLAP) ! Visual tracking
+        END IF
+        CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,        &
+                      ISH,ITYP,EX1,C1,C2,ROMOLD,E,COEFMOLD)
+       endif
+      END IF
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(MOLDEN==1.and.MSpin==0)THEN
-        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         COEFNMOLD = COEFN
-         RONMOLD = RON
-         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)                      &
-     &      CALL TRACKNOrc(COEFNMOLD,RONMOLD,OVERLAP) ! Visual tracking only
-         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,RONMOLD,ELAGN,COEFNMOLD)
-        else                           ! Natural Orbitals
-         COEFMOLD = COEF
-         ROMOLD = RO
-         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)                      &
-     &      CALL TRACKNOrc(COEFMOLD,ROMOLD,OVERLAP) ! Visual tracking only
-         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,       &
-                       ISH,ITYP,EX1,C1,C2,ROMOLD,E,COEFMOLD)
-        endif
-       END IF
+!     Write information into formatted checkpoint file (FCHK) [Unit=19]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!      Write information into formatted checkpoint file (FCHK) [Unit=19]
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-       IF(IFCHK==1.and.MSpin==0)THEN
-        if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
-         CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RON, &
-                     ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
-        else
-         CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RO,   &
-                     E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
-        endif
-       END IF
-!- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      IF(IFCHK==1.and.MSpin==0)THEN
+       if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+        CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RON,  &
+                    ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
+       else
+        CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RO,    &
+                    E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
+       endif
       END IF
 !-----------------------------------------------------------------------
 !     Non-Dynamic Correction if OIMP2 or MBPT
