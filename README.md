@@ -44,7 +44,7 @@ Input is controlled mainly through `&INPRUN` and `&NOFINP`. Molecular-dynamics j
 
 ## Documentation
 
-- Online documentation: <https://donof-documentation.readthedocs.io>
+- Online documentation: <https://donof.readthedocs.io>
 - Local namelist reference: [doc/namelist.md](doc/namelist.md)
 - Local PDF version: [doc/namelist.pdf](doc/namelist.pdf)
 
