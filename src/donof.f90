@@ -1320,12 +1320,16 @@
         NINTEGtm = 0
         NINTEGAUXtm = 0
         if(IERITYP==1)then
-          NINTEGtm = NBF*(NBF+1)*(NBF*NBF+NBF+2)/8
+          NINTEGtm = INT(INT(NBF,8) * INT(NBF+1,8) *                  &
+                     (INT(NBF,8)*INT(NBF,8) + INT(NBF,8) + 2_8) / 8_8)
         else if(IERITYP==2)then
-          NINTEGAUXtm = NBF*(NBF+1)/2*NBFaux
+          NINTEGAUXtm = INT(INT(NBF,8) * INT(NBF+1,8) * INT(NBFaux,8) &
+                        / 2_8)
         else if(IERITYP==3)then
-          NINTEGtm = NBF*(NBF+1)*(NBF*NBF+NBF+2)/8
-          NINTEGAUXtm = NBF*(NBF+1)/2*NBFaux
+          NINTEGtm = INT(INT(NBF,8) * INT(NBF+1,8) *                  &
+                     (INT(NBF,8)*INT(NBF,8) + INT(NBF,8) + 2_8) / 8_8)
+          NINTEGAUXtm = INT(INT(NBF,8) * INT(NBF+1,8) * INT(NBFaux,8) &
+                        / 2_8)
         end if
       ELSE
         NINTEGtm = NINTEG
