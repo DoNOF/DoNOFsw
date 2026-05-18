@@ -55,8 +55,8 @@
 !       = GRAD     2)energy + gradients with respect to nuclear coord
 !       = OPTGEO   3)optimize the molecular geometry
 !       = HESS     4)compute numerical hessian from analytic gradients
+!       = TSOPT    5)search a first-order saddle point (transition st.)
 !       = DYN      6)run Born-Oppenheimer on-the-fly molecular dynamics
-!       = TSOPT    5)search a first-order saddle point (transition state)
 !
 ! MULT             Multiplicity of the electronic state
 !       = 1        singlet (Default)

@@ -6004,7 +6004,7 @@
 !     Write information into a file in Molden Format (MLD) [Unit=17]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(MOLDEN==1.and.MSpin==0)THEN
-       if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+       if(DIAGLAG)then   ! Canonical Orbitals
         COEFNMOLD = COEFN
         RONMOLD = RON
         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)THEN
@@ -6012,7 +6012,7 @@
         END IF
         CALL MOLDENrc(ATMNAME,IZCORE,ZNUC,CX0,CY0,CZ0,IMIN,IMAX,        &
                       ISH,ITYP,EX1,C1,C2,RONMOLD,ELAGN,COEFNMOLD)
-       else                           ! Natural Orbitals
+       else              ! Natural Orbitals
         COEFMOLD = COEF
         ROMOLD = RO
         IF(IRUNTYP==3.or.IRUNTYP==5.or.IRUNTYP==6)THEN
@@ -6026,10 +6026,10 @@
 !     Write information into formatted checkpoint file (FCHK) [Unit=19]
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       IF(IFCHK==1.and.MSpin==0)THEN
-       if(NPRINT>0.and.DIAGLAG)then   ! Canonical Orbitals
+       if(DIAGLAG)then   ! Canonical Orbitals
         CALL FCHKrc(COEFN,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RON,  &
                     ELAGN,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
-       else
+       else              ! Natural Orbitals
         CALL FCHKrc(COEF,ZNUC,IZCORE,CX0,CY0,CZ0,KNG,KATOM,KTYPE,RO,    &
                     E,EX1,C1,C2,IMIN,IMAX,ISH,DIPS,IRUNTYP,IGTYP)
        endif
@@ -6104,6 +6104,7 @@
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       COMMON/MAIN/NATOMS,ICH,MUL,NE,NA,NB,NSHELL,NPRIMI,NBF,NBFT,NSQ
       COMMON/INPFILE_NBF5/NBF5,NBFT5,NSQ5
+      COMMON/RUNTYPE/IRUNTYP
 !
       DOUBLE PRECISION,DIMENSION(NBF5)::RO
       DOUBLE PRECISION,DIMENSION(NBF)::ELAGN,RON
@@ -6146,21 +6147,21 @@
 !-----------------------------------------------------------------------
 !     WRITE ONE-PARTICLE ENERGIES and NEW AVERAGE OCCUPATIONS (OUTPUT)
 !-----------------------------------------------------------------------
-      WRITE(6,1)
+      if(IRUNTYP<3)WRITE(6,1)
       DO I=1,NBF
        RON(I)=2.0d0*DENMAT(I,I)
        IF(RON(I)>1.0d-6)THEN
-        WRITE(6,2)I,ELAGN(I),ELAGN(I)*27.21138386,RON(I)
+        if(IRUNTYP<3)WRITE(6,2)I,ELAGN(I),ELAGN(I)*27.21138386,RON(I)
        ENDIF
       ENDDO
       CALL DMATMAX(DENMAT,NBF,MAXI,MAXJ,DUM)
-      WRITE(6,3)DUM,MAXI,MAXJ
+      if(IRUNTYP<3)WRITE(6,3)DUM,MAXI,MAXJ
 !-----------------------------------------------------------------------
 !     Coefficients of Canonical Orbitals (COEFN=COEF*W)
 !-----------------------------------------------------------------------
       COEFN = MATMUL(COEF,W)
-      WRITE(6,4)
-      CALL PRINTVERO(6,COEFN,ELAGN,RON,NBF,NBF5)
+      if(IRUNTYP<3)WRITE(6,4)
+      if(IRUNTYP<3)CALL PRINTVERO(6,COEFN,ELAGN,RON,NBF,NBF5)
 !-----------------------------------------------------------------------
     1 FORMAT(/2X,26('-'),/3X,'Canonical Representation',/2X,26('-'),/,  &
              /20X,'One-Particle Energies',11X,'1RDM Diag',              &
